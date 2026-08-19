@@ -1,0 +1,30 @@
+package com.novaksimon.vibeandride.ui
+
+import androidx.compose.runtime.*
+import com.novaksimon.vibeandride.music.MusicViewModel
+import com.novaksimon.vibeandride.workout.WorkoutViewModel
+
+@Composable
+fun WorkoutScreen(
+    workoutViewModel: WorkoutViewModel,
+    musicViewModel: MusicViewModel,
+    onUploadWorkout: () -> Unit
+) {
+    val workoutUiState by workoutViewModel.uiState.collectAsState()
+    val musicUiState by musicViewModel.uiState.collectAsState()
+    val availableWorkouts by workoutViewModel.availableWorkouts.collectAsState()
+    WorkoutScreenContent(
+        workoutUiState = workoutUiState,
+        musicUiState = musicUiState,
+        availableWorkouts = availableWorkouts,
+        onLoadWorkouts = { workoutViewModel.loadAvailableWorkouts() },
+        onSelectWorkout = { workoutViewModel.selectWorkout(it) },
+        onStart = { workoutViewModel.startWorkout() },
+        onPauseResume = { workoutViewModel.pauseResume() },
+        onSkip = { musicViewModel.skip() },
+        onReset = { workoutViewModel.reset() },
+        onResync = { workoutViewModel.resync(it) },
+        onUploadWorkout = onUploadWorkout,
+        onPickerVisibilityChange = { workoutViewModel.setPickerVisible(it) }
+    )
+}

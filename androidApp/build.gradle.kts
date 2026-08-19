@@ -14,9 +14,21 @@ dependencies {
     implementation(project(":shared"))
 
     implementation(libs.androidx.activity.compose)
-
+    implementation(libs.androidx.lifecycle.viewmodelcompose)
+    implementation(libs.compose.uiTooling)
     implementation(libs.compose.uiToolingPreview)
-    debugImplementation(libs.compose.uiTooling)
+    implementation(libs.compose.runtime)
+    implementation(libs.compose.foundation)
+    implementation(libs.compose.material3)
+    implementation(libs.compose.ui)
+
+    implementation(libs.androidx.media3.exoplayer)
+    implementation(libs.androidx.media3.datasource)
+    implementation(libs.androidx.media3.session)
+
+    implementation(libs.ktor.client.okhttp)
+    implementation(libs.coil.compose)
+    implementation(libs.coil.network.okhttp)
 }
 
 android {
@@ -25,7 +37,7 @@ android {
 
     defaultConfig {
         applicationId = "com.novaksimon.vibeandride"
-        minSdk = libs.versions.android.minSdk.get().toInt()
+        minSdk = 26
         targetSdk = libs.versions.android.targetSdk.get().toInt()
         versionCode = 1
         versionName = "1.0"
