@@ -5,6 +5,7 @@ import com.novaksimon.vibeandride.model.Song
 import com.novaksimon.vibeandride.model.Workout
 import com.novaksimon.vibeandride.recommendation.RecommendationEngine
 import com.novaksimon.vibeandride.recommendation.RecommendationResult
+import com.novaksimon.vibeandride.recommendation.SongRecommendation
 import com.novaksimon.vibeandride.workout.WorkoutState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -17,9 +18,11 @@ import kotlin.time.Duration.Companion.seconds
 import kotlin.time.TimeMark
 import kotlin.time.TimeSource
 
-class MusicProvider(uiState: MutableStateFlow<MusicUiState>, audioPlayer: AudioPlayer) {
+class MusicProvider(val uiState: MutableStateFlow<MusicUiState>, audioPlayer: AudioPlayer) {
     private val service = UserMusicService(audioPlayer)
     private val recommender = RecommendationEngine(service)
+    private var currentDebug: List<SongRecommendation> = emptyList()
+    private var futureDebug: List<SongRecommendation> = emptyList()
     private var workout: Workout? = null
     private var recommendationBuffer: MutableList<RecommendationResult?> = mutableListOf()
     private var recommendationIndex: MutableList<Boolean> = mutableListOf()
@@ -50,6 +53,8 @@ class MusicProvider(uiState: MutableStateFlow<MusicUiState>, audioPlayer: AudioP
         if (intervalIndex == null) return
         println("interval index: $currentIntervalIndex, new interval index: $intervalIndex")
         if (currentIntervalIndex != intervalIndex) {
+            currentDebug = futureDebug
+            uiState.value = uiState.value.copy(debugInfo = currentDebug)
             currentIntervalIndex = intervalIndex
             songIndex = 0
             nextTrack()
@@ -65,7 +70,8 @@ class MusicProvider(uiState: MutableStateFlow<MusicUiState>, audioPlayer: AudioP
         println("Next track")
         println(recommendationBuffer)
         val song = recommendationBuffer[currentIntervalIndex]!!.topSongs[songIndex]
-        val increment = service.play(song)
+        uiState.value = uiState.value.copy(currentSong = song)
+        val increment = service.playNext(song)
         songIndex += increment
     }
 
@@ -76,7 +82,7 @@ class MusicProvider(uiState: MutableStateFlow<MusicUiState>, audioPlayer: AudioP
     fun precomputeNextRecommendation(workoutState: WorkoutState) {
         if (workoutState.intervalIndex != null) {
             if (recommendationIndex[workoutState.intervalIndex + 1]) return
-            precompute(workoutState.workout?.intervals?.get(workoutState.intervalIndex + 1) ?: return, workoutState.intervalIndex + 1)
+            precompute(workoutState.workout?.intervals?.get(workoutState.intervalIndex + 1) ?: return, workoutState.intervalIndex + 1,)
         }
     }
 
@@ -89,6 +95,8 @@ class MusicProvider(uiState: MutableStateFlow<MusicUiState>, audioPlayer: AudioP
             }
 
             recommendationBuffer[intervalIndex] = recommendation
+            futureDebug = recommendation.debugInfo
+
 
             println("Recommendation complete")
             println(recommendation)

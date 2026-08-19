@@ -11,9 +11,6 @@ class UserMusicService(audioPlayer1: AudioPlayer) {
     suspend fun fetchSongs(limit: Int): List<Song> {
         return com.novaksimon.vibeandride.database.fetchSongs(limit)
     }
-    suspend fun getPlayableSongs(): List<Song> {
-        return com.novaksimon.vibeandride.database.getPlayableSongs()
-    }
     suspend fun getSongsAroundTargetCadence(
         targetAlgorithmCadence: Int,
         algorithmCadenceToleration: Int = 5,
@@ -25,7 +22,7 @@ class UserMusicService(audioPlayer1: AudioPlayer) {
             limit
         )
     }
-    fun play(song: Song): Int {
+    fun playNext(song: Song): Int {
         println("playing $song")
         if (song.audioUrl != null) {
             println(song.audioUrl)
