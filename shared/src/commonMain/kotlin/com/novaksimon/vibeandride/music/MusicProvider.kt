@@ -1,5 +1,8 @@
 package com.novaksimon.vibeandride.music
 
+import com.novaksimon.vibeandride.database.getCurrentUser
+import com.novaksimon.vibeandride.database.incrementStat
+import com.novaksimon.vibeandride.database.setStatDatetime
 import com.novaksimon.vibeandride.model.Interval
 import com.novaksimon.vibeandride.model.Song
 import com.novaksimon.vibeandride.model.Workout
@@ -49,7 +52,7 @@ class MusicProvider(val uiState: MutableStateFlow<MusicUiState>, audioPlayer: Au
         }
     }
 
-    fun play(intervalIndex: Int?) {
+    suspend fun play(intervalIndex: Int?) {
         if (intervalIndex == null) return
         println("interval index: $currentIntervalIndex, new interval index: $intervalIndex")
         if (currentIntervalIndex != intervalIndex) {
@@ -57,13 +60,31 @@ class MusicProvider(val uiState: MutableStateFlow<MusicUiState>, audioPlayer: Au
             uiState.value = uiState.value.copy(debugInfo = currentDebug)
             currentIntervalIndex = intervalIndex
             songIndex = 0
+            incrementStatsOnTrackLeave()
             nextTrack()
         }
 
         else if (service.approachingTrackEnd()) {
             println("Time for new song")
+            incrementStatsOnTrackLeave()
             nextTrack()
         }
+    }
+    suspend fun incrementStatsOnTrackLeave(skipped: Boolean = false) {
+        println("current song: $currentSong")
+        if (skipped) {
+            currentSong?.id?.let { incrementStat("skip_count",
+                currentSong!!.id!!, userId = getCurrentUser()?.id ?: return) }
+        }
+        else {
+            currentSong?.id?.let {
+                incrementStat(
+                    "play_count",
+                    currentSong!!.id!!, userId = getCurrentUser()?.id ?: return
+                )
+            }
+        }
+        currentSong?.id.let { setStatDatetime("last_played", currentSong!!.id!!, userId = getCurrentUser()?.id ?: return) }
     }
 
     fun nextTrack() {
@@ -71,11 +92,13 @@ class MusicProvider(val uiState: MutableStateFlow<MusicUiState>, audioPlayer: Au
         println(recommendationBuffer)
         val song = recommendationBuffer[currentIntervalIndex]!!.topSongs[songIndex]
         uiState.value = uiState.value.copy(currentSong = song)
+        currentSong = song
         val increment = service.playNext(song)
         songIndex += increment
     }
 
-    fun skip() {
+    suspend fun skip() {
+        incrementStatsOnTrackLeave(skipped = true)
         nextTrack()
     }
 

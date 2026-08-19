@@ -4,10 +4,9 @@ import com.novaksimon.vibeandride.model.Song
 import kotlin.time.Duration
 
 
-class UserMusicService(audioPlayer1: AudioPlayer) {
+class UserMusicService(private val audioPlayer: AudioPlayer) {
 
-    private val audioPlayer: AudioPlayer = audioPlayer1
-
+    private var informedAboutTrackEnd = false
     suspend fun fetchSongs(limit: Int): List<Song> {
         return com.novaksimon.vibeandride.database.fetchSongs(limit)
     }
@@ -25,7 +24,7 @@ class UserMusicService(audioPlayer1: AudioPlayer) {
     fun playNext(song: Song): Int {
         println("playing $song")
         if (song.audioUrl != null) {
-            println(song.audioUrl)
+            informedAboutTrackEnd = false
             audioPlayer.setSource(song.audioUrl, 0f)
             audioPlayer.play()
             return 1
@@ -33,11 +32,18 @@ class UserMusicService(audioPlayer1: AudioPlayer) {
         return 0
     }
     fun approachingTrackEnd(): Boolean {
-        var position = 0f
-        var duration = 0f
-        audioPlayer.positionSeconds().let { position = audioPlayer.positionSeconds() ?: 0f }
-        audioPlayer.durationSeconds().let { duration = audioPlayer.durationSeconds() ?: 0f }
-        val value = (duration - position)
-        return value < 5 && value > 4
+        if (!informedAboutTrackEnd) {
+            var position = 0f
+            var duration = 0f
+            audioPlayer.positionSeconds().let { position = audioPlayer.positionSeconds() ?: 0f }
+            audioPlayer.durationSeconds().let { duration = audioPlayer.durationSeconds() ?: 0f }
+            val value = (duration - position)
+            val result = value < 5 && value > 4
+            if (result) {
+                informedAboutTrackEnd = true
+            }
+            return result
+        }
+        return false
     }
 }
