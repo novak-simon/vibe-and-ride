@@ -420,7 +420,8 @@ private fun previewWorkouts(): List<Workout> {
 private fun previewWorkoutState(): WorkoutUiState {
     return WorkoutUiState(
         workoutState = WorkoutState(
-            WorkoutStatus.RUNNING,
+            workout = previewWorkouts().first(),
+            status = WorkoutStatus.RUNNING,
             intervalIndex = 3,
             currentInterval = Interval(type = "SteadyState", power = 0.8f, cadence = 90.toDouble()),
             elapsedInInterval = Duration.ZERO,

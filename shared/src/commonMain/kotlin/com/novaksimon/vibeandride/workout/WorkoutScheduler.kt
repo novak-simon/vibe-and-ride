@@ -16,6 +16,7 @@ enum class WorkoutStatus {
 
 class WorkoutSchedulerException(message: String) : Exception(message)
 data class WorkoutState(
+    val workout: Workout?,
     val status: WorkoutStatus,
     val intervalIndex: Int?,
     val currentInterval: Interval?,
@@ -115,11 +116,9 @@ class WorkoutScheduler() {
     fun getState(): WorkoutState {
         val w = workout
         var totalElapsed = Duration.ZERO
-        println(status)
         if (status != WorkoutStatus.NOT_STARTED) {
             totalElapsed = currentElapsed()
         }
-        println("Total elapsed: $totalElapsed")
         val total = w?.totalDuration?.seconds ?: Duration.ZERO
 
         if (isRunning && totalElapsed >= total) {
@@ -145,6 +144,7 @@ class WorkoutScheduler() {
             remainingInInterval = maxOf(Duration.ZERO, intervalLength - elapsedInInterval)
         }
         return WorkoutState(
+            workout = workout,
             status = status,
             intervalIndex = lookup.index,
             currentInterval = lookup.interval,
@@ -163,7 +163,6 @@ class WorkoutScheduler() {
     private fun currentElapsed(): Duration {
         val w = workout
         val total = w?.totalDuration?.seconds ?: Duration.ZERO
-        println("${startMark}, ${elapsedBeforeStart}, ${startMark!!.elapsedNow()}")
 
         return when {
             isRunning && startMark != null -> minOf(elapsedBeforeStart + startMark!!.elapsedNow(), total)

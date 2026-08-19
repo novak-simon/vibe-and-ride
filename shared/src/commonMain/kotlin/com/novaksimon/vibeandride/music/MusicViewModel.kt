@@ -12,6 +12,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.seconds
 
 data class MusicUiState(
     val currentSong: Song? = null,
@@ -22,8 +24,9 @@ data class MusicUiState(
 
 class MusicViewModel(workoutViewModel: WorkoutViewModel) : ViewModel() {
 
-    private val musicProvider: MusicProvider = MusicProvider()
+
     private val _uiState = MutableStateFlow(MusicUiState())
+    private val musicProvider: MusicProvider = MusicProvider(_uiState)
     val uiState: StateFlow<MusicUiState> = _uiState.asStateFlow()
 
     init {
@@ -33,17 +36,19 @@ class MusicViewModel(workoutViewModel: WorkoutViewModel) : ViewModel() {
             .distinctUntilChanged()
             .collect { workoutState ->
                 if (workoutState?.status == WorkoutStatus.NOT_STARTED) {
-                    workoutLoaded()
+                    musicProvider.workoutSelected(workoutState)
+                }
+                else if (workoutState?.status == WorkoutStatus.RUNNING) {
+                    musicProvider.play()
+                }
+                workoutState?.remainingInInterval?.let {
+                    if (it < 60.seconds) {
+                        musicProvider.precomputeNextRecommendation(workoutState)
+                    }
                 }
             }
         }
     }
-
-    private fun workoutLoaded() {
-
-    }
-
-
     fun skip() {
         viewModelScope.launch {
             musicProvider.skip()
