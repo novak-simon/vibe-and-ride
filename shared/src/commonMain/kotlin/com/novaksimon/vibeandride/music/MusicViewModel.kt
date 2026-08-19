@@ -12,7 +12,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
-import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 
 data class MusicUiState(
@@ -22,11 +21,14 @@ data class MusicUiState(
 )
 
 
-class MusicViewModel(workoutViewModel: WorkoutViewModel) : ViewModel() {
+class MusicViewModel(
+    workoutViewModel: WorkoutViewModel,
+    audioPlayer: AudioPlayer,
+) : ViewModel() {
 
 
     private val _uiState = MutableStateFlow(MusicUiState())
-    private val musicProvider: MusicProvider = MusicProvider(_uiState)
+    private val musicProvider: MusicProvider = MusicProvider(_uiState, audioPlayer)
     val uiState: StateFlow<MusicUiState> = _uiState.asStateFlow()
 
     init {
@@ -39,7 +41,8 @@ class MusicViewModel(workoutViewModel: WorkoutViewModel) : ViewModel() {
                     musicProvider.workoutSelected(workoutState)
                 }
                 else if (workoutState?.status == WorkoutStatus.RUNNING) {
-                    musicProvider.play()
+
+                    musicProvider.play(workoutState.intervalIndex)
                 }
                 workoutState?.remainingInInterval?.let {
                     if (it < 60.seconds) {

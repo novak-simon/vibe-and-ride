@@ -25,9 +25,10 @@ data class RecommendationResult(
     val debugInfo: List<SongRecommendation>,
 )
 
-class RecommendationEngine {
+class RecommendationEngine(userMusicService: UserMusicService) {
 
-    val service = UserMusicService()
+    val service = userMusicService
+
     suspend fun approximateFilterByInterval(
         interval: Interval,
     ): List<Song> {

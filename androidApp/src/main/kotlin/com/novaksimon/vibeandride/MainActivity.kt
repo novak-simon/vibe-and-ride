@@ -16,8 +16,6 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.viewmodel.compose.viewModel
-import androidx.lifecycle.viewmodel.initializer
-import androidx.lifecycle.viewmodel.viewModelFactory
 import com.novaksimon.vibeandride.music.MusicViewModel
 import com.novaksimon.vibeandride.player.AndroidAudioPlayer
 import com.novaksimon.vibeandride.ui.WorkoutScreen
@@ -64,7 +62,7 @@ class MainActivity : ComponentActivity() {
         val musicFactory = object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")
             override fun <T : ViewModel> create(modelClass: Class<T>): T {
-                return MusicViewModel(workoutViewModel) as T
+                return MusicViewModel(workoutViewModel, audioPlayer) as T
             }
         }
 
