@@ -1,6 +1,7 @@
 package com.novaksimon.vibeandride.database
 
 import com.novaksimon.vibeandride.database.SupabaseClientProvider.client
+import com.novaksimon.vibeandride.model.RawUserSongStats
 import com.novaksimon.vibeandride.model.UserSongStats
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.postgrest.postgrest
@@ -9,12 +10,13 @@ import kotlinx.serialization.json.put
 import kotlin.time.Instant
 
 suspend fun getStatById(id: Int): UserSongStats? {
-    return client.postgrest["user_song_stats"]
+    val stat = client.postgrest["user_song_stats"]
         .select {
             filter { eq("id", id) }
             limit(1)
         }
-        .decodeSingleOrNull<UserSongStats>()
+        .decodeSingleOrNull<RawUserSongStats>()
+    return if (stat != null) rawToStat(stat) else null
 }
 
 suspend fun getStatByUserAndSongId(userId: Int, songId: Int): UserSongStats? {
@@ -26,7 +28,8 @@ suspend fun getStatByUserAndSongId(userId: Int, songId: Int): UserSongStats? {
             }
             limit(1)
         }
-        .decodeSingleOrNull<UserSongStats>()
+        .decodeSingleOrNull<RawUserSongStats>()
+        ?.let(::rawToStat)
 }
 
 suspend fun getStatsByUserId(userId: Int, limit: Int? = 50): List<UserSongStats> {
@@ -35,7 +38,8 @@ suspend fun getStatsByUserId(userId: Int, limit: Int? = 50): List<UserSongStats>
             filter { eq("user_id", userId) }
             if (limit != null) limit(limit.toLong())
         }
-        .decodeList<UserSongStats>()
+        .decodeList<RawUserSongStats>()
+        .map(::rawToStat)
 }
 
 /**
@@ -58,7 +62,8 @@ suspend fun incrementStat(
         }
         return client.postgrest["user_song_stats"]
             .insert(insertBody) { select() }
-            .decodeSingleOrNull<UserSongStats>()
+            .decodeSingleOrNull<RawUserSongStats>()
+            ?.let(::rawToStat)
     }
 
     val currentValue = when (stat) {
@@ -77,7 +82,8 @@ suspend fun incrementStat(
             }
             select()
         }
-        .decodeSingleOrNull<UserSongStats>()
+        .decodeSingleOrNull<RawUserSongStats>()
+        ?.let(::rawToStat)
 }
 
 /**
@@ -99,5 +105,6 @@ suspend fun setStatDatetime(
             }
             select()
         }
-        .decodeSingleOrNull<UserSongStats>()
+        .decodeSingleOrNull<RawUserSongStats>()
+        ?.let(::rawToStat)
 }

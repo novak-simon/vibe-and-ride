@@ -73,7 +73,7 @@ class WorkoutViewModel(
             try {
                 val newWorkout = WorkoutParser().parseAndUpload(content, fileName)
                 loadAvailableWorkouts()
-                newWorkout.id?.let { selectWorkout(it) }
+                selectWorkout(newWorkout.id)
                 setPickerVisible(false)
             } catch (e: Exception) {
                 println("Failed to upload workout: ${e.message}")

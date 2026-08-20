@@ -37,12 +37,11 @@ import com.novaksimon.vibeandride.util.formatSeconds
 import com.novaksimon.vibeandride.workout.WorkoutState
 import com.novaksimon.vibeandride.workout.WorkoutStatus
 import kotlin.time.Duration
-import kotlin.time.DurationUnit
-import kotlin.time.toDuration
 import coil3.compose.AsyncImage
 import com.novaksimon.vibeandride.R
 import com.novaksimon.vibeandride.music.MusicUiState
 import com.novaksimon.vibeandride.workout.WorkoutUiState
+import kotlin.time.Duration.Companion.seconds
 
 @Composable
 fun WorkoutScreenContent(
@@ -243,7 +242,7 @@ fun WorkoutPickerDialog(
 ) {
     var searchQuery by remember { mutableStateOf("") }
     val filteredWorkouts = remember(workouts, searchQuery) {
-        workouts.filter { it.name?.contains(searchQuery, ignoreCase = true) == true }
+        workouts.filter { it.name.contains(searchQuery, ignoreCase = true) }
     }
 
     AlertDialog(
@@ -274,13 +273,13 @@ fun WorkoutPickerDialog(
                             Column(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .clickable(enabled = workout.id != null) {
-                                        workout.id?.let(onSelect)
+                                    .clickable(enabled = true) {
+                                        workout.id.let(onSelect)
                                     }
                                     .padding(vertical = 12.dp)
                             ) {
                                 Text(
-                                    text = workout.name ?: "<unnamed>",
+                                    text = workout.name,
                                     style = MaterialTheme.typography.titleMedium
                                 )
                                 Row(
@@ -291,13 +290,11 @@ fun WorkoutPickerDialog(
                                         text = formatSeconds(workout.totalDuration.toDouble()),
                                         style = MaterialTheme.typography.bodySmall
                                     )
-                                    workout.author?.let {
-                                        Text(
-                                            text = "by $it",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = Color.Gray
-                                        )
-                                    }
+                                    Text(
+                                        text = "by ${workout.author}",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = Color.Gray
+                                    )
                                 }
                             }
                             HorizontalDivider()
@@ -412,7 +409,7 @@ private fun previewWorkouts(): List<Workout> {
             author = "Example",
             sportType = true,
             tags = listOf("Recovery"),
-            description = null,
+            description = "No description",
             intervals = emptyList()
         )
     )
@@ -423,21 +420,38 @@ private fun previewWorkoutState(): WorkoutUiState {
             workout = previewWorkouts().first(),
             status = WorkoutStatus.RUNNING,
             intervalIndex = 3,
-            currentInterval = Interval(type = "SteadyState", power = 0.8f, cadence = 90.toDouble()),
+            currentInterval = Interval(type = "SteadyState", power = 0.8f, cadence = 90.toDouble(), duration = 60.0),
             elapsedInInterval = Duration.ZERO,
-            remainingInInterval = Interval().duration.toDuration(DurationUnit.SECONDS),
-            intervalLength = Interval().duration.toDuration(DurationUnit.SECONDS),
-            totalElapsed = 180.toDuration(DurationUnit.SECONDS),
-            totalRemaining = 240.toDuration(DurationUnit.SECONDS),
+            remainingInInterval = 60.seconds,
+            intervalLength = 60.seconds,
+            totalElapsed = 180.seconds,
+            totalRemaining = 240.seconds,
         )
     )
 }
 private fun previewMusicState(): MusicUiState {
     return MusicUiState(
         currentSong = Song(
+            id = 1,
             title = "Test song",
             artist = "test artist",
-            image = "https://usercontent.jamendo.com?type=album&id=4117&width=300&trackid=33324"
+            releaseDate = "2024-01-01",
+            genre = listOf("Electronic", "Synthwave"),
+            instruments = listOf("Synthesizer", "Drums"),
+            vartags = listOf("upbeat", "energetic"),
+            duration = 210,
+            speed = 3,
+            bpm = 120,
+            bpmConfidence = 95,
+            audioUrl = "https://example.com/audio.mp3",
+            startTime = 0f,
+            endTime = 210f,
+            image = "https://usercontent.jamendo.com?type=album&id=4117&width=300&trackid=33324",
+            shareUrl = "https://example.com/share",
+            lang = "en",
+            gender = "male",
+            isInstrumental = false,
+            isElectric = true
         ),
         isMusicAvailable = true
     )

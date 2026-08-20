@@ -1,7 +1,6 @@
 package com.novaksimon.vibeandride.music
 
 import com.novaksimon.vibeandride.model.Song
-import kotlin.time.Duration
 
 
 class UserMusicService(private val audioPlayer: AudioPlayer) {
@@ -23,13 +22,10 @@ class UserMusicService(private val audioPlayer: AudioPlayer) {
     }
     fun playNext(song: Song): Int {
         println("playing $song")
-        if (song.audioUrl != null) {
-            informedAboutTrackEnd = false
-            audioPlayer.setSource(song.audioUrl, 0f)
-            audioPlayer.play()
-            return 1
-        }
-        return 0
+        informedAboutTrackEnd = false
+        audioPlayer.setSource(song.audioUrl, 0f)
+        audioPlayer.play()
+        return 1
     }
     fun approachingTrackEnd(): Boolean {
         if (!informedAboutTrackEnd) {

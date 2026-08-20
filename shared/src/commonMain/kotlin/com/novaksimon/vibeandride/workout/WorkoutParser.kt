@@ -21,7 +21,7 @@ private fun XmlReader.nextText(): String {
     return sb.toString()
 }
 
-class WorkoutParser() {
+class WorkoutParser {
 
     fun parseZwoString(
         content: String,
@@ -37,7 +37,7 @@ class WorkoutParser() {
         val reader = xmlStreaming.newReader(content)
         var inWorkout = false
 
-        try {
+        reader.use { reader ->
             while (reader.hasNext()) {
                 when (reader.next()) {
                     EventType.START_ELEMENT -> {
@@ -51,11 +51,7 @@ class WorkoutParser() {
                                 Interval(
                                     duration = attr("Duration"),
                                     power = attr("Power").toFloat(),
-                                    powerLow = attr("PowerLow").toFloat(),
-                                    powerHigh = attr("PowerHigh").toFloat(),
                                     cadence = attr("Cadence"),
-                                    cadenceLow = attr("CadenceLow"),
-                                    cadenceHigh = attr("CadenceHigh"),
                                     type = localName
                                 )
                             )
@@ -66,26 +62,28 @@ class WorkoutParser() {
                                     val text = reader.nextText()
                                     name = if (text != "Zwift Workout") text else fileName
                                 }
+
                                 "sportType" -> sportType = reader.nextText()
                                 "description" -> description = reader.nextText()
                                 "tag" -> {
                                     val t = reader.nextText()
                                     if (t.isNotBlank()) tags.add(t)
                                 }
+
                                 "workout" -> inWorkout = true
                             }
                         }
                     }
+
                     EventType.END_ELEMENT -> {
                         if (reader.localName == "workout") {
                             inWorkout = false
                         }
                     }
+
                     else -> {}
                 }
             }
-        } finally {
-            reader.close()
         }
 
         val sportTypeIsBike = sportType?.trim()?.lowercase() == "bike"

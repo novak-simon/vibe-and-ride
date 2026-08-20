@@ -42,13 +42,12 @@ class MusicProvider(val uiState: MutableStateFlow<MusicUiState>, audioPlayer: Au
         currentIntervalIndex = -1
         workout = state.workout
         var intervalCount = 0
-        workout?.intervals?.let { intervalCount = workout!!.intervals!!.size }
+        workout?.intervals?.let { intervalCount = workout!!.intervals.size }
         recommendationBuffer = MutableList(intervalCount) { null }
         recommendationIndex = MutableList(intervalCount) { false }
         println("Interval index on workoutSelected: ${state.intervalIndex}")
         if (state.intervalIndex != null) {
             precompute(state.currentInterval ?: return, state.intervalIndex)
-            precompute(state.workout?.intervals?.get(state.intervalIndex + 1) ?: return, state.intervalIndex + 1)
         }
     }
 
@@ -71,26 +70,27 @@ class MusicProvider(val uiState: MutableStateFlow<MusicUiState>, audioPlayer: Au
         }
     }
     suspend fun incrementStatsOnTrackLeave(skipped: Boolean = false) {
-        println("current song: $currentSong")
+        val song = currentSong ?: return
+        val userId = getCurrentUser().id
+
         if (skipped) {
-            currentSong?.id?.let { incrementStat("skip_count",
-                currentSong!!.id!!, userId = getCurrentUser()?.id ?: return) }
+            incrementStat("skip_count", song.id, userId = userId)
+            setStatDatetime("last_skipped_at", song.id, userId = userId)
+        } else {
+            incrementStat("play_count", song.id, userId = userId)
+            setStatDatetime("last_played_at", song.id, userId = userId)
         }
-        else {
-            currentSong?.id?.let {
-                incrementStat(
-                    "play_count",
-                    currentSong!!.id!!, userId = getCurrentUser()?.id ?: return
-                )
-            }
-        }
-        currentSong?.id.let { setStatDatetime("last_played", currentSong!!.id!!, userId = getCurrentUser()?.id ?: return) }
     }
 
     fun nextTrack() {
-        println("Next track")
-        println(recommendationBuffer)
-        val song = recommendationBuffer[currentIntervalIndex]!!.topSongs[songIndex]
+        val recommendation = recommendationBuffer.getOrNull(currentIntervalIndex) ?: run {
+            println("No recommendation ready for interval $currentIntervalIndex")
+            return
+        }
+        val song = recommendation.topSongs.getOrNull(songIndex) ?: run {
+            println("No more songs in recommendation for interval $currentIntervalIndex (index $songIndex)")
+            return
+        }
         uiState.value = uiState.value.copy(currentSong = song)
         currentSong = song
         val increment = service.playNext(song)
@@ -105,7 +105,7 @@ class MusicProvider(val uiState: MutableStateFlow<MusicUiState>, audioPlayer: Au
     fun precomputeNextRecommendation(workoutState: WorkoutState) {
         if (workoutState.intervalIndex != null) {
             if (recommendationIndex[workoutState.intervalIndex + 1]) return
-            precompute(workoutState.workout?.intervals?.get(workoutState.intervalIndex + 1) ?: return, workoutState.intervalIndex + 1,)
+            precompute(workoutState.workout?.intervals?.get(workoutState.intervalIndex + 1) ?: return, workoutState.intervalIndex + 1)
         }
     }
 

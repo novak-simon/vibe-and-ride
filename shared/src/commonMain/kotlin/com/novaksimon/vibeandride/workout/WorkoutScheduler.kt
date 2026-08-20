@@ -14,7 +14,6 @@ enum class WorkoutStatus {
     NOT_STARTED, RUNNING, PAUSED, FINISHED
 }
 
-class WorkoutSchedulerException(message: String) : Exception(message)
 data class WorkoutState(
     val workout: Workout?,
     val status: WorkoutStatus,
@@ -32,7 +31,7 @@ private data class IntervalLookup(
     val interval: Interval?,
     val startOffset: Duration,
 )
-class WorkoutScheduler() {
+class WorkoutScheduler {
     private val timeSource: TimeSource.WithComparableMarks = TimeSource.Monotonic
     var workout: Workout? = null
         private set
@@ -174,7 +173,6 @@ class WorkoutScheduler() {
     private fun findInterval(workoutTime: Duration): IntervalLookup {
         var elapsed = Duration.ZERO
         val w = workout ?: return IntervalLookup(null, null, elapsed)
-        if (w.intervals == null) return IntervalLookup(null, null, elapsed)
         w.intervals.forEachIndexed { index, interval ->
             val intervalDuration = interval.duration.seconds
             if (workoutTime < elapsed + intervalDuration) {

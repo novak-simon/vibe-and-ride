@@ -1,51 +1,45 @@
 package com.novaksimon.vibeandride.database
 
-import androidx.annotation.Nullable
 import com.novaksimon.vibeandride.database.SupabaseClientProvider.client
+import com.novaksimon.vibeandride.model.RawSong
 import com.novaksimon.vibeandride.model.Song
 import io.github.jan.supabase.postgrest.postgrest
-import io.github.jan.supabase.postgrest.query.Columns
-import io.github.jan.supabase.postgrest.query.filter.FilterOperator
 
 suspend fun getSongByJamendoId(jamendoId: String): Song? {
-    return client.postgrest["songs"]
+    val rawSong = client.postgrest["songs"]
         .select {
             filter { eq("jamendo_id", jamendoId) }
             limit(1)
         }
-        .decodeSingleOrNull<Song>()
+        .decodeSingleOrNull<RawSong>()
+    return if (rawSong != null) rawToSong(rawSong) else null
 }
 
 suspend fun getSongById(id: Int): Song? {
-    return client.postgrest["songs"]
+    val rawSong = client.postgrest["songs"]
         .select {
             filter { eq("id", id) }
             limit(1)
         }
-        .decodeSingleOrNull<Song>()
-}
-
-suspend fun jamendoIdExists(jamendoId: String): Boolean {
-    return client.postgrest["songs"]
-        .select(Columns.list("id")) {
-            filter { eq("jamendo_id", jamendoId) }
-            limit(1)
-        }
-        .decodeList<Map<String, Int>>()
-        .isNotEmpty()
+        .decodeSingleOrNull<RawSong>()
+    return if (rawSong != null) rawToSong(rawSong) else null
 }
 
 suspend fun fetchSongs(limit: Int = 10): List<Song> {
-    return client.postgrest["songs"]
+    val songs = client.postgrest["songs"]
         .select { limit(limit.toLong()) }
-        .decodeList<Song>()
+        .decodeList<RawSong>()
+        .map { rawToSong(it) }
+    return songs
 }
 
 suspend fun getPlayableSongs(): List<Song> {
-    return client.postgrest["songs"]
+    val songs = client.postgrest["songs"]
         .select()
-        .decodeList<Song>()
+        .decodeList<RawSong>()
         .filter { it.audioUrl != null }
+        .map { rawToSong(it) }
+    return songs
 }
 suspend fun getSongsAroundTargetCadence(
     targetAlgorithmCadence: Int,
@@ -55,7 +49,7 @@ suspend fun getSongsAroundTargetCadence(
     val gc = targetAlgorithmCadence - algorithmCadenceToleration
     val lc = targetAlgorithmCadence + algorithmCadenceToleration
     val ranges = listOf(gc to lc, gc/2 to lc/2, gc*2 to lc*2)
-    return client.postgrest["songs"]
+    val songs = client.postgrest["songs"]
         .select {
             filter {
                 or {
@@ -69,5 +63,7 @@ suspend fun getSongsAroundTargetCadence(
             }
             limit(limit.toLong())
         }
-        .decodeList<Song>()
+        .decodeList<RawSong>()
+        .map { rawToSong(it) }
+    return songs
 }

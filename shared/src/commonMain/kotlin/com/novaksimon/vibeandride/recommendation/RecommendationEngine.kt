@@ -20,6 +20,61 @@ import kotlin.time.Duration.Companion.hours
 
 private const val FIRST_CANDIDATE_POOL_LIMIT = 50
 
+private val TAG_WEIGHTS = mapOf(
+    "energetic" to 0.5f,
+    "motivational" to 0.5f,
+    "upbeat" to 0.3f,
+    "radio" to 0.3f,
+    "groovy" to 0.2f,
+    "powerful" to 0.2f,
+    "beachmusic" to 0.2f,
+    "handclaps" to 0.2f,
+    "fast" to 0.2f,
+    "epic" to 0.1f,
+    "uplifting" to 0.1f,
+    "upliftingrock" to 0.1f,
+    "agressive" to 0.1f,
+    "happy" to 0.1f,
+    "cheerful" to 0.1f,
+    "party" to 0.1f,
+    "drumkit" to 0.1f,
+    "summer" to 0.05f,
+    "popular" to 0.05f,
+    "lounge" to -0.1f,
+    "film" to -0.1f,
+    "filmscore" to -0.1f,
+    "soft" to -0.1f,
+    "ballad" to -0.1f,
+    "melancholic" to -0.1f,
+    "peaceful" to -0.2f,
+    "cinematic" to -0.2f,
+    "peace" to -0.2f,
+    "chilloutmusic" to -0.2f,
+    "chill" to -0.2f,
+    "relaxing" to -0.2f,
+    "mystery" to -0.2f,
+    "sad" to -0.3f,
+    "lonely" to -0.3f,
+    "dark" to -0.3f,
+    "podcast" to -0.3f,
+    "calm" to -0.3f,
+    "atmospheric" to -0.3f,
+    "soundscape" to -0.5f,
+    "introspective" to -0.5f,
+    "ambient" to -1f,
+    "ambientdub" to -1f,
+    "drone" to -1f,
+)
+
+private val INSTRUMENT_WEIGHTS = mapOf(
+    "drums" to 0.1f, "drummachine" to 0.1f, "bass" to 0.1f,
+    "electricguitar" to 0.05f, "electroamplified" to 0.05f, "synthesizer" to 0.05f,
+)
+
+private val GENRE_WEIGHTS = mapOf(
+    "ambient" to -1f, "ambientdub" to -1f, "drone" to -1f,
+)
+
 data class RecommendationResult(
     val topSongs: List<Song>,
     val debugInfo: List<SongRecommendation>,
@@ -32,8 +87,7 @@ class RecommendationEngine(userMusicService: UserMusicService) {
     suspend fun approximateFilterByInterval(
         interval: Interval,
     ): List<Song> {
-        val cadence =
-            interval.cadence?.toInt() ?: return service.fetchSongs(FIRST_CANDIDATE_POOL_LIMIT)
+        val cadence = interval.cadence.toInt()
         val targetCadence = getAlgorithmCadence(cadence)
         var pool = service.getSongsAroundTargetCadence(
             targetCadence,
@@ -69,20 +123,17 @@ class RecommendationEngine(userMusicService: UserMusicService) {
         user: User?,
     ): PreferenceRecommendation {
         val resolvedUser = user ?: getCurrentUser()
-        if (song == null || resolvedUser == null) {
+        if (song == null) {
             return PreferenceRecommendation()
         }
 
-        val numberOfMatchingGenres: Float = if (!song.genre.isNullOrEmpty()) {
+        val numberOfMatchingGenres: Float = if (song.genre.isNotEmpty()) {
             song.genre.intersect(resolvedUser.genrePreferences.toSet()).size.toFloat()
         } else {
             0.5f
         }
 
-        val songId = song.id ?: return PreferenceRecommendation(
-            song = song, user = resolvedUser, numberOfMatchingGenres = numberOfMatchingGenres,
-        )
-        val stat = getStatByUserAndSongId(resolvedUser.id, songId)
+        val stat = getStatByUserAndSongId(resolvedUser.id, song.id)
 
         if (stat != null) {
             val lastPlayedAt = stat.lastPlayedAt
@@ -165,60 +216,7 @@ class RecommendationEngine(userMusicService: UserMusicService) {
         }
     }
 
-    private val TAG_WEIGHTS = mapOf(
-        "energetic" to 0.5f,
-        "motivational" to 0.5f,
-        "upbeat" to 0.3f,
-        "radio" to 0.3f,
-        "groovy" to 0.2f,
-        "powerful" to 0.2f,
-        "beachmusic" to 0.2f,
-        "handclaps" to 0.2f,
-        "fast" to 0.2f,
-        "epic" to 0.1f,
-        "uplifting" to 0.1f,
-        "upliftingrock" to 0.1f,
-        "agressive" to 0.1f,
-        "happy" to 0.1f,
-        "cheerful" to 0.1f,
-        "party" to 0.1f,
-        "drumkit" to 0.1f,
-        "summer" to 0.05f,
-        "popular" to 0.05f,
-        "lounge" to -0.1f,
-        "film" to -0.1f,
-        "filmscore" to -0.1f,
-        "soft" to -0.1f,
-        "ballad" to -0.1f,
-        "melancholic" to -0.1f,
-        "peaceful" to -0.2f,
-        "cinematic" to -0.2f,
-        "peace" to -0.2f,
-        "chilloutmusic" to -0.2f,
-        "chill" to -0.2f,
-        "relaxing" to -0.2f,
-        "mystery" to -0.2f,
-        "sad" to -0.3f,
-        "lonely" to -0.3f,
-        "dark" to -0.3f,
-        "podcast" to -0.3f,
-        "calm" to -0.3f,
-        "atmospheric" to -0.3f,
-        "soundscape" to -0.5f,
-        "introspective" to -0.5f,
-        "ambient" to -1f,
-        "ambientdub" to -1f,
-        "drone" to -1f,
-    )
 
-    private val INSTRUMENT_WEIGHTS = mapOf(
-        "drums" to 0.1f, "drummachine" to 0.1f, "bass" to 0.1f,
-        "electricguitar" to 0.05f, "electroamplified" to 0.05f, "synthesizer" to 0.05f,
-    )
-
-    private val GENRE_WEIGHTS = mapOf(
-        "ambient" to -1f, "ambientdub" to -1f, "drone" to -1f,
-    )
 
     fun getIntervalMatchScore(song: Song, interval: Interval): IntervalRecommendation {
         val targetCadence = interval.cadence
@@ -226,47 +224,43 @@ class RecommendationEngine(userMusicService: UserMusicService) {
         val sbpm = song.bpm
         val bpmConf = song.bpmConfidence
 
-        var cadenceDiff = Float.POSITIVE_INFINITY
-        var cadenceScore = 0f
+        var cadenceDiff: Float
+        var cadenceScore: Float
         var cadenceCompatibleBonus = 0f
 
-        if (targetCadence != null) {
-            val candidateDiffs = mutableListOf<Float>()
+        val candidateDiffs = mutableListOf<Float>()
 
-            if (sbpm != 0) {
-                val match = calculateBpmMatch(sbpm.toFloat(), targetCadence, bpmTolerance = 2.0f)
-                if (match.difference != null) {
-                    candidateDiffs.add(match.difference)
-                    if (match.compatible == true) {
-                        cadenceCompatibleBonus = 0.15f
-                    }
+        if (sbpm != 0) {
+            val match = calculateBpmMatch(sbpm.toFloat(), targetCadence, bpmTolerance = 2.0f)
+            if (match.difference != null) {
+                candidateDiffs.add(match.difference)
+                if (match.compatible == true) {
+                    cadenceCompatibleBonus = 0.15f
                 }
             }
+        }
 
-            if (sbpm != 0) {
-                candidateDiffs.add(abs(sbpm.toFloat() - targetCadence.toFloat()))
-            }
+        if (sbpm != 0) {
+            candidateDiffs.add(abs(sbpm.toFloat() - targetCadence.toFloat()))
+        }
 
-            if (candidateDiffs.isNotEmpty()) {
-                cadenceDiff = candidateDiffs.min()
-                cadenceScore = clamp01(computeCs(cadenceDiff))
-            } else {
-                cadenceScore = 0f
-            }
+        if (candidateDiffs.isNotEmpty()) {
+            cadenceDiff = candidateDiffs.min()
+            cadenceScore = clamp01(computeCs(cadenceDiff))
         } else {
-            cadenceScore = 0.4f
+            cadenceScore = 0f
         }
 
         val confScore = clamp01(bpmConf / 100f)
 
         val tagScore =
-            (song.vartags ?: emptyList()).sumOf { TAG_WEIGHTS.getOrDefault(it, 0f).toDouble() }
+            song.vartags.sumOf { TAG_WEIGHTS.getOrDefault(it, 0f).toDouble() }
                 .toFloat()
-        val instrumentScore = (song.instruments ?: emptyList()).sumOf {
+        val instrumentScore = song.instruments.sumOf {
             INSTRUMENT_WEIGHTS.getOrDefault(it, 0f).toDouble()
         }.toFloat()
         val genreScore =
-            (song.genre ?: emptyList()).sumOf { GENRE_WEIGHTS.getOrDefault(it, 0f).toDouble() }
+            song.genre.sumOf { GENRE_WEIGHTS.getOrDefault(it, 0f).toDouble() }
                 .toFloat()
         val songScore = clamp02(tagScore + instrumentScore + genreScore)
 
@@ -307,8 +301,7 @@ class RecommendationEngine(userMusicService: UserMusicService) {
 
 
 
-    suspend fun recommend(interval: Interval?): RecommendationResult {
-        if (interval == null) return RecommendationResult(emptyList(), emptyList())
+    suspend fun recommend(interval: Interval): RecommendationResult {
 
         val user = getCurrentUser()
         var firstCandidatePool: List<Song>? = null

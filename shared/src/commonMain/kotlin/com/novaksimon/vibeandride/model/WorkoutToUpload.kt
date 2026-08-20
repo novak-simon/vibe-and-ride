@@ -11,9 +11,4 @@ data class WorkoutToUpload(
     val tags: List<String>? = emptyList(),
     val description: String?,
     val intervals: List<Interval>? = emptyList(),
-) {
-    val totalDuration: Int
-        get() = intervals?.sumOf { it.duration }?.toInt() ?: 0
-
-
-}
+)
