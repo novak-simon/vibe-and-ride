@@ -16,11 +16,14 @@ import com.novaksimon.vibeandride.workout.WorkoutState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
+import kotlin.math.min
 import kotlin.time.Duration
+import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 
 class MusicProvider(val uiState: MutableStateFlow<MusicUiState>, playbackController: PlaybackController) {
@@ -36,10 +39,16 @@ class MusicProvider(val uiState: MutableStateFlow<MusicUiState>, playbackControl
     private val recommendSemaphore = Semaphore(4)
     private var songIndex: Int = 0
     private var currentSong: Song? = null
+    private var futureIntervalSong: Song? = null
     private var currentIntervalIndex: Int = -1
+    private var preloadedSongId: Int? = null
+    private var hasPreloadedSong: Boolean = false
+    private var isTransitioning = false
 
     fun workoutSelected(state: WorkoutState) {
         currentIntervalIndex = -1
+        preloadedSongId = null
+        isTransitioning = false
         workout = state.workout
         var intervalCount = 0
         workout?.intervals?.let { intervalCount = workout!!.intervals.size }
@@ -52,25 +61,50 @@ class MusicProvider(val uiState: MutableStateFlow<MusicUiState>, playbackControl
     }
 
     suspend fun play(intervalIndex: Int?, remainingInterval: Duration) {
-        if (intervalIndex == null) return
-        println("interval index: $currentIntervalIndex, new interval index: $intervalIndex")
-        if (remainingInterval < 3.seconds) {
-            println("Skipping to next track because remaining interval is less than 3 seconds")
-            nextTrack(newInterval = true, intervalIndex)
-        }
-        else if (currentIntervalIndex != intervalIndex) {
-            nextTrack(newInterval = true, intervalIndex)
+        if (intervalIndex == null || isTransitioning) return
+        
+        val timeUntilTrackEnd = service.timeUntilTrackEnd().toLong()
+        val remainingInInterval = remainingInterval.inWholeSeconds
+        val remaining = min(remainingInInterval, timeUntilTrackEnd)
+
+        // Preload logic
+        if (remaining < 15 && !hasPreloadedSong) {
+            val songToPreload = if (remainingInInterval <= timeUntilTrackEnd + 5) {
+                // Interval is ending soon (or before this track ends), preload first song of next interval
+                recommendationBuffer.getOrNull(intervalIndex + 1)?.topSongs?.firstOrNull() ?: futureIntervalSong
+            } else {
+                // Track is ending, but interval still has time, preload next song in current interval
+                recommendationBuffer.getOrNull(intervalIndex)?.topSongs?.getOrNull(songIndex)
+            }
+
+            if (songToPreload != null && songToPreload.id != preloadedSongId && songToPreload.id != currentSong?.id) {
+                println("MusicProvider: preloading song ${songToPreload.title} (ID: ${songToPreload.id})")
+                hasPreloadedSong = true
+                service.preloadSong(songToPreload)
+                preloadedSongId = songToPreload.id
+            }
         }
 
-        else if (service.approachingTrackEnd()) {
+        // Transition logic
+        if (remainingInInterval < 1) {
+            println("MusicProvider: switching to next track (new interval: true, index: $intervalIndex + 1)")
+            nextTrack(newInterval = true, intervalIndex + 1)
+        }
+        else if (timeUntilTrackEnd < 1) {
+            println("MusicProvider: switching to next track (new interval: false)")
             nextTrack()
+        }
+        else if (currentIntervalIndex == -1) {
+            println("MusicProvider: starting first track of workout")
+            nextTrack(firstSong = true, newInterval = true, intervalIndex = intervalIndex)
         }
     }
 
     fun incrementStatsOnTrackLeave(skipped: Boolean = false) {
+        val song = currentSong ?: return
         statsScope.launch {
-            val song = currentSong ?: return@launch
             val userId = getCurrentUser().id
+            // ... (rest of function unchanged)
 
             if (skipped) {
                 incrementStat("skip_count", song.id, userId = userId)
@@ -81,43 +115,56 @@ class MusicProvider(val uiState: MutableStateFlow<MusicUiState>, playbackControl
         }
     }
     fun incrementStatsOnTrackArrive() {
+        val song = currentSong ?: return
         statsScope.launch {
-            val song = currentSong ?: return@launch
             val userId = getCurrentUser().id
             setStatDatetime("last_played_at", song.id, userId = userId)
         }
     }
 
-    suspend fun nextTrack(newInterval: Boolean = false, intervalIndex: Int = 0, skipped: Boolean = false) {
-        incrementStatsOnTrackLeave(skipped = skipped)
-        if (newInterval) {
-            currentDebug = futureDebug
-            uiState.value = uiState.value.copy(debugInfo = currentDebug)
-            currentIntervalIndex = intervalIndex
-            songIndex = 0
+    suspend fun nextTrack(newInterval: Boolean = false, intervalIndex: Int = 0, skipped: Boolean = false, firstSong: Boolean = false) {
+        if (isTransitioning) return
+        isTransitioning = true
+        try {
+            if (!firstSong) incrementStatsOnTrackLeave(skipped = skipped)
+            if (newInterval) {
+                println("INTERVAL CHANGED, new index: $intervalIndex")
+                currentDebug = futureDebug
+                uiState.value = uiState.value.copy(debugInfo = currentDebug)
+                currentIntervalIndex = intervalIndex
+                songIndex = 0
+            }
+            val recommendation = recommendationBuffer.getOrNull(currentIntervalIndex) ?: run {
+                println("No recommendation ready for interval $currentIntervalIndex")
+                return
+            }
+            val song = recommendation.topSongs.getOrNull(songIndex) ?: run {
+                println("No more songs in recommendation for interval $currentIntervalIndex (index $songIndex)")
+                return
+            }
+            val songStats: UserSongStats? = getStatByUserAndSongId(songId = song.id, userId = getCurrentUser().id)
+            println("Current song: $song")
+            uiState.value = uiState.value.copy(currentSong = song, isLiked = songStats?.isLiked ?: false)
+            currentSong = song
+            service.crossfadeTo(song, 1000L)
+            CoroutineScope(Dispatchers.Main).launch {
+                delay(3.seconds)
+                hasPreloadedSong = false
+            }
+            songIndex += 1
+            incrementStatsOnTrackArrive()
+        } finally {
+            isTransitioning = false
         }
-        val recommendation = recommendationBuffer.getOrNull(currentIntervalIndex) ?: run {
-            println("No recommendation ready for interval $currentIntervalIndex")
-            return
-        }
-        val song = recommendation.topSongs.getOrNull(songIndex) ?: run {
-            println("No more songs in recommendation for interval $currentIntervalIndex (index $songIndex)")
-            return
-        }
-        val songStats: UserSongStats? = getStatByUserAndSongId(songId = song.id, userId = getCurrentUser().id)
-        uiState.value = uiState.value.copy(currentSong = song, isLiked = songStats?.isLiked ?: false)
-        currentSong = song
-        service.crossfadeTo(song, 1000L)
-        songIndex += 1
-        incrementStatsOnTrackArrive()
     }
 
     suspend fun skip() {
         nextTrack(skipped = true)
     }
     fun songLiked(liked: Boolean = true) {
+        val song = currentSong ?: return
         statsScope.launch {
-            changeLikeState(songId = currentSong?.id ?: return@launch, userId = getCurrentUser().id, targetState = liked)
+            changeLikeState(songId = song.id, userId = getCurrentUser().id, targetState = liked)
         }
     }
 
@@ -150,6 +197,7 @@ class MusicProvider(val uiState: MutableStateFlow<MusicUiState>, playbackControl
 
             recommendationBuffer[intervalIndex] = recommendation
             futureDebug = recommendation.debugInfo
+            futureIntervalSong = recommendation.topSongs.first()
 
 
             println("Recommendation complete")

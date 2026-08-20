@@ -54,10 +54,13 @@ class UserMusicService(
     fun pause() {
         playbackController.pause()
     }
+    fun preloadSong(song: Song) {
+        playbackController.preloadSource(song)
+    }
 
-    fun approachingTrackEnd(): Boolean {
+    fun timeUntilTrackEnd(): Float {
         if (informedAboutTrackEnd) {
-            return false
+            return 0f
         }
 
         val position =
@@ -66,27 +69,23 @@ class UserMusicService(
         val duration =
             playbackController.durationSeconds() ?: 0f
 
-        val remaining = duration - position
-
-        val result = remaining < 4f && remaining > 3f
-
-        if (result) {
-            informedAboutTrackEnd = true
+        if (duration <= 0f) {
+            // If duration is unknown, we assume it's not ending soon to avoid premature preloading.
+            return 3600f
         }
 
-        return result
+        val remaining = duration - position
+
+        return remaining
     }
 
     fun crossfadeTo(
         song: Song,
-        durationMs: Long = 3000L
+        durationMs: Long = 1000L
     ) {
         informedAboutTrackEnd = false
 
-        playbackController.preloadSource(
-            song,
-            0f
-        )
+        playbackController.preloadSource(song)
 
         playbackController.crossfadeToPreloaded(
             song = song,

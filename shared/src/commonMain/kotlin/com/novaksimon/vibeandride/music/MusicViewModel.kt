@@ -46,7 +46,7 @@ class MusicViewModel(
                     musicProvider.play(workoutState.intervalIndex, workoutState.remainingInInterval)
                 }
                 workoutState?.remainingInInterval?.let {
-                    if (it < 60.seconds) {
+                    if (it < 40.seconds) {
                         musicProvider.precomputeNextRecommendation(workoutState)
                     }
                 }

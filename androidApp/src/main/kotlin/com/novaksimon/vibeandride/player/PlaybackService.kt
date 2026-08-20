@@ -128,10 +128,7 @@ class PlaybackService : MediaSessionService() {
 
                             if (songJson != null) {
                                 val song = Json.decodeFromString<Song>(songJson)
-                                audioPlayer.preloadSource(
-                                    song,
-                                    startTime
-                                )
+                                audioPlayer.preloadSource(song)
                             }
                         }
 

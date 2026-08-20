@@ -12,7 +12,6 @@ interface PlaybackController {
     )
     fun preloadSource(
         song: Song,
-        startTimeSeconds: Float = 0f
     )
     fun crossfadeToPreloaded(
         song: Song,

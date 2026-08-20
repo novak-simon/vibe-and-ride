@@ -39,7 +39,6 @@ class AndroidPlaybackController(
 
     override fun preloadSource(
         song: Song,
-        startTimeSeconds: Float
     ) {
         println("AndroidPlaybackController: PRELOAD $song")
 
@@ -47,7 +46,6 @@ class AndroidPlaybackController(
             PlaybackService.COMMAND_PRELOAD,
             Bundle().apply {
                 putString("song", Json.encodeToString(song))
-                putFloat("startTime", startTimeSeconds)
             }
         )
     }
