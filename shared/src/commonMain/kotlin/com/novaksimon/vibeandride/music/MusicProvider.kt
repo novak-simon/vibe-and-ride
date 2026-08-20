@@ -17,12 +17,11 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
+import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
-import kotlin.time.TimeMark
-import kotlin.time.TimeSource
 
-class MusicProvider(val uiState: MutableStateFlow<MusicUiState>, audioPlayer: AudioPlayer) {
-    private val service = UserMusicService(audioPlayer)
+class MusicProvider(val uiState: MutableStateFlow<MusicUiState>, playbackController: PlaybackController) {
+    private val service = UserMusicService(playbackController)
     private val recommender = RecommendationEngine(service)
     private var currentDebug: List<SongRecommendation> = emptyList()
     private var futureDebug: List<SongRecommendation> = emptyList()
@@ -32,11 +31,9 @@ class MusicProvider(val uiState: MutableStateFlow<MusicUiState>, audioPlayer: Au
     private val statsScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val recommendScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val recommendSemaphore = Semaphore(4)
-    private val timeSource: TimeSource.WithComparableMarks = TimeSource.Monotonic
     private var songIndex: Int = 0
     private var currentSong: Song? = null
     private var currentIntervalIndex: Int = -1
-    private var startMark: TimeMark? = null
 
     fun workoutSelected(state: WorkoutState) {
         currentIntervalIndex = -1
@@ -51,38 +48,44 @@ class MusicProvider(val uiState: MutableStateFlow<MusicUiState>, audioPlayer: Au
         }
     }
 
-    suspend fun play(intervalIndex: Int?) {
+    fun play(intervalIndex: Int?, remainingInterval: Duration) {
         if (intervalIndex == null) return
         println("interval index: $currentIntervalIndex, new interval index: $intervalIndex")
-        if (currentIntervalIndex != intervalIndex) {
-            currentDebug = futureDebug
-            uiState.value = uiState.value.copy(debugInfo = currentDebug)
-            currentIntervalIndex = intervalIndex
-            songIndex = 0
-            incrementStatsOnTrackLeave()
-            nextTrack()
+        if (remainingInterval < 3.seconds) {
+            println("Skipping to next track because remaining interval is less than 3 seconds")
+            nextTrack(newInterval = true, intervalIndex)
+        }
+        else if (currentIntervalIndex != intervalIndex) {
+            nextTrack(newInterval = true, intervalIndex)
         }
 
         else if (service.approachingTrackEnd()) {
-            println("Time for new song")
-            incrementStatsOnTrackLeave()
             nextTrack()
         }
     }
-    suspend fun incrementStatsOnTrackLeave(skipped: Boolean = false) {
-        val song = currentSong ?: return
-        val userId = getCurrentUser().id
 
-        if (skipped) {
-            incrementStat("skip_count", song.id, userId = userId)
-            setStatDatetime("last_skipped_at", song.id, userId = userId)
-        } else {
+    fun incrementStatsOnTrackLeave(skipped: Boolean = false) {
+        statsScope.launch {
+            val song = currentSong ?: return@launch
+            val userId = getCurrentUser().id
+
+            if (skipped) {
+                incrementStat("skip_count", song.id, userId = userId)
+                setStatDatetime("last_skipped_at", song.id, userId = userId)
+            }
             incrementStat("play_count", song.id, userId = userId)
             setStatDatetime("last_played_at", song.id, userId = userId)
         }
     }
 
-    fun nextTrack() {
+    fun nextTrack(newInterval: Boolean = false, intervalIndex: Int = 0, skipped: Boolean = false) {
+        incrementStatsOnTrackLeave(skipped = skipped)
+        if (newInterval) {
+            currentDebug = futureDebug
+            uiState.value = uiState.value.copy(debugInfo = currentDebug)
+            currentIntervalIndex = intervalIndex
+            songIndex = 0
+        }
         val recommendation = recommendationBuffer.getOrNull(currentIntervalIndex) ?: run {
             println("No recommendation ready for interval $currentIntervalIndex")
             return
@@ -93,13 +96,24 @@ class MusicProvider(val uiState: MutableStateFlow<MusicUiState>, audioPlayer: Au
         }
         uiState.value = uiState.value.copy(currentSong = song)
         currentSong = song
-        val increment = service.playNext(song)
-        songIndex += increment
+        service.crossfadeTo(song, 1000L)
+        songIndex += 1
     }
 
-    suspend fun skip() {
-        incrementStatsOnTrackLeave(skipped = true)
-        nextTrack()
+    fun skip() {
+        nextTrack(skipped = true)
+    }
+
+    fun pauseResume() {
+        service.pauseResume()
+    }
+
+    fun play() {
+        service.play()
+    }
+
+    fun pause() {
+        service.pause()
     }
 
     fun precomputeNextRecommendation(workoutState: WorkoutState) {

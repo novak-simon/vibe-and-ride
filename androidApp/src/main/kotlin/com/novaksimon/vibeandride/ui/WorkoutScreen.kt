@@ -21,6 +21,15 @@ fun WorkoutScreen(
         onSelectWorkout = { workoutViewModel.selectWorkout(it) },
         onStart = { workoutViewModel.startWorkout() },
         onPauseResume = { workoutViewModel.pauseResume() },
+        onPauseResumeBoth = {
+            val isPaused = workoutUiState.workoutState?.status == com.novaksimon.vibeandride.workout.WorkoutStatus.PAUSED
+            workoutViewModel.pauseResume()
+            if (isPaused) {
+                musicViewModel.play()
+            } else {
+                musicViewModel.pause()
+            }
+        },
         onSkip = { musicViewModel.skip() },
         onReset = { workoutViewModel.reset() },
         onResync = { workoutViewModel.resync(it) },

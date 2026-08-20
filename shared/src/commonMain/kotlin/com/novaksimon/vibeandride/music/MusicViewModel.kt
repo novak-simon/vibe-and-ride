@@ -22,13 +22,13 @@ data class MusicUiState(
 
 
 class MusicViewModel(
-    workoutViewModel: WorkoutViewModel,
-    audioPlayer: AudioPlayer,
+    private val workoutViewModel: WorkoutViewModel,
+    private val playbackController: PlaybackController,
 ) : ViewModel() {
 
 
     private val _uiState = MutableStateFlow(MusicUiState())
-    private val musicProvider: MusicProvider = MusicProvider(_uiState, audioPlayer)
+    private val musicProvider: MusicProvider = MusicProvider(_uiState, playbackController)
     val uiState: StateFlow<MusicUiState> = _uiState.asStateFlow()
 
     init {
@@ -42,7 +42,7 @@ class MusicViewModel(
                 }
                 else if (workoutState?.status == WorkoutStatus.RUNNING) {
 
-                    musicProvider.play(workoutState.intervalIndex)
+                    musicProvider.play(workoutState.intervalIndex, workoutState.remainingInInterval)
                 }
                 workoutState?.remainingInInterval?.let {
                     if (it < 60.seconds) {
@@ -55,6 +55,24 @@ class MusicViewModel(
     fun skip() {
         viewModelScope.launch {
             musicProvider.skip()
+        }
+    }
+
+    fun pauseResume() {
+        viewModelScope.launch {
+            musicProvider.pauseResume()
+        }
+    }
+
+    fun play() {
+        viewModelScope.launch {
+            musicProvider.play()
+        }
+    }
+
+    fun pause() {
+        viewModelScope.launch {
+            musicProvider.pause()
         }
     }
 }

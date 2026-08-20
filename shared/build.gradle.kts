@@ -52,6 +52,8 @@ kotlin {
             implementation(libs.supabase.auth)
             implementation(libs.ktor.client.core)
             implementation(libs.xmlutil)
+            implementation(libs.androidx.media3.session)
+
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)

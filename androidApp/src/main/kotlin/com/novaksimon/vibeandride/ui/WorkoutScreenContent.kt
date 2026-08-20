@@ -53,6 +53,7 @@ fun WorkoutScreenContent(
     onSelectWorkout: (Int) -> Unit,
     onStart: () -> Unit,
     onPauseResume: () -> Unit,
+    onPauseResumeBoth: () -> Unit,
     onSkip: () -> Unit,
     onReset: () -> Unit,
     onResync: (Duration) -> Unit,
@@ -171,8 +172,9 @@ fun WorkoutScreenContent(
                 enabled = status == WorkoutStatus.NOT_STARTED,
                 modifier = Modifier.weight(1f),
             ) { Text("Start") }
+
             Button(
-                onClick = { onPauseResume() },
+                onClick = { onPauseResumeBoth() },
                 enabled = status == WorkoutStatus.RUNNING || status == WorkoutStatus.PAUSED,
                 modifier = Modifier.weight(1f),
             ) { Text(if (status == WorkoutStatus.PAUSED) "Resume" else "Pause") }
@@ -193,6 +195,12 @@ fun WorkoutScreenContent(
                 enabled = status == WorkoutStatus.RUNNING || status == WorkoutStatus.PAUSED || status == WorkoutStatus.FINISHED,
                 modifier = Modifier.weight(1f),
             ) { Text("Reset") }
+
+            Button(
+                onClick = { onPauseResume() },
+                enabled = status == WorkoutStatus.RUNNING || status == WorkoutStatus.PAUSED,
+                modifier = Modifier.weight(1f),
+            ) { Text(if (status == WorkoutStatus.PAUSED) "Resume" else "Pause") }
 
             Button(
                 onClick = { showResyncDialog = true },
@@ -369,8 +377,8 @@ fun DebugDialog(info: List<SongRecommendation>?, onDismiss: () -> Unit) {
 
 @Preview(
     showBackground = true,
-    widthDp = 3000,
-    heightDp = 3000
+    widthDp = 360,
+    heightDp = 720
 )
 @Composable
 private fun WorkoutScreenPreview() {
@@ -384,6 +392,7 @@ private fun WorkoutScreenPreview() {
             onSelectWorkout = {},
             onStart = {},
             onPauseResume = {},
+            onPauseResumeBoth = {},
             onSkip = {},
             onReset = {},
             onResync = {},

@@ -2,44 +2,94 @@ package com.novaksimon.vibeandride.music
 
 import com.novaksimon.vibeandride.model.Song
 
-
-class UserMusicService(private val audioPlayer: AudioPlayer) {
+class UserMusicService(
+    private val playbackController: PlaybackController
+) {
 
     private var informedAboutTrackEnd = false
+
     suspend fun fetchSongs(limit: Int): List<Song> {
-        return com.novaksimon.vibeandride.database.fetchSongs(limit)
+        return com.novaksimon.vibeandride.database
+            .fetchSongs(limit)
     }
+
     suspend fun getSongsAroundTargetCadence(
         targetAlgorithmCadence: Int,
         algorithmCadenceToleration: Int = 5,
-        limit: Int = 20,
+        limit: Int = 20
     ): List<Song> {
-        return com.novaksimon.vibeandride.database.getSongsAroundTargetCadence(
-            targetAlgorithmCadence,
-            algorithmCadenceToleration,
-            limit
-        )
+        return com.novaksimon.vibeandride.database
+            .getSongsAroundTargetCadence(
+                targetAlgorithmCadence,
+                algorithmCadenceToleration,
+                limit
+            )
     }
-    fun playNext(song: Song): Int {
-        println("playing $song")
+
+    fun playNext(song: Song) {
+
         informedAboutTrackEnd = false
-        audioPlayer.setSource(song.audioUrl, 0f)
-        audioPlayer.play()
-        return 1
+
+        playbackController.setSource(
+            song.audioUrl,
+            0f
+        )
+
+        playbackController.play()
+
     }
-    fun approachingTrackEnd(): Boolean {
-        if (!informedAboutTrackEnd) {
-            var position = 0f
-            var duration = 0f
-            audioPlayer.positionSeconds().let { position = audioPlayer.positionSeconds() ?: 0f }
-            audioPlayer.durationSeconds().let { duration = audioPlayer.durationSeconds() ?: 0f }
-            val value = (duration - position)
-            val result = value < 5 && value > 4
-            if (result) {
-                informedAboutTrackEnd = true
-            }
-            return result
+
+    fun pauseResume() {
+        if (playbackController.isPlaying()) {
+            playbackController.pause()
+        } else {
+            playbackController.play()
         }
-        return false
+    }
+
+    fun play() {
+        playbackController.play()
+    }
+
+    fun pause() {
+        playbackController.pause()
+    }
+
+    fun approachingTrackEnd(): Boolean {
+        if (informedAboutTrackEnd) {
+            return false
+        }
+
+        val position =
+            playbackController.positionSeconds() ?: 0f
+
+        val duration =
+            playbackController.durationSeconds() ?: 0f
+
+        val remaining = duration - position
+
+        val result = remaining < 4f && remaining > 3f
+
+        if (result) {
+            informedAboutTrackEnd = true
+        }
+
+        return result
+    }
+
+    fun crossfadeTo(
+        song: Song,
+        durationMs: Long = 3000L
+    ) {
+        informedAboutTrackEnd = false
+
+        playbackController.preloadSource(
+            song.audioUrl,
+            0f
+        )
+
+        playbackController.crossfadeToPreloaded(
+            durationMs
+        )
     }
 }

@@ -1,7 +1,7 @@
 package com.novaksimon.vibeandride.music
 
 interface AudioPlayer {
-    suspend fun initialize()
+    fun initialize()
     /** Prepares and loads the track, seeking to startTimeSeconds once ready. */
     fun setSource(url: String, startTimeSeconds: Float)
     /** Prepares a secondary track that can be started while the current one is still playing. */
@@ -14,6 +14,7 @@ interface AudioPlayer {
     fun clearPreloaded()
     fun play()
     fun pause()
+    fun isPlaying(): Boolean
     fun stop()
     fun release()
     fun hasValidSource(): Boolean
