@@ -108,3 +108,14 @@ suspend fun setStatDatetime(
         .decodeSingleOrNull<RawUserSongStats>()
         ?.let(::rawToStat)
 }
+suspend fun changeLikeState(songId: Int, userId: Int, targetState: Boolean) {
+    val updateBody = buildJsonObject { put("is_liked", targetState) }
+    client.postgrest["user_song_stats"]
+        .update(updateBody) {
+            filter {
+                eq("song_id", songId)
+                eq("user_id", userId)
+            }
+            select()
+        }
+}

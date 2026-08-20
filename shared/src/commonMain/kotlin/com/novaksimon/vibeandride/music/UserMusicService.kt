@@ -31,7 +31,7 @@ class UserMusicService(
         informedAboutTrackEnd = false
 
         playbackController.setSource(
-            song.audioUrl,
+            song,
             0f
         )
 
@@ -84,12 +84,13 @@ class UserMusicService(
         informedAboutTrackEnd = false
 
         playbackController.preloadSource(
-            song.audioUrl,
+            song,
             0f
         )
 
         playbackController.crossfadeToPreloaded(
-            durationMs
+            song = song,
+            durationMs = durationMs
         )
     }
 }

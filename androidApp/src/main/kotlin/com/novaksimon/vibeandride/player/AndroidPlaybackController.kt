@@ -3,7 +3,10 @@ package com.novaksimon.vibeandride.player
 import android.os.Bundle
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionCommand
+import com.novaksimon.vibeandride.model.Song
 import com.novaksimon.vibeandride.music.PlaybackController
+import kotlinx.serialization.json.Json
+
 
 class AndroidPlaybackController(
     private val controller: MediaController
@@ -22,39 +25,41 @@ class AndroidPlaybackController(
     }
 
     override fun setSource(
-        url: String,
+        song: Song,
         startTimeSeconds: Float
     ) {
         sendCommand(
             PlaybackService.COMMAND_SET_SOURCE,
             Bundle().apply {
-                putString("url", url)
+                putString("song", Json.encodeToString(song))
                 putFloat("startTime", startTimeSeconds)
             }
         )
     }
 
     override fun preloadSource(
-        url: String,
+        song: Song,
         startTimeSeconds: Float
     ) {
-        println("AndroidPlaybackController: PRELOAD $url")
+        println("AndroidPlaybackController: PRELOAD $song")
 
         sendCommand(
             PlaybackService.COMMAND_PRELOAD,
             Bundle().apply {
-                putString("url", url)
+                putString("song", Json.encodeToString(song))
                 putFloat("startTime", startTimeSeconds)
             }
         )
     }
     override fun crossfadeToPreloaded(
+        song: Song,
         durationMs: Long
     ) {
         println("AndroidPlaybackController: sending CROSSFADE")
         sendCommand(
             PlaybackService.COMMAND_CROSSFADE,
             Bundle().apply {
+                putString("song", Json.encodeToString(song))
                 putLong("durationMs", durationMs)
             }
         )

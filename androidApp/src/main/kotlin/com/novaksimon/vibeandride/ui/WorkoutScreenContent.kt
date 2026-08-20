@@ -21,7 +21,13 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -57,6 +63,7 @@ fun WorkoutScreenContent(
     onSkip: () -> Unit,
     onReset: () -> Unit,
     onResync: (Duration) -> Unit,
+    onLikeSong: (Boolean) -> Unit,
     onUploadWorkout: () -> Unit,
     onPickerVisibilityChange: (Boolean) -> Unit,
 ) {
@@ -130,11 +137,28 @@ fun WorkoutScreenContent(
                     )
                 }
 
-                Text(
-                    text = "Song: ${musicUiState.currentSong?.title ?: "none"}",
-                    style = MaterialTheme.typography.bodyMedium,
-                    maxLines = 1
-                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        text = "Song: ${musicUiState.currentSong?.title ?: "none"}",
+                        style = MaterialTheme.typography.bodyMedium,
+                        maxLines = 1,
+                        modifier = Modifier.weight(1f)
+                    )
+
+                    IconButton(
+                        onClick = { onLikeSong(!musicUiState.isLiked) },
+                        enabled = musicUiState.currentSong != null
+                    ) {
+                        Icon(
+                            imageVector = if (musicUiState.isLiked) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                            contentDescription = if (musicUiState.isLiked) "Unlike" else "Like",
+                            tint = if (musicUiState.isLiked) Color.Red else Color.Gray
+                        )
+                    }
+                }
 
                 Text(
                     text = if (!musicUiState.isMusicAvailable) "Music: disabled"
@@ -396,6 +420,7 @@ private fun WorkoutScreenPreview() {
             onSkip = {},
             onReset = {},
             onResync = {},
+            onLikeSong = {},
             onUploadWorkout = {},
             onPickerVisibilityChange = {},
         )

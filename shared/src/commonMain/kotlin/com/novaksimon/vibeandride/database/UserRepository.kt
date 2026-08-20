@@ -5,6 +5,8 @@ import com.novaksimon.vibeandride.model.RawUser
 import com.novaksimon.vibeandride.model.User
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.postgrest.postgrest
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 suspend fun getUserById(id: Int): User? {
     val rawUser = client.postgrest["users"]
@@ -18,11 +20,17 @@ suspend fun getUserById(id: Int): User? {
 
 suspend fun getCurrentUser(): User {
     """Temporarily returns always User with ID = 0."""
-    val rawUser = client.postgrest["users"]
-        .select {
-            filter { eq("id", 0) }
-            limit(1)
-        }
-        .decodeSingleOrNull<RawUser>()
+    var rawUser: RawUser? = null
+    withContext(Dispatchers.IO) {
+        rawUser = client.postgrest["users"]
+            .select {
+                filter { eq("id", 0) }
+                limit(1)
+            }
+            .decodeSingleOrNull<RawUser>()
+
+    }
     return rawUser?.let { rawToUser(it) } ?: User(id = 0, name = "User", genrePreferences = listOf("pop"))
+
+
 }

@@ -20,6 +20,7 @@ dependencies {
     implementation(libs.compose.runtime)
     implementation(libs.compose.foundation)
     implementation(libs.compose.material3)
+    implementation(libs.compose.icons)
     implementation(libs.compose.ui)
 
     implementation(libs.androidx.media3.exoplayer)
@@ -29,6 +30,7 @@ dependencies {
     implementation(libs.ktor.client.okhttp)
     implementation(libs.coil.compose)
     implementation(libs.coil.network.okhttp)
+    implementation(libs.kotlinx.serialization.json)
 }
 
 android {

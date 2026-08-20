@@ -1,10 +1,13 @@
 package com.novaksimon.vibeandride.music
 
+import com.novaksimon.vibeandride.database.changeLikeState
 import com.novaksimon.vibeandride.database.getCurrentUser
+import com.novaksimon.vibeandride.database.getStatByUserAndSongId
 import com.novaksimon.vibeandride.database.incrementStat
 import com.novaksimon.vibeandride.database.setStatDatetime
 import com.novaksimon.vibeandride.model.Interval
 import com.novaksimon.vibeandride.model.Song
+import com.novaksimon.vibeandride.model.UserSongStats
 import com.novaksimon.vibeandride.model.Workout
 import com.novaksimon.vibeandride.recommendation.RecommendationEngine
 import com.novaksimon.vibeandride.recommendation.RecommendationResult
@@ -48,7 +51,7 @@ class MusicProvider(val uiState: MutableStateFlow<MusicUiState>, playbackControl
         }
     }
 
-    fun play(intervalIndex: Int?, remainingInterval: Duration) {
+    suspend fun play(intervalIndex: Int?, remainingInterval: Duration) {
         if (intervalIndex == null) return
         println("interval index: $currentIntervalIndex, new interval index: $intervalIndex")
         if (remainingInterval < 3.seconds) {
@@ -74,11 +77,18 @@ class MusicProvider(val uiState: MutableStateFlow<MusicUiState>, playbackControl
                 setStatDatetime("last_skipped_at", song.id, userId = userId)
             }
             incrementStat("play_count", song.id, userId = userId)
+
+        }
+    }
+    fun incrementStatsOnTrackArrive() {
+        statsScope.launch {
+            val song = currentSong ?: return@launch
+            val userId = getCurrentUser().id
             setStatDatetime("last_played_at", song.id, userId = userId)
         }
     }
 
-    fun nextTrack(newInterval: Boolean = false, intervalIndex: Int = 0, skipped: Boolean = false) {
+    suspend fun nextTrack(newInterval: Boolean = false, intervalIndex: Int = 0, skipped: Boolean = false) {
         incrementStatsOnTrackLeave(skipped = skipped)
         if (newInterval) {
             currentDebug = futureDebug
@@ -94,14 +104,21 @@ class MusicProvider(val uiState: MutableStateFlow<MusicUiState>, playbackControl
             println("No more songs in recommendation for interval $currentIntervalIndex (index $songIndex)")
             return
         }
-        uiState.value = uiState.value.copy(currentSong = song)
+        val songStats: UserSongStats? = getStatByUserAndSongId(songId = song.id, userId = getCurrentUser().id)
+        uiState.value = uiState.value.copy(currentSong = song, isLiked = songStats?.isLiked ?: false)
         currentSong = song
         service.crossfadeTo(song, 1000L)
         songIndex += 1
+        incrementStatsOnTrackArrive()
     }
 
-    fun skip() {
+    suspend fun skip() {
         nextTrack(skipped = true)
+    }
+    fun songLiked(liked: Boolean = true) {
+        statsScope.launch {
+            changeLikeState(songId = currentSong?.id ?: return@launch, userId = getCurrentUser().id, targetState = liked)
+        }
     }
 
     fun pauseResume() {

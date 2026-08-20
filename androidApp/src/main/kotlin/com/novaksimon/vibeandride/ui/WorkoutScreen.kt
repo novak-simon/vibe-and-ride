@@ -33,6 +33,7 @@ fun WorkoutScreen(
         onSkip = { musicViewModel.skip() },
         onReset = { workoutViewModel.reset() },
         onResync = { workoutViewModel.resync(it) },
+        onLikeSong = { musicViewModel.songLiked(it) },
         onUploadWorkout = onUploadWorkout,
         onPickerVisibilityChange = { workoutViewModel.setPickerVisible(it) }
     )

@@ -10,11 +10,13 @@ import androidx.media3.session.MediaSessionService
 import androidx.media3.session.SessionCommand
 import androidx.media3.session.SessionCommands
 import androidx.media3.session.SessionResult
+import com.novaksimon.vibeandride.model.Song
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
+import kotlinx.serialization.json.Json
 
 class PlaybackService : MediaSessionService() {
     private val serviceScope =
@@ -103,13 +105,14 @@ class PlaybackService : MediaSessionService() {
                     when (customCommand.customAction) {
 
                         COMMAND_SET_SOURCE -> {
-                            val url = args.getString("url")
+                            val songJson = args.getString("song")
                             val startTime =
                                 args.getFloat("startTime", 0f)
 
-                            if (url != null) {
+                            if (songJson != null) {
+                                val song = Json.decodeFromString<Song>(songJson)
                                 audioPlayer.setSource(
-                                    url,
+                                    song,
                                     startTime
                                 )
                             }
@@ -118,14 +121,15 @@ class PlaybackService : MediaSessionService() {
                         COMMAND_PRELOAD -> {
                             println("PlaybackService: PRELOAD")
 
-                            val url = args.getString("url")
+                            val songJson = args.getString("song")
                             val startTime = args.getFloat("startTime", 0f)
 
-                            println("URL=$url startTime=$startTime")
+                            println("songJson=$songJson startTime=$startTime")
 
-                            if (url != null) {
+                            if (songJson != null) {
+                                val song = Json.decodeFromString<Song>(songJson)
                                 audioPlayer.preloadSource(
-                                    url,
+                                    song,
                                     startTime
                                 )
                             }
@@ -166,10 +170,11 @@ class PlaybackService : MediaSessionService() {
                                 "durationMs",
                                 3000L
                             )
+                            val song = Json.decodeFromString<Song>(args.getString("song", ""))
 
                             println("Crossfade duration=$duration")
 
-                            audioPlayer.crossfadeToPreloaded(duration)
+                            audioPlayer.crossfadeToPreloaded(song,duration)
                         }
                     }
 

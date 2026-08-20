@@ -18,12 +18,13 @@ data class MusicUiState(
     val currentSong: Song? = null,
     val isMusicAvailable: Boolean = true,
     val debugInfo: List<SongRecommendation>? = null,
+    val isLiked: Boolean = false,
 )
 
 
 class MusicViewModel(
     private val workoutViewModel: WorkoutViewModel,
-    private val playbackController: PlaybackController,
+    playbackController: PlaybackController,
 ) : ViewModel() {
 
 
@@ -74,5 +75,10 @@ class MusicViewModel(
         viewModelScope.launch {
             musicProvider.pause()
         }
+    }
+
+    fun songLiked(liked: Boolean) {
+        _uiState.value = _uiState.value.copy(isLiked = liked)
+        musicProvider.songLiked(liked)
     }
 }

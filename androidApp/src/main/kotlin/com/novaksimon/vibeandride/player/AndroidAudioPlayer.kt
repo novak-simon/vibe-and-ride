@@ -1,7 +1,9 @@
 package com.novaksimon.vibeandride.player
 
 import android.content.Context
+import androidx.media3.common.MediaMetadata
 import androidx.annotation.OptIn
+import androidx.core.net.toUri
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
@@ -13,6 +15,7 @@ import androidx.media3.datasource.cache.LeastRecentlyUsedCacheEvictor
 import androidx.media3.datasource.cache.SimpleCache
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
+import com.novaksimon.vibeandride.model.Song
 import com.novaksimon.vibeandride.music.AudioPlayer
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -215,7 +218,7 @@ class AndroidAudioPlayer(
     }
 
     override fun setSource(
-        url: String,
+        song: Song,
         startTimeSeconds: Float
     ) {
         val player = activePlayer() ?: return
@@ -225,16 +228,12 @@ class AndroidAudioPlayer(
         needsSeekOnReady[slot] = true
 
         player.volume = 1f
-
-        player.setMediaItem(
-            MediaItem.fromUri(url)
-        )
-
+        player.setMediaItem(createMediaItem(song))
         player.prepare()
     }
 
     override fun preloadSource(
-        url: String,
+        song: Song,
         startTimeSeconds: Float
     ) {
         val player = preloadedPlayer() ?: return
@@ -246,11 +245,21 @@ class AndroidAudioPlayer(
         player.playWhenReady = false
         player.volume = 0f
 
-        player.setMediaItem(
-            MediaItem.fromUri(url)
-        )
-
+        player.setMediaItem(createMediaItem(song))
         player.prepare()
+    }
+
+    private fun createMediaItem(song: Song): MediaItem {
+        return MediaItem.Builder()
+            .setUri(song.audioUrl)
+            .setMediaMetadata(
+                MediaMetadata.Builder()
+                    .setTitle(song.title)
+                    .setArtist(song.artist)
+                    .setArtworkUri(song.image.toUri())
+                    .build()
+            )
+            .build()
     }
 
     override fun hasPreloadedSource(): Boolean {
@@ -450,23 +459,24 @@ class AndroidAudioPlayer(
             null
         }
     }
-    fun crossfadeToPreloaded(durationMs: Long) {
+    fun crossfadeToPreloaded(song: Song, durationMs: Long) {
         val oldPlayer = activePlayer() ?: return
         val newPlayer = preloadedPlayer() ?: return
 
-        if (newPlayer.currentMediaItem == null) {
-            println("AndroidAudioPlayer: no preloaded media")
-            return
-        }
-
         println(
-            "AndroidAudioPlayer: crossfade requested, " +
+            "AndroidAudioPlayer: crossfade requested for ${song.title}, " +
                     "new player state=${newPlayer.playbackState}"
         )
 
         fadeJob?.cancel()
 
-        scope.launch {
+        fadeJob = scope.launch {
+            // Wait until a media item is set (preload triggered).
+            while (newPlayer.currentMediaItem == null) {
+                println("AndroidAudioPlayer: waiting for media item to be set...")
+                delay(50.milliseconds)
+            }
+
             // Wait until the preloaded player is ready.
             while (
                 newPlayer.playbackState != ExoPlayer.STATE_READY &&
@@ -476,7 +486,7 @@ class AndroidAudioPlayer(
             }
 
             if (newPlayer.playbackState != ExoPlayer.STATE_READY) {
-                println("AndroidAudioPlayer: preload failed")
+                println("AndroidAudioPlayer: preload failed or ended early")
                 return@launch
             }
 
@@ -493,6 +503,7 @@ class AndroidAudioPlayer(
 
                 newPlayer.volume = 1f
                 activeSlot = preloadedSlot()
+                onActivePlayerChanged?.invoke(newPlayer)
 
                 println("AndroidAudioPlayer: instant switch complete")
                 return@launch
