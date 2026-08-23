@@ -1,12 +1,16 @@
 package com.novaksimon.vibeandride.music
 
 import com.novaksimon.vibeandride.model.Song
+import kotlinx.coroutines.flow.Flow
 
 class ProfileMusicService(
     private val playbackController: PlaybackController
 ) {
 
+    val isPlayingFlow: Flow<Boolean> = playbackController.isPlayingFlow
+
     private var informedAboutTrackEnd = false
+    private var currentSong: Song? = null
 
     suspend fun fetchSongs(limit: Int): List<Song> {
         return com.novaksimon.vibeandride.database
@@ -29,6 +33,7 @@ class ProfileMusicService(
     fun playNext(song: Song) {
 
         informedAboutTrackEnd = false
+        currentSong = song
 
         playbackController.setSource(
             song,
@@ -71,17 +76,14 @@ class ProfileMusicService(
         val position =
             playbackController.positionSeconds() ?: 0f
 
-        val duration =
-            playbackController.durationSeconds() ?: 0f
+        val song = currentSong ?: return 3600f
+        val duration = song.duration.toFloat()
+        val endTime = song.endTime
 
-        if (duration <= 0f) {
-            // If duration is unknown, we assume it's not ending soon to avoid premature preloading.
-            return 3600f
-        }
+        val treatedEnd = duration - endTime
+        val remaining = treatedEnd - position
 
-        val remaining = duration - position
-
-        return remaining
+        return if (remaining < 0f) 0f else remaining
     }
 
     fun crossfadeTo(
@@ -89,6 +91,7 @@ class ProfileMusicService(
         durationMs: Long = 1000L
     ) {
         informedAboutTrackEnd = false
+        currentSong = song
 
         playbackController.preloadSource(song)
 

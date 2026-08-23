@@ -3,14 +3,29 @@ package com.novaksimon.vibeandride.player
 import android.os.Bundle
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionCommand
+import androidx.media3.common.Player
 import com.novaksimon.vibeandride.model.Song
 import com.novaksimon.vibeandride.music.PlaybackController
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.serialization.json.Json
 
 
 class AndroidPlaybackController(
     private val controller: MediaController
 ) : PlaybackController {
+
+    private val _isPlayingFlow = MutableStateFlow(controller.isPlaying)
+    override val isPlayingFlow: Flow<Boolean> = _isPlayingFlow.asStateFlow()
+
+    init {
+        controller.addListener(object : Player.Listener {
+            override fun onIsPlayingChanged(isPlaying: Boolean) {
+                _isPlayingFlow.value = isPlaying
+            }
+        })
+    }
 
     override fun play() {
         controller.play()

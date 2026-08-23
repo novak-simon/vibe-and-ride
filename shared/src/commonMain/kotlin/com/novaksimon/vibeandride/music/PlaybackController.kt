@@ -1,8 +1,10 @@
 package com.novaksimon.vibeandride.music
 
 import com.novaksimon.vibeandride.model.Song
+import kotlinx.coroutines.flow.Flow
 
 interface PlaybackController {
+    val isPlayingFlow: Flow<Boolean>
     fun play()
     fun pause()
     fun isPlaying(): Boolean

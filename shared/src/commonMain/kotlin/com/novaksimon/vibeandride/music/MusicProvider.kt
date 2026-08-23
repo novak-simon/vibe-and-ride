@@ -47,6 +47,14 @@ class MusicProvider(val uiState: MutableStateFlow<MusicUiState>, playbackControl
     private var hasPreloadedSong: Boolean = false
     private var isTransitioning = false
 
+    init {
+        waitScope.launch {
+            service.isPlayingFlow.collect { isPlaying ->
+                uiState.value = uiState.value.copy(isPlaying = isPlaying)
+            }
+        }
+    }
+
     fun workoutSelected(state: WorkoutState) {
         currentIntervalIndex = -1
         preloadedSongId = null
@@ -77,13 +85,13 @@ class MusicProvider(val uiState: MutableStateFlow<MusicUiState>, playbackControl
     suspend fun play(intervalIndex: Int?, remainingInterval: Duration) {
         if (intervalIndex == null || isTransitioning) return
         
-        val timeUntilTrackEnd = service.timeUntilTrackEnd().toLong()
-        val remainingInInterval = remainingInterval.inWholeSeconds
+        val timeUntilTrackEnd = service.timeUntilTrackEnd()
+        val remainingInInterval = remainingInterval.inWholeMilliseconds.toFloat() / 1000f
         val remaining = min(remainingInInterval, timeUntilTrackEnd)
 
         // Preload logic
-        if (remaining < 15 && !hasPreloadedSong) {
-            val songToPreload = if (remainingInInterval <= timeUntilTrackEnd + 5) {
+        if (remaining < 15f && !hasPreloadedSong) {
+            val songToPreload = if (remainingInInterval <= timeUntilTrackEnd + 5f) {
                 // Interval is ending soon (or before this track ends), preload first song of next interval
                 recommendationBuffer.getOrNull(intervalIndex + 1)?.topSongs?.firstOrNull() ?: futureIntervalSong
             } else {
@@ -100,11 +108,11 @@ class MusicProvider(val uiState: MutableStateFlow<MusicUiState>, playbackControl
         }
 
         // Transition logic
-        if (remainingInInterval < 1) {
-            println("MusicProvider: switching to next track (new interval: true, index: $intervalIndex + 1)")
-            nextTrack(newInterval = true, intervalIndex + 1)
+        if (remainingInInterval < 1f) {
+            println("MusicProvider: switching to next track (new interval: true, index: ${intervalIndex + 1})")
+            nextTrack(newInterval = true, intervalIndex = intervalIndex + 1)
         }
-        else if (timeUntilTrackEnd < 1) {
+        else if (timeUntilTrackEnd < 1f) {
             println("MusicProvider: switching to next track (new interval: false)")
             nextTrack()
         }
@@ -160,12 +168,17 @@ class MusicProvider(val uiState: MutableStateFlow<MusicUiState>, playbackControl
             )
             currentSong = song
             service.crossfadeTo(song, 1000L)
+            
+            // Wait for crossfade to complete before allowing another transition
+            delay(2.seconds)
+            
             CoroutineScope(Dispatchers.Main).launch {
                 delay(3.seconds)
                 hasPreloadedSong = false
             }
             songIndex += 1
             incrementStatsOnTrackArrive()
+            println("MusicProvider: transition to ${song.title} complete")
         } finally {
             isTransitioning = false
         }
@@ -183,17 +196,14 @@ class MusicProvider(val uiState: MutableStateFlow<MusicUiState>, playbackControl
 
     fun pauseResume() {
         service.pauseResume()
-        uiState.value = uiState.value.copy(isPlaying = service.isPlaying())
     }
 
     fun play() {
         service.play()
-        uiState.value = uiState.value.copy(isPlaying = true)
     }
 
     fun pause() {
         service.pause()
-        uiState.value = uiState.value.copy(isPlaying = false)
     }
 
     fun precomputeNextRecommendation(workoutState: WorkoutState) {
