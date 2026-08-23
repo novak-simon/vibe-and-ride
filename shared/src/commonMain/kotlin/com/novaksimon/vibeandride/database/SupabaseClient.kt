@@ -21,29 +21,28 @@ object SupabaseClientProvider {
 
 suspend fun initializeProfile() {
     println("Supabase: initializing profile...")
+
     try {
+        client.auth.awaitInitialization()
+
         if (client.auth.currentUserOrNull() == null) {
-            println("Supabase: signing in anonymously...")
+            println("Supabase: no existing session, signing in anonymously...")
             client.auth.signInAnonymously()
-            initializeProfileTable()
         }
 
-        val profile = client.auth.currentUserOrNull()
-            ?: error("Failed to create anonymous profile")
+        val user = client.auth.currentUserOrNull()
+            ?: error("No authenticated user")
 
+        println("Supabase: User ID: ${user.id}")
 
-        println("Supabase: Profile ID: ${profile.id}")
+        client
+            .from("profiles")
+            .upsert(RawProfile(user.id))
+
+        println("Supabase: Profile initialized")
+
     } catch (e: Exception) {
         println("Supabase initialization error: ${e.message}")
         e.printStackTrace()
     }
-}
-
-suspend fun initializeProfileTable() {
-    val user = client.auth.currentUserOrNull()
-        ?: error("No authenticated user")
-
-    client
-        .from("profiles")
-        .upsert(RawProfile(user.id))
 }
