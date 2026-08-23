@@ -11,9 +11,7 @@ import com.novaksimon.vibeandride.model.RawWorkout
 import com.novaksimon.vibeandride.model.Song
 import com.novaksimon.vibeandride.model.Workout
 import com.novaksimon.vibeandride.model.estimateCadenceFromPower
-import kotlin.time.Clock
 import kotlin.math.round
-import kotlin.time.Instant
 
 fun rawToInterval(rawInterval: RawInterval): Interval {
     var duration = rawInterval.duration

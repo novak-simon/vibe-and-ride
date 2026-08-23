@@ -6,6 +6,7 @@ import com.novaksimon.vibeandride.music.ProfileMusicService
 import com.novaksimon.vibeandride.model.Interval
 import com.novaksimon.vibeandride.model.Song
 import com.novaksimon.vibeandride.model.Profile
+import com.novaksimon.vibeandride.model.ProfileSongStats
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -18,7 +19,7 @@ import kotlin.time.Clock
 import kotlin.time.Duration.Companion.days
 import kotlin.time.Duration.Companion.hours
 
-private const val FIRST_CANDIDATE_POOL_LIMIT = 50
+private const val FIRST_CANDIDATE_POOL_LIMIT = 100
 
 private val TAG_WEIGHTS = mapOf(
     "energetic" to 0.5f,
@@ -89,30 +90,38 @@ class RecommendationEngine(profileMusicService: ProfileMusicService) {
     ): List<Song> {
         val cadence = interval.cadence.toInt()
         val targetCadence = getAlgorithmCadence(cadence)
-        var pool = service.getSongsAroundTargetCadence(
-            targetCadence,
-            algorithmCadenceToleration = 2,
-            limit = FIRST_CANDIDATE_POOL_LIMIT
-        )
+        var pool = withContext(Dispatchers.IO) {
+            service.getSongsAroundTargetCadence(
+                targetCadence,
+                algorithmCadenceToleration = 2,
+                limit = FIRST_CANDIDATE_POOL_LIMIT
+            )
+        }
         if (pool.size < FIRST_CANDIDATE_POOL_LIMIT) {
             pool = pool.union(
-                service.getSongsAroundTargetCadence(
-                    targetCadence,
-                    algorithmCadenceToleration = 5,
-                    limit = FIRST_CANDIDATE_POOL_LIMIT - pool.size
-                )
+                withContext(Dispatchers.IO) {
+                    service.getSongsAroundTargetCadence(
+                        targetCadence,
+                        algorithmCadenceToleration = 5,
+                        limit = FIRST_CANDIDATE_POOL_LIMIT - pool.size
+                    )
+                }
             ).toList()
             if (pool.size < FIRST_CANDIDATE_POOL_LIMIT) {
                 pool = pool.union(
-                    service.getSongsAroundTargetCadence(
-                        targetCadence,
-                        algorithmCadenceToleration = 10,
-                        limit = FIRST_CANDIDATE_POOL_LIMIT
-                    )
+                    withContext(Dispatchers.IO) {
+                        service.getSongsAroundTargetCadence(
+                            targetCadence,
+                            algorithmCadenceToleration = 10,
+                            limit = FIRST_CANDIDATE_POOL_LIMIT
+                        )
+                    }
                 ).toList()
                 if (pool.isEmpty()) {
                     println("No songs found around cadence, fetching generic songs...")
-                    pool = service.fetchSongs(50)
+                    withContext(Dispatchers.IO) {
+                        pool = service.fetchSongs(50)
+                    }
                 }
             }
         }
@@ -122,19 +131,21 @@ class RecommendationEngine(profileMusicService: ProfileMusicService) {
 
     suspend fun getProfilePreferenceScore(
         song: Song?,
+        profile: Profile
     ): PreferenceRecommendation {
         if (song == null) {
             return PreferenceRecommendation()
         }
-        val profile = getProfileForRecommendation()
 
         val numberOfMatchingGenres: Float = if (song.genre.isNotEmpty()) {
             song.genre.intersect(profile.genrePreferences.toSet()).size.toFloat()
         } else {
             0.5f
         }
-
-        val stat = getStatByProfileAndSongId(songId = song.id, profileId = profile.id)
+        val stat: ProfileSongStats?
+        withContext(Dispatchers.IO) {
+            stat = getStatByProfileAndSongId(songId = song.id, profileId = profile.id)
+        }
 
         if (stat != null) {
             val lastPlayedAt = stat.lastPlayedAt
@@ -283,12 +294,12 @@ class RecommendationEngine(profileMusicService: ProfileMusicService) {
     suspend fun getSongRecommendationScore(
         song: Song?,
         interval: Interval?,
+        profile: Profile
     ): SongRecommendation {
-        println("Calculating song recommendation score for song ${song?.id} and interval cadence ${interval?.cadence}")
         if (interval == null || song == null) {
             return SongRecommendation(song = song, score = 0f)
         }
-        val profilePreference = getProfilePreferenceScore(song)
+        val profilePreference = getProfilePreferenceScore(song, profile)
         val intervalMatch = getIntervalMatchScore(song, interval)
         val score = profilePreference.score + 1.5f * intervalMatch.score
 
@@ -312,11 +323,15 @@ class RecommendationEngine(profileMusicService: ProfileMusicService) {
             return RecommendationResult(emptyList(), emptyList())
         }
         val algorithmSemaphore = Semaphore(4)
+        val profile: Profile
+        withContext(Dispatchers.IO) {
+            profile = getProfileForRecommendation()
+        }
         val candidates = coroutineScope {
             firstCandidatePool.map { candidate ->
                 async(Dispatchers.Default) {
                     algorithmSemaphore.withPermit {
-                        getSongRecommendationScore(candidate, interval)
+                        getSongRecommendationScore(candidate, interval, profile)
                     }
                 }
             }.awaitAll()

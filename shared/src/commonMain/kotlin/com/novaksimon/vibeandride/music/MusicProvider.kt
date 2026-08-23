@@ -159,13 +159,15 @@ class MusicProvider(val uiState: MutableStateFlow<MusicUiState>, playbackControl
                 println("No more songs in recommendation for interval $currentIntervalIndex (index $songIndex)")
                 return
             }
-            val songStats: ProfileSongStats? = getStatByProfileAndSongId(songId = song.id)
-            println("Current song: $song")
-            uiState.value = uiState.value.copy(
-                currentSong = song,
-                isLiked = songStats?.isLiked ?: false,
-                isPlaying = true
-            )
+            statsScope.launch {
+                val songStats: ProfileSongStats? = getStatByProfileAndSongId(songId = song.id)
+                println("Current song: $song")
+                uiState.value = uiState.value.copy(
+                    currentSong = song,
+                    isLiked = songStats?.isLiked ?: false,
+                    isPlaying = true
+                )
+            }
             currentSong = song
             service.crossfadeTo(song, 1000L)
             

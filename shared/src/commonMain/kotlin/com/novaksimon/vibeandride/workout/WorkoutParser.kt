@@ -105,6 +105,6 @@ class WorkoutParser {
         val workout = withContext(Dispatchers.Default) {
             parseZwoString(content, fileName)
         }
-        return uploadWorkout(workout)
+        return withContext(Dispatchers.IO) { uploadWorkout(workout) }
     }
 }
