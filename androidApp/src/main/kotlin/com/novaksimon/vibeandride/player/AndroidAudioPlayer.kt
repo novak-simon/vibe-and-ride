@@ -1,6 +1,7 @@
 package com.novaksimon.vibeandride.player
 
 import android.content.Context
+import android.os.Looper
 import androidx.media3.common.MediaMetadata
 import androidx.annotation.OptIn
 import androidx.core.net.toUri
@@ -34,6 +35,9 @@ class AndroidAudioPlayer(
 
     private var playerA: ExoPlayer? = null
     private var playerB: ExoPlayer? = null
+
+    private var playerListenerA: Player.Listener? = null
+    private var playerListenerB: Player.Listener? = null
 
     /**
      * 0 = playerA is active
@@ -110,6 +114,7 @@ class AndroidAudioPlayer(
         if (playerA == null) {
             playerA = ExoPlayer.Builder(context)
                 .setMediaSourceFactory(mediaSourceFactory)
+                .setLooper(Looper.getMainLooper())
                 .build()
                 .also {
                     attachListener(it, 0)
@@ -119,6 +124,7 @@ class AndroidAudioPlayer(
         if (playerB == null) {
             playerB = ExoPlayer.Builder(context)
                 .setMediaSourceFactory(mediaSourceFactory)
+                .setLooper(Looper.getMainLooper())
                 .build()
                 .also {
                     attachListener(it, 1)
@@ -144,51 +150,52 @@ class AndroidAudioPlayer(
         player: ExoPlayer,
         slot: Int
     ) {
-        player.addListener(
-            object : Player.Listener {
+        val listener = object : Player.Listener {
 
-                override fun onPlaybackStateChanged(
-                    playbackState: Int
+            override fun onPlaybackStateChanged(
+                playbackState: Int
+            ) {
+                println(
+                    "Player $slot state changed: $playbackState"
+                )
+
+                if (
+                    playbackState == Player.STATE_READY &&
+                    needsSeekOnReady[slot]
                 ) {
-                    println(
-                        "Player $slot state changed: $playbackState"
+                    player.seekTo(
+                        (pendingStartTimes[slot] * 1000f).toLong()
                     )
 
-                    if (
-                        playbackState == Player.STATE_READY &&
-                        needsSeekOnReady[slot]
-                    ) {
-                        player.seekTo(
-                            (pendingStartTimes[slot] * 1000f).toLong()
-                        )
-
-                        needsSeekOnReady[slot] = false
-                    }
-
-                    if (
-                        playbackState == Player.STATE_ENDED &&
-                        slot == activeSlot
-                    ) {
-                        onEndOfMedia?.invoke()
-                    }
+                    needsSeekOnReady[slot] = false
                 }
 
-                override fun onPlayerError(
-                    error: PlaybackException
+                if (
+                    playbackState == Player.STATE_ENDED &&
+                    slot == activeSlot
                 ) {
-                    val message =
-                        error.message ?: "Unknown playback error"
-
-                    println(
-                        "Player Slot $slot error: $message"
-                    )
-
-                    if (slot == activeSlot) {
-                        onError?.invoke(message)
-                    }
+                    onEndOfMedia?.invoke()
                 }
             }
-        )
+
+            override fun onPlayerError(
+                error: PlaybackException
+            ) {
+                val message =
+                    error.message ?: "Unknown playback error"
+
+                println(
+                    "Player Slot $slot error: $message"
+                )
+
+                if (slot == activeSlot) {
+                    onError?.invoke(message)
+                }
+            }
+        }
+
+        if (slot == 0) playerListenerA = listener else playerListenerB = listener
+        player.addListener(listener)
     }
 
     private fun activePlayer(): ExoPlayer? {
@@ -579,7 +586,17 @@ class AndroidAudioPlayer(
 
         scope.cancel()
 
+        playerListenerA?.let { playerA?.removeListener(it) }
+        playerListenerB?.let { playerB?.removeListener(it) }
+        playerListenerA = null
+        playerListenerB = null
+
+        playerA?.stop()
+        playerA?.clearMediaItems()
         playerA?.release()
+
+        playerB?.stop()
+        playerB?.clearMediaItems()
         playerB?.release()
 
         playerA = null

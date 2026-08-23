@@ -223,6 +223,7 @@ class PlaybackService : MediaSessionService() {
 
     override fun onDestroy() {
         serviceScope.cancel()
+        audioPlayer.stop()
         mediaSession.release()
         audioPlayer.release()
         super.onDestroy()
