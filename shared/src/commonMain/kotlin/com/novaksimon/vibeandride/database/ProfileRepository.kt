@@ -25,6 +25,6 @@ internal suspend fun getCurrentProfile(): Profile? {
     return getProfileById(id)
 }
 
-suspend fun getProfileForRecommendation(profileId: String? = null): Profile? {
-    return profileId?.let { getProfileById(it) } ?: getCurrentProfile()
+suspend fun getProfileForRecommendation(profileId: String? = null): Profile {
+    return profileId?.let { getProfileById(it) } ?: getCurrentProfile() ?: Profile("", listOf("pop"))
 }

@@ -122,11 +122,11 @@ class RecommendationEngine(profileMusicService: ProfileMusicService) {
 
     suspend fun getProfilePreferenceScore(
         song: Song?,
-        profile: Profile?,
     ): PreferenceRecommendation {
-        if (song == null || profile == null) {
+        if (song == null) {
             return PreferenceRecommendation()
         }
+        val profile = getProfileForRecommendation()
 
         val numberOfMatchingGenres: Float = if (song.genre.isNotEmpty()) {
             song.genre.intersect(profile.genrePreferences.toSet()).size.toFloat()
@@ -282,13 +282,13 @@ class RecommendationEngine(profileMusicService: ProfileMusicService) {
 
     suspend fun getSongRecommendationScore(
         song: Song?,
-        profile: Profile?,
         interval: Interval?,
     ): SongRecommendation {
-        if (profile == null || interval == null || song == null) {
+        println("Calculating song recommendation score for song ${song?.id} and interval cadence ${interval?.cadence}")
+        if (interval == null || song == null) {
             return SongRecommendation(song = song, score = 0f)
         }
-        val profilePreference = getProfilePreferenceScore(song, profile)
+        val profilePreference = getProfilePreferenceScore(song)
         val intervalMatch = getIntervalMatchScore(song, interval)
         val score = profilePreference.score + 1.5f * intervalMatch.score
 
@@ -302,8 +302,7 @@ class RecommendationEngine(profileMusicService: ProfileMusicService) {
 
 
 
-    suspend fun recommend(interval: Interval, profileId: String? = null): RecommendationResult {
-        val profile = getProfileForRecommendation(profileId)
+    suspend fun recommend(interval: Interval): RecommendationResult {
         var firstCandidatePool: List<Song>? = null
         withContext(Dispatchers.IO) {
             firstCandidatePool = approximateFilterByInterval(interval)
@@ -317,7 +316,7 @@ class RecommendationEngine(profileMusicService: ProfileMusicService) {
             firstCandidatePool.map { candidate ->
                 async(Dispatchers.Default) {
                     algorithmSemaphore.withPermit {
-                        getSongRecommendationScore(candidate, profile, interval)
+                        getSongRecommendationScore(candidate, interval)
                     }
                 }
             }.awaitAll()
