@@ -15,7 +15,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
-import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import com.novaksimon.vibeandride.music.MusicViewModel
@@ -96,31 +95,25 @@ class MainActivity : ComponentActivity() {
             }
         }
 
+        val musicFactory = object : ViewModelProvider.Factory {
+            @Suppress("UNCHECKED_CAST")
+            override fun <T : ViewModel> create(
+                modelClass: Class<T>
+            ): T {
+                return MusicViewModel(
+                    AndroidPlaybackController(controller)
+                ) as T
+            }
+        }
+
+        workoutViewModel = ViewModelProvider(this, workoutFactory)[WorkoutViewModel::class.java]
+        musicViewModel = ViewModelProvider(this, musicFactory)[MusicViewModel::class.java]
+
+        workoutViewModel.initMusicViewModel(musicViewModel)
+        musicViewModel.initWorkoutViewModel(workoutViewModel)
+
         setContent {
             MaterialTheme {
-
-                workoutViewModel = viewModel(
-                    factory = workoutFactory
-                )
-
-                val musicFactory =
-                    object : ViewModelProvider.Factory {
-
-                        @Suppress("UNCHECKED_CAST")
-                        override fun <T : ViewModel> create(
-                            modelClass: Class<T>
-                        ): T {
-                            return MusicViewModel(
-                                workoutViewModel,
-                                AndroidPlaybackController(controller)
-                            ) as T
-                        }
-                    }
-
-                musicViewModel = viewModel(
-                    factory = musicFactory
-                )
-
                 WorkoutScreen(
                     workoutViewModel = workoutViewModel,
                     musicViewModel = musicViewModel,

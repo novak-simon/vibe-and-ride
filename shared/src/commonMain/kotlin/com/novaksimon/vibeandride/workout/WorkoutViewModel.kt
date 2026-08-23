@@ -4,15 +4,19 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.novaksimon.vibeandride.model.Workout
 import com.novaksimon.vibeandride.database.listWorkouts
+import com.novaksimon.vibeandride.music.MusicViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration.Companion.seconds
 
 data class WorkoutUiState(
     val workoutState: WorkoutState? = null,
@@ -24,16 +28,32 @@ class WorkoutViewModel(
     private val tickInterval: Duration = 200.milliseconds,
 ) : ViewModel() {
 
-    private val scheduler: WorkoutScheduler = WorkoutScheduler()
+    private lateinit var musicViewModel: MusicViewModel
     private val _uiState = MutableStateFlow(WorkoutUiState())
     val uiState: StateFlow<WorkoutUiState> = _uiState.asStateFlow()
+    private val scheduler: WorkoutScheduler = WorkoutScheduler()
     private val _availableWorkouts = MutableStateFlow<List<Workout>>(emptyList())
     val availableWorkouts: StateFlow<List<Workout>> = _availableWorkouts.asStateFlow()
     private var tickJob: Job? = null
 
     init {
         viewModelScope.launch {
+            loadAvailableWorkouts()
+        }
+    }
 
+    fun initMusicViewModel(musicViewModel: MusicViewModel) {
+        this.musicViewModel = musicViewModel
+        viewModelScope.launch {
+            musicViewModel.uiState
+                .map { it.isMusicAvailable }
+                .distinctUntilChanged()
+                .collect { isMusicAvailable ->
+                    if (isMusicAvailable) {
+                        scheduler.musicPrepared()
+                        tick()
+                    }
+                }
         }
     }
 

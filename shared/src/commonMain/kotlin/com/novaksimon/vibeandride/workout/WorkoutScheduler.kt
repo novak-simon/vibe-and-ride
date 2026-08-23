@@ -11,12 +11,12 @@ import kotlin.time.TimeMark
 import kotlin.time.TimeSource
 
 enum class WorkoutStatus {
-    NOT_STARTED, RUNNING, PAUSED, FINISHED
+    NOT_STARTED, READY, RUNNING, PAUSED, FINISHED
 }
 
 data class WorkoutState(
     val workout: Workout?,
-    val status: WorkoutStatus,
+    var status: WorkoutStatus,
     val intervalIndex: Int?,
     val currentInterval: Interval?,
     val elapsedInInterval: Duration,
@@ -31,7 +31,7 @@ private data class IntervalLookup(
     val interval: Interval?,
     val startOffset: Duration,
 )
-class WorkoutScheduler {
+class WorkoutScheduler() {
     private val timeSource: TimeSource.WithComparableMarks = TimeSource.Monotonic
     var workout: Workout? = null
         private set
@@ -54,10 +54,12 @@ class WorkoutScheduler {
             lastIntervalIndex = -2
             return
         }
-        status = WorkoutStatus.RUNNING
-        elapsedBeforeStart = Duration.ZERO
-        startMark = timeSource.markNow()
-        lastIntervalIndex = -2
+        if (status == WorkoutStatus.READY) {
+            status = WorkoutStatus.RUNNING
+            elapsedBeforeStart = Duration.ZERO
+            startMark = timeSource.markNow()
+            lastIntervalIndex = -2
+        }
     }
 
     fun pauseResume() {
@@ -109,6 +111,11 @@ class WorkoutScheduler {
             return
         }
         initializeWithWorkout(workout)
+    }
+
+    fun musicPrepared() {
+        status = WorkoutStatus.READY
+        println("Status of workout: $status")
     }
 
 

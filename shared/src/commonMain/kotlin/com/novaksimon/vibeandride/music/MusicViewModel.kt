@@ -16,41 +16,43 @@ import kotlin.time.Duration.Companion.seconds
 
 data class MusicUiState(
     val currentSong: Song? = null,
-    val isMusicAvailable: Boolean = true,
+    val isMusicAvailable: Boolean = false,
     val debugInfo: List<SongRecommendation>? = null,
     val isLiked: Boolean = false,
 )
 
 
 class MusicViewModel(
-    private val workoutViewModel: WorkoutViewModel,
     playbackController: PlaybackController,
 ) : ViewModel() {
 
-
+    private lateinit var workoutViewModel: WorkoutViewModel
     private val _uiState = MutableStateFlow(MusicUiState())
     private val musicProvider: MusicProvider = MusicProvider(_uiState, playbackController)
     val uiState: StateFlow<MusicUiState> = _uiState.asStateFlow()
 
-    init {
+    fun initWorkoutViewModel(workoutViewModel: WorkoutViewModel) {
+        this.workoutViewModel = workoutViewModel
         viewModelScope.launch {
             workoutViewModel.uiState
-            .map { it.workoutState }
-            .distinctUntilChanged()
-            .collect { workoutState ->
-                if (workoutState?.status == WorkoutStatus.NOT_STARTED) {
-                    musicProvider.workoutSelected(workoutState)
-                }
-                else if (workoutState?.status == WorkoutStatus.RUNNING) {
+                .map { it.workoutState }
+                .distinctUntilChanged()
+                .collect { workoutState ->
+                    if (workoutState?.status == WorkoutStatus.NOT_STARTED) {
+                        musicProvider.workoutSelected(workoutState)
+                    } else if (workoutState?.status == WorkoutStatus.RUNNING) {
 
-                    musicProvider.play(workoutState.intervalIndex, workoutState.remainingInInterval)
-                }
-                workoutState?.remainingInInterval?.let {
-                    if (it < 40.seconds) {
-                        musicProvider.precomputeNextRecommendation(workoutState)
+                        musicProvider.play(
+                            workoutState.intervalIndex,
+                            workoutState.remainingInInterval
+                        )
+                    }
+                    workoutState?.remainingInInterval?.let {
+                        if (it < 40.seconds) {
+                            musicProvider.precomputeNextRecommendation(workoutState)
+                        }
                     }
                 }
-            }
         }
     }
     fun skip() {

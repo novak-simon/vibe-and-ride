@@ -265,7 +265,7 @@ class RecommendationEngine(userMusicService: UserMusicService) {
         val songScore = clamp02(tagScore + instrumentScore + genreScore)
 
         var totalScore =
-            0.55f * cadenceScore + 0.05f * confScore + 0.40f * songScore + cadenceCompatibleBonus
+            0.05f * cadenceScore + 0.05f * confScore + 0.90f * songScore + cadenceCompatibleBonus
         totalScore = clamp02(totalScore, 1.0f)
 
         return IntervalRecommendation(

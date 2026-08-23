@@ -16,8 +16,9 @@ import com.novaksimon.vibeandride.workout.WorkoutState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
@@ -33,9 +34,11 @@ class MusicProvider(val uiState: MutableStateFlow<MusicUiState>, playbackControl
     private var futureDebug: List<SongRecommendation> = emptyList()
     private var workout: Workout? = null
     private var recommendationBuffer: MutableList<RecommendationResult?> = mutableListOf()
-    private var recommendationIndex: MutableList<Boolean> = mutableListOf()
+    private val recommendationIndex = MutableStateFlow<List<Boolean>>(emptyList())
+    private val activePrecomputations = mutableSetOf<Int>()
     private val statsScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val recommendScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    private val waitScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private val recommendSemaphore = Semaphore(4)
     private var songIndex: Int = 0
     private var currentSong: Song? = null
@@ -53,10 +56,19 @@ class MusicProvider(val uiState: MutableStateFlow<MusicUiState>, playbackControl
         var intervalCount = 0
         workout?.intervals?.let { intervalCount = workout!!.intervals.size }
         recommendationBuffer = MutableList(intervalCount) { null }
-        recommendationIndex = MutableList(intervalCount) { false }
+        activePrecomputations.clear()
+        recommendationIndex.value = List(intervalCount) { false }
         println("Interval index on workoutSelected: ${state.intervalIndex}")
         if (state.intervalIndex != null) {
             precompute(state.currentInterval ?: return, state.intervalIndex)
+        }
+        waitScope.launch {
+            val firstIndex = state.intervalIndex ?: return@launch
+            recommendationIndex.first { readyList ->
+                readyList.getOrNull(firstIndex) == true
+            }
+            println("MusicProvider: Music is available for interval $firstIndex, setting isMusicAvailable = true")
+            uiState.value = uiState.value.copy(isMusicAvailable = true)
         }
     }
 
@@ -104,7 +116,6 @@ class MusicProvider(val uiState: MutableStateFlow<MusicUiState>, playbackControl
         val song = currentSong ?: return
         statsScope.launch {
             val userId = getCurrentUser().id
-            // ... (rest of function unchanged)
 
             if (skipped) {
                 incrementStat("skip_count", song.id, userId = userId)
@@ -182,16 +193,17 @@ class MusicProvider(val uiState: MutableStateFlow<MusicUiState>, playbackControl
 
     fun precomputeNextRecommendation(workoutState: WorkoutState) {
         if (workoutState.intervalIndex != null) {
-            if (recommendationIndex[workoutState.intervalIndex + 1]) return
-            precompute(workoutState.workout?.intervals?.get(workoutState.intervalIndex + 1) ?: return, workoutState.intervalIndex + 1)
+            val nextIndex = workoutState.intervalIndex + 1
+            if (recommendationIndex.value.getOrNull(nextIndex) == true || activePrecomputations.contains(nextIndex)) return
+            precompute(workoutState.workout?.intervals?.get(nextIndex) ?: return, nextIndex)
         }
     }
 
     fun precompute(interval: Interval, intervalIndex: Int) {
+        activePrecomputations.add(intervalIndex)
         recommendScope.launch {
             val recommendation = recommendSemaphore.withPermit {
                 println("Recommending songs for interval: $intervalIndex")
-                recommendationIndex[intervalIndex] = true
                 recommender.recommend(interval)
             }
 
@@ -199,10 +211,14 @@ class MusicProvider(val uiState: MutableStateFlow<MusicUiState>, playbackControl
             futureDebug = recommendation.debugInfo
             futureIntervalSong = recommendation.topSongs.first()
 
+            // Update recommendationIndex to signal readiness
+            val currentReady = recommendationIndex.value.toMutableList()
+            if (intervalIndex < currentReady.size) {
+                currentReady[intervalIndex] = true
+                recommendationIndex.value = currentReady
+            }
 
-            println("Recommendation complete")
-            println(recommendation)
-
+            println("Recommendation complete for interval: $intervalIndex")
         }
     }
 }

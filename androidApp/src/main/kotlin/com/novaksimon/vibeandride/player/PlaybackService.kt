@@ -3,6 +3,7 @@ package com.novaksimon.vibeandride.player
 import android.content.Intent
 import android.os.Bundle
 import androidx.annotation.OptIn
+import androidx.media3.common.MediaItem
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.session.MediaSession
@@ -10,6 +11,8 @@ import androidx.media3.session.MediaSessionService
 import androidx.media3.session.SessionCommand
 import androidx.media3.session.SessionCommands
 import androidx.media3.session.SessionResult
+import com.google.common.util.concurrent.Futures
+import com.google.common.util.concurrent.ListenableFuture
 import com.novaksimon.vibeandride.model.Song
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -97,7 +100,7 @@ class PlaybackService : MediaSessionService() {
                     controller: MediaSession.ControllerInfo,
                     customCommand: SessionCommand,
                     args: Bundle
-                ): com.google.common.util.concurrent.ListenableFuture<SessionResult> {
+                ): ListenableFuture<SessionResult> {
                     println(
                         "PlaybackService: received command " +
                                 customCommand.customAction
@@ -175,8 +178,27 @@ class PlaybackService : MediaSessionService() {
                         }
                     }
 
-                    return com.google.common.util.concurrent.Futures.immediateFuture(
+                    return Futures.immediateFuture(
                         SessionResult(SessionResult.RESULT_SUCCESS)
+                    )
+                }
+
+                @OptIn(UnstableApi::class)
+                override fun onPlaybackResumption(
+                    session: MediaSession,
+                    controller: MediaSession.ControllerInfo,
+                    isForPlayback: Boolean
+                ): ListenableFuture<MediaSession.MediaItemsWithStartPosition> {
+                    val mediaItems = mutableListOf<MediaItem>()
+                    for (i in 0 until session.player.mediaItemCount) {
+                        mediaItems.add(session.player.getMediaItemAt(i))
+                    }
+                    return Futures.immediateFuture(
+                        MediaSession.MediaItemsWithStartPosition(
+                            mediaItems,
+                            session.player.currentMediaItemIndex,
+                            session.player.currentPosition
+                        )
                     )
                 }
             })

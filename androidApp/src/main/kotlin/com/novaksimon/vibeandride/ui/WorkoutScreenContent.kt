@@ -161,7 +161,7 @@ fun WorkoutScreenContent(
                 }
 
                 Text(
-                    text = if (!musicUiState.isMusicAvailable) "Music: disabled"
+                    text = if (!musicUiState.isMusicAvailable) "Music: not ready"
                     else if (status == WorkoutStatus.RUNNING) "Music: playing"
                     else "Music: paused",
                     color = Color.Black,
@@ -193,7 +193,7 @@ fun WorkoutScreenContent(
         ) {
             Button(
                 onClick = { onStart() },
-                enabled = status == WorkoutStatus.NOT_STARTED,
+                enabled = status == WorkoutStatus.READY, //TODO: enabled only when ready
                 modifier = Modifier.weight(1f),
             ) { Text("Start") }
 
