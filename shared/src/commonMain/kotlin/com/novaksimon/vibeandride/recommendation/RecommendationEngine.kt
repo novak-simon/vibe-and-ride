@@ -1,6 +1,6 @@
 package com.novaksimon.vibeandride.recommendation
 
-import com.novaksimon.vibeandride.database.getCurrentProfile
+import com.novaksimon.vibeandride.database.getProfileForRecommendation
 import com.novaksimon.vibeandride.database.getStatByProfileAndSongId
 import com.novaksimon.vibeandride.music.ProfileMusicService
 import com.novaksimon.vibeandride.model.Interval
@@ -124,29 +124,28 @@ class RecommendationEngine(profileMusicService: ProfileMusicService) {
         song: Song?,
         profile: Profile?,
     ): PreferenceRecommendation {
-        val resolvedProfile = profile ?: getCurrentProfile()
-        if (song == null) {
+        if (song == null || profile == null) {
             return PreferenceRecommendation()
         }
 
         val numberOfMatchingGenres: Float = if (song.genre.isNotEmpty()) {
-            song.genre.intersect(resolvedProfile.genrePreferences.toSet()).size.toFloat()
+            song.genre.intersect(profile.genrePreferences.toSet()).size.toFloat()
         } else {
             0.5f
         }
 
-        val stat = getStatByProfileAndSongId(resolvedProfile.id, song.id)
+        val stat = getStatByProfileAndSongId(songId = song.id, profileId = profile.id)
 
         if (stat != null) {
             val lastPlayedAt = stat.lastPlayedAt
             if (lastPlayedAt == null) {
-                // No recorded play time despite stat existing — treat as "long ago" (same as normal branch below)
+                // No recorded play time despite stat existing — treat as "long ago"
                 val likeCoefficient = if (stat.isLiked) 2f else 1f
                 val skipCoefficient = if (stat.skipCount != 0) {
                     minOf(
                         2f,
                         stat.playCount / 3f * stat.skipCount
-                    ) // NOTE: preserves original (possibly buggy) formula — see flag above
+                    )
                 } else {
                     2f
                 }
@@ -154,7 +153,7 @@ class RecommendationEngine(profileMusicService: ProfileMusicService) {
                 return PreferenceRecommendation(
                     song = song,
                     score = score,
-                    profile = resolvedProfile,
+                    profile = profile,
                     numberOfMatchingGenres = round3(numberOfMatchingGenres),
                     repetitionCoefficient = round3(2f),
                     likeCoefficient = likeCoefficient,
@@ -167,7 +166,7 @@ class RecommendationEngine(profileMusicService: ProfileMusicService) {
                 return PreferenceRecommendation(
                     song = song,
                     score = -1f,
-                    profile = resolvedProfile,
+                    profile = profile,
                     numberOfMatchingGenres = round3(numberOfMatchingGenres),
                     repetitionCoefficient = round3(-1f),
                     likeCoefficient = null,
@@ -181,7 +180,7 @@ class RecommendationEngine(profileMusicService: ProfileMusicService) {
                 minOf(
                     2f,
                     stat.playCount / 3f * stat.skipCount
-                ) // NOTE: preserves original formula — flagged as likely bug above
+                )
             } else {
                 2f
             }
@@ -190,7 +189,7 @@ class RecommendationEngine(profileMusicService: ProfileMusicService) {
             return PreferenceRecommendation(
                 song = song,
                 score = score,
-                profile = resolvedProfile,
+                profile = profile,
                 numberOfMatchingGenres = round3(numberOfMatchingGenres),
                 repetitionCoefficient = round3(repetitionCoefficient),
                 likeCoefficient = likeCoefficient,
@@ -201,7 +200,7 @@ class RecommendationEngine(profileMusicService: ProfileMusicService) {
             return PreferenceRecommendation(
                 song = song,
                 score = score,
-                profile = resolvedProfile,
+                profile = profile,
                 numberOfMatchingGenres = round3(numberOfMatchingGenres),
                 repetitionCoefficient = round3(-1f),
                 likeCoefficient = -1f,
@@ -303,9 +302,8 @@ class RecommendationEngine(profileMusicService: ProfileMusicService) {
 
 
 
-    suspend fun recommend(interval: Interval): RecommendationResult {
-
-        val profile = getCurrentProfile()
+    suspend fun recommend(interval: Interval, profileId: String? = null): RecommendationResult {
+        val profile = getProfileForRecommendation(profileId)
         var firstCandidatePool: List<Song>? = null
         withContext(Dispatchers.IO) {
             firstCandidatePool = approximateFilterByInterval(interval)

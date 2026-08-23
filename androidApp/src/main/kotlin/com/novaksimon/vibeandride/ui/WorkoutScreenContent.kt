@@ -69,7 +69,7 @@ fun WorkoutScreenContent(
     onMusicPause: () -> Unit,
     onSkip: () -> Unit,
     onReset: () -> Unit,
-    onResync: (Duration) -> Unit,
+    onAdjustTime: (Duration) -> Unit,
     onLikeSong: (Boolean) -> Unit,
     onUploadWorkout: () -> Unit,
     onPickerVisibilityChange: (Boolean) -> Unit,
@@ -293,11 +293,8 @@ fun WorkoutScreenContent(
 
     if (showResyncDialog) {
         ResyncDialog(
-            initialSeconds = workoutUiState.workoutState?.totalElapsed?.inWholeSeconds?.toDouble() ?: 0.0,
-            onConfirm = { seconds ->
-                onResync((Duration.parse("${seconds}s")))
-                showResyncDialog = false
-            },
+            currentTotalElapsed = workoutUiState.workoutState?.totalElapsed ?: Duration.ZERO,
+            onAdjust = onAdjustTime,
             onDismiss = { showResyncDialog = false },
         )
     }
@@ -387,14 +384,12 @@ fun WorkoutPickerDialog(
 }
 
 @Composable
-fun ResyncDialog(initialSeconds: Double, onConfirm: (Double) -> Unit, onDismiss: () -> Unit) {
-    var text by remember { mutableStateOf(initialSeconds.toInt().toString()) }
-    val currentSeconds = text.toDoubleOrNull() ?: 0.0
-
-    fun adjust(delta: Int) {
-        val newVal = (currentSeconds + delta).coerceAtLeast(0.0)
-        text = if (newVal % 1.0 == 0.0) newVal.toInt().toString() else newVal.toString()
-    }
+fun ResyncDialog(
+    currentTotalElapsed: Duration,
+    onAdjust: (Duration) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val currentSeconds = currentTotalElapsed.inWholeSeconds.toDouble()
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -404,7 +399,7 @@ fun ResyncDialog(initialSeconds: Double, onConfirm: (Double) -> Unit, onDismiss:
                 verticalArrangement = Arrangement.spacedBy(16.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                // Prominent real-time formatted time display
+                // Prominent real-time ticking display
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(
                         text = formatSeconds(currentSeconds),
@@ -412,44 +407,34 @@ fun ResyncDialog(initialSeconds: Double, onConfirm: (Double) -> Unit, onDismiss:
                         color = MaterialTheme.colorScheme.primary
                     )
                     Text(
-                        text = "Adjusted Position",
+                        text = "Current Position",
                         style = MaterialTheme.typography.labelMedium,
                         color = Color.Gray
                     )
                 }
-
-                OutlinedTextField(
-                    value = text,
-                    onValueChange = { text = it },
-                    label = { Text("Total seconds") },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true
-                )
 
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceEvenly
                     ) {
-                        ResyncAdjustButton("-10s") { adjust(-10) }
-                        ResyncAdjustButton("-5s") { adjust(-5) }
-                        ResyncAdjustButton("-1s") { adjust(-1) }
+                        ResyncAdjustButton("-10s") { onAdjust((-10).seconds) }
+                        ResyncAdjustButton("-5s") { onAdjust((-5).seconds) }
+                        ResyncAdjustButton("-1s") { onAdjust((-1).seconds) }
                     }
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceEvenly
                     ) {
-                        ResyncAdjustButton("+1s") { adjust(1) }
-                        ResyncAdjustButton("+5s") { adjust(5) }
-                        ResyncAdjustButton("+10s") { adjust(10) }
+                        ResyncAdjustButton("+1s") { onAdjust(1.seconds) }
+                        ResyncAdjustButton("+5s") { onAdjust(5.seconds) }
+                        ResyncAdjustButton("+10s") { onAdjust(10.seconds) }
                     }
                 }
             }
         },
-        confirmButton = {
-            TextButton(onClick = { text.toDoubleOrNull()?.let(onConfirm) }) { Text("Apply Sync") }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+        confirmButton = {},
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Close") } },
     )
 }
 
@@ -523,7 +508,7 @@ private fun WorkoutScreenPreview() {
             onPauseResumeBoth = {},
             onSkip = {},
             onReset = {},
-            onResync = {},
+            onAdjustTime = {},
             onLikeSong = {},
             onUploadWorkout = {},
             onPickerVisibilityChange = {},

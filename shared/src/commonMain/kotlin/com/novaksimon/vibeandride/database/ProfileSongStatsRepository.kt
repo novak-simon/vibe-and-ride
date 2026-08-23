@@ -18,13 +18,13 @@ suspend fun getStatById(id: Int): ProfileSongStats? {
     return if (stat != null) rawToStat(stat) else null
 }
 
-suspend fun getStatByProfileAndSongId(profileId: String, songId: Int): ProfileSongStats? {
-    if (profileId.isEmpty()) return null
+suspend fun getStatByProfileAndSongId(songId: Int, profileId: String? = null): ProfileSongStats? {
+    val resolvedProfileId = profileId ?: getCurrentProfile()?.id ?: return null
     return client.postgrest["profile_song_stats"]
         .select {
             filter {
                 eq("song_id", songId)
-                eq("profile_id", profileId)
+                eq("profile_id", resolvedProfileId)
             }
             limit(1)
         }
@@ -32,11 +32,11 @@ suspend fun getStatByProfileAndSongId(profileId: String, songId: Int): ProfileSo
         ?.let(::rawToStat)
 }
 
-suspend fun getStatsByProfileId(profileId: String, limit: Int? = 50): List<ProfileSongStats> {
-    if (profileId.isEmpty()) return emptyList()
+suspend fun getStatsByProfileId(profileId: String? = null, limit: Int? = 50): List<ProfileSongStats> {
+    val resolvedProfileId = profileId ?: getCurrentProfile()?.id ?: return emptyList()
     return client.postgrest["profile_song_stats"]
         .select {
-            filter { eq("profile_id", profileId) }
+            filter { eq("profile_id", resolvedProfileId) }
             if (limit != null) limit(limit.toLong())
         }
         .decodeList<RawProfileSongStats>()
@@ -50,15 +50,15 @@ suspend fun getStatsByProfileId(profileId: String, limit: Int? = 50): List<Profi
 suspend fun incrementStat(
     stat: String,
     songId: Int,
-    profileId: String,
+    profileId: String? = null,
     incrementBy: Int = 1,
 ): ProfileSongStats? {
-    if (profileId.isEmpty()) return null
-    val existing = getStatByProfileAndSongId(profileId, songId)
+    val resolvedProfileId = profileId ?: getCurrentProfile()?.id ?: return null
+    val existing = getStatByProfileAndSongId(songId, resolvedProfileId)
 
     if (existing == null) {
         val insertBody = buildJsonObject {
-            put("profile_id", profileId)
+            put("profile_id", resolvedProfileId)
             put("song_id", songId)
             put(stat, incrementBy)
         }
@@ -79,7 +79,7 @@ suspend fun incrementStat(
     return client.postgrest["profile_song_stats"]
         .update(updateBody) {
             filter {
-                eq("profile_id", profileId)
+                eq("profile_id", resolvedProfileId)
                 eq("song_id", songId)
             }
             select()
@@ -95,30 +95,30 @@ suspend fun incrementStat(
 suspend fun setStatDatetime(
     stat: String,
     songId: Int,
-    profileId: String,
+    profileId: String? = null,
     value: Instant = kotlin.time.Clock.System.now(),
 ): ProfileSongStats? {
-    if (profileId.isEmpty()) return null
+    val resolvedProfileId = profileId ?: getCurrentProfile()?.id ?: return null
     val updateBody = buildJsonObject { put(stat, value.toString()) }
     return client.postgrest["profile_song_stats"]
         .update(updateBody) {
             filter {
+                eq("profile_id", resolvedProfileId)
                 eq("song_id", songId)
-                eq("profile_id", profileId)
             }
             select()
         }
         .decodeSingleOrNull<RawProfileSongStats>()
         ?.let(::rawToStat)
 }
-suspend fun changeLikeState(songId: Int, profileId: String, targetState: Boolean) {
-    if (profileId.isEmpty()) return
+suspend fun changeLikeState(songId: Int, targetState: Boolean, profileId: String? = null) {
+    val resolvedProfileId = profileId ?: getCurrentProfile()?.id ?: return
     val updateBody = buildJsonObject { put("is_liked", targetState) }
     client.postgrest["profile_song_stats"]
         .update(updateBody) {
             filter {
                 eq("song_id", songId)
-                eq("profile_id", profileId)
+                eq("profile_id", resolvedProfileId)
             }
             select()
         }

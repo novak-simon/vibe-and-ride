@@ -1,7 +1,6 @@
 package com.novaksimon.vibeandride.music
 
 import com.novaksimon.vibeandride.database.changeLikeState
-import com.novaksimon.vibeandride.database.getCurrentProfile
 import com.novaksimon.vibeandride.database.getStatByProfileAndSongId
 import com.novaksimon.vibeandride.database.incrementStat
 import com.novaksimon.vibeandride.database.setStatDatetime
@@ -118,21 +117,17 @@ class MusicProvider(val uiState: MutableStateFlow<MusicUiState>, playbackControl
     fun incrementStatsOnTrackLeave(skipped: Boolean = false) {
         val song = currentSong ?: return
         statsScope.launch {
-            val profileId = getCurrentProfile().id
-
             if (skipped) {
-                incrementStat("skip_count", song.id, profileId = profileId)
-                setStatDatetime("last_skipped_at", song.id, profileId = profileId)
+                incrementStat("skip_count", song.id)
+                setStatDatetime("last_skipped_at", song.id)
             }
-            incrementStat("play_count", song.id, profileId = profileId)
-
+            incrementStat("play_count", song.id)
         }
     }
     fun incrementStatsOnTrackArrive() {
         val song = currentSong ?: return
         statsScope.launch {
-            val profileId = getCurrentProfile().id
-            setStatDatetime("last_played_at", song.id, profileId = profileId)
+            setStatDatetime("last_played_at", song.id)
         }
     }
 
@@ -156,7 +151,7 @@ class MusicProvider(val uiState: MutableStateFlow<MusicUiState>, playbackControl
                 println("No more songs in recommendation for interval $currentIntervalIndex (index $songIndex)")
                 return
             }
-            val songStats: ProfileSongStats? = getStatByProfileAndSongId(songId = song.id, profileId = getCurrentProfile().id)
+            val songStats: ProfileSongStats? = getStatByProfileAndSongId(songId = song.id)
             println("Current song: $song")
             uiState.value = uiState.value.copy(
                 currentSong = song,
@@ -182,7 +177,7 @@ class MusicProvider(val uiState: MutableStateFlow<MusicUiState>, playbackControl
     fun songLiked(liked: Boolean = true) {
         val song = currentSong ?: return
         statsScope.launch {
-            changeLikeState(songId = song.id, profileId = getCurrentProfile().id, targetState = liked)
+            changeLikeState(songId = song.id, targetState = liked)
         }
     }
 

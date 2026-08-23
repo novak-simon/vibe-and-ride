@@ -75,6 +75,12 @@ class WorkoutViewModel(
 
     fun resync(time: Duration) {
         scheduler.resync(time)
+        tick()
+    }
+
+    fun adjustTime(delta: Duration) {
+        scheduler.adjustTime(delta)
+        tick()
     }
 
     fun loadAvailableWorkouts() {

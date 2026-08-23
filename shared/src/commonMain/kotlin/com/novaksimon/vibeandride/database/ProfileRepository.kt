@@ -19,8 +19,12 @@ suspend fun getProfileById(id: String?): Profile? {
     return rawProfile?.let { rawToProfile(it) }
 }
 
-suspend fun getCurrentProfile(): Profile {
+internal suspend fun getCurrentProfile(): Profile? {
     val id = client.auth.currentUserOrNull()?.id
     println("PROFILE ID: $id")
-    return getProfileById(id) ?: Profile(id = "", genrePreferences = listOf("pop"))
+    return getProfileById(id)
+}
+
+suspend fun getProfileForRecommendation(profileId: String? = null): Profile? {
+    return profileId?.let { getProfileById(it) } ?: getCurrentProfile()
 }

@@ -80,6 +80,11 @@ class WorkoutScheduler() {
         lastIntervalIndex = -2
     }
 
+    fun adjustTime(delta: Duration) {
+        val current = currentElapsed()
+        resync(current + delta)
+    }
+
     fun resync(workoutTime: Duration) {
         if (workoutTime < Duration.ZERO) throw IllegalArgumentException("Workout time for resync must be non-negative")
         val total = workout?.totalDuration?.seconds ?: Duration.ZERO
