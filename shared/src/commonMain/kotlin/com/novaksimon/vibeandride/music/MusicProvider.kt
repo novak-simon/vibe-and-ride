@@ -1,13 +1,13 @@
 package com.novaksimon.vibeandride.music
 
 import com.novaksimon.vibeandride.database.changeLikeState
-import com.novaksimon.vibeandride.database.getCurrentUser
-import com.novaksimon.vibeandride.database.getStatByUserAndSongId
+import com.novaksimon.vibeandride.database.getCurrentProfile
+import com.novaksimon.vibeandride.database.getStatByProfileAndSongId
 import com.novaksimon.vibeandride.database.incrementStat
 import com.novaksimon.vibeandride.database.setStatDatetime
 import com.novaksimon.vibeandride.model.Interval
 import com.novaksimon.vibeandride.model.Song
-import com.novaksimon.vibeandride.model.UserSongStats
+import com.novaksimon.vibeandride.model.ProfileSongStats
 import com.novaksimon.vibeandride.model.Workout
 import com.novaksimon.vibeandride.recommendation.RecommendationEngine
 import com.novaksimon.vibeandride.recommendation.RecommendationResult
@@ -28,7 +28,7 @@ import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 
 class MusicProvider(val uiState: MutableStateFlow<MusicUiState>, playbackController: PlaybackController) {
-    private val service = UserMusicService(playbackController)
+    private val service = ProfileMusicService(playbackController)
     private val recommender = RecommendationEngine(service)
     private var currentDebug: List<SongRecommendation> = emptyList()
     private var futureDebug: List<SongRecommendation> = emptyList()
@@ -64,8 +64,11 @@ class MusicProvider(val uiState: MutableStateFlow<MusicUiState>, playbackControl
         }
         waitScope.launch {
             val firstIndex = state.intervalIndex ?: return@launch
+            println("Waiting for music availability for interval $firstIndex...")
             recommendationIndex.first { readyList ->
-                readyList.getOrNull(firstIndex) == true
+                val ready = readyList.getOrNull(firstIndex) == true
+                if (ready) println("Music ready for interval $firstIndex")
+                ready
             }
             println("MusicProvider: Music is available for interval $firstIndex, setting isMusicAvailable = true")
             uiState.value = uiState.value.copy(isMusicAvailable = true)
@@ -106,8 +109,8 @@ class MusicProvider(val uiState: MutableStateFlow<MusicUiState>, playbackControl
             println("MusicProvider: switching to next track (new interval: false)")
             nextTrack()
         }
-        else if (currentIntervalIndex == -1) {
-            println("MusicProvider: starting first track of workout")
+        else if (currentIntervalIndex == -1 && intervalIndex != null) {
+            println("MusicProvider: starting first track of workout for interval $intervalIndex")
             nextTrack(firstSong = true, newInterval = true, intervalIndex = intervalIndex)
         }
     }
@@ -115,21 +118,21 @@ class MusicProvider(val uiState: MutableStateFlow<MusicUiState>, playbackControl
     fun incrementStatsOnTrackLeave(skipped: Boolean = false) {
         val song = currentSong ?: return
         statsScope.launch {
-            val userId = getCurrentUser().id
+            val profileId = getCurrentProfile().id
 
             if (skipped) {
-                incrementStat("skip_count", song.id, userId = userId)
-                setStatDatetime("last_skipped_at", song.id, userId = userId)
+                incrementStat("skip_count", song.id, profileId = profileId)
+                setStatDatetime("last_skipped_at", song.id, profileId = profileId)
             }
-            incrementStat("play_count", song.id, userId = userId)
+            incrementStat("play_count", song.id, profileId = profileId)
 
         }
     }
     fun incrementStatsOnTrackArrive() {
         val song = currentSong ?: return
         statsScope.launch {
-            val userId = getCurrentUser().id
-            setStatDatetime("last_played_at", song.id, userId = userId)
+            val profileId = getCurrentProfile().id
+            setStatDatetime("last_played_at", song.id, profileId = profileId)
         }
     }
 
@@ -153,9 +156,13 @@ class MusicProvider(val uiState: MutableStateFlow<MusicUiState>, playbackControl
                 println("No more songs in recommendation for interval $currentIntervalIndex (index $songIndex)")
                 return
             }
-            val songStats: UserSongStats? = getStatByUserAndSongId(songId = song.id, userId = getCurrentUser().id)
+            val songStats: ProfileSongStats? = getStatByProfileAndSongId(songId = song.id, profileId = getCurrentProfile().id)
             println("Current song: $song")
-            uiState.value = uiState.value.copy(currentSong = song, isLiked = songStats?.isLiked ?: false)
+            uiState.value = uiState.value.copy(
+                currentSong = song,
+                isLiked = songStats?.isLiked ?: false,
+                isPlaying = true
+            )
             currentSong = song
             service.crossfadeTo(song, 1000L)
             CoroutineScope(Dispatchers.Main).launch {
@@ -175,20 +182,23 @@ class MusicProvider(val uiState: MutableStateFlow<MusicUiState>, playbackControl
     fun songLiked(liked: Boolean = true) {
         val song = currentSong ?: return
         statsScope.launch {
-            changeLikeState(songId = song.id, userId = getCurrentUser().id, targetState = liked)
+            changeLikeState(songId = song.id, profileId = getCurrentProfile().id, targetState = liked)
         }
     }
 
     fun pauseResume() {
         service.pauseResume()
+        uiState.value = uiState.value.copy(isPlaying = service.isPlaying())
     }
 
     fun play() {
         service.play()
+        uiState.value = uiState.value.copy(isPlaying = true)
     }
 
     fun pause() {
         service.pause()
+        uiState.value = uiState.value.copy(isPlaying = false)
     }
 
     fun precomputeNextRecommendation(workoutState: WorkoutState) {
@@ -209,7 +219,7 @@ class MusicProvider(val uiState: MutableStateFlow<MusicUiState>, playbackControl
 
             recommendationBuffer[intervalIndex] = recommendation
             futureDebug = recommendation.debugInfo
-            futureIntervalSong = recommendation.topSongs.first()
+            futureIntervalSong = recommendation.topSongs.firstOrNull()
 
             // Update recommendationIndex to signal readiness
             val currentReady = recommendationIndex.value.toMutableList()

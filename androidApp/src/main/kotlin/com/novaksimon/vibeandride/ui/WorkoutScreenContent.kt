@@ -4,6 +4,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
@@ -26,6 +27,11 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.SkipNext
+import androidx.compose.material.icons.filled.Sync
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -58,8 +64,9 @@ fun WorkoutScreenContent(
     onLoadWorkouts: () -> Unit,
     onSelectWorkout: (Int) -> Unit,
     onStart: () -> Unit,
-    onPauseResume: () -> Unit,
     onPauseResumeBoth: () -> Unit,
+    onMusicPlay: () -> Unit,
+    onMusicPause: () -> Unit,
     onSkip: () -> Unit,
     onReset: () -> Unit,
     onResync: (Duration) -> Unit,
@@ -115,7 +122,7 @@ fun WorkoutScreenContent(
                     .clip(RoundedCornerShape(8.dp))
             )
 
-            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(
                     text = if (workoutUiState.isLoading) "Loading workout..."
                     else workoutUiState.workoutState?.let { "Workout loaded" } ?: "No workout loaded",
@@ -126,111 +133,149 @@ fun WorkoutScreenContent(
                     Text(
                         text = if (state.intervalIndex == null) "Interval: finished"
                         else "Int ${state.intervalIndex!! + 1}: ${state.currentInterval?.type ?: ""} (${formatSeconds(state.currentInterval?.duration)})",
-                        style = MaterialTheme.typography.bodyMedium
+                        style = MaterialTheme.typography.bodyLarge
                     )
                     Text(
                         text = buildString {
                             state.currentInterval?.power?.let { append("Pwr: $it") }
                             state.currentInterval?.cadence?.let { append(" · Cad: $it") }
                         },
-                        style = MaterialTheme.typography.bodySmall
-                    )
-                }
-
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Text(
-                        text = "Song: ${musicUiState.currentSong?.title ?: "none"}",
-                        style = MaterialTheme.typography.bodyMedium,
-                        maxLines = 1,
-                        modifier = Modifier.weight(1f)
+                        style = MaterialTheme.typography.bodyMedium
                     )
 
-                    IconButton(
-                        onClick = { onLikeSong(!musicUiState.isLiked) },
-                        enabled = musicUiState.currentSong != null
-                    ) {
-                        Icon(
-                            imageVector = if (musicUiState.isLiked) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
-                            contentDescription = if (musicUiState.isLiked) "Unlike" else "Like",
-                            tint = if (musicUiState.isLiked) Color.Red else Color.Gray
-                        )
-                    }
-                }
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
 
-                Text(
-                    text = if (!musicUiState.isMusicAvailable) "Music: not ready"
-                    else if (status == WorkoutStatus.RUNNING) "Music: playing"
-                    else "Music: paused",
-                    color = Color.Black,
-                    style = MaterialTheme.typography.bodySmall
-                )
-
-                workoutUiState.workoutState?.let { state ->
                     Text(
-                        text = "Int: ${formatSeconds(state.elapsedInInterval.inWholeSeconds.toDouble())} / ${formatSeconds(state.intervalLength.inWholeSeconds.toDouble())}",
-                        style = MaterialTheme.typography.bodySmall
+                        text = "Interval Time: ${formatSeconds(state.elapsedInInterval.inWholeSeconds.toDouble())} / ${formatSeconds(state.intervalLength.inWholeSeconds.toDouble())}",
+                        style = MaterialTheme.typography.bodyMedium
                     )
                     Text(
-                        text = "Total: ${formatSeconds(state.totalElapsed.inWholeSeconds.toDouble())} / ${formatSeconds((state.totalElapsed + state.totalRemaining).inWholeSeconds.toDouble())}",
-                        style = MaterialTheme.typography.bodySmall
+                        text = "Total Time: ${formatSeconds(state.totalElapsed.inWholeSeconds.toDouble())} / ${formatSeconds((state.totalElapsed + state.totalRemaining).inWholeSeconds.toDouble())}",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+
+                    Text(
+                        text = "Status: ${status.name.lowercase().replaceFirstChar { it.uppercase() }}",
+                        color = if (status == WorkoutStatus.RUNNING) Color.Green else Color.Red,
+                        style = MaterialTheme.typography.labelLarge
                     )
                 }
-
-                Text(
-                    text = "Status: ${status.name.lowercase().replaceFirstChar { it.uppercase() }}",
-                    color = if (status == WorkoutStatus.RUNNING) Color.Green else Color.Red,
-                    style = MaterialTheme.typography.labelLarge
-                )
             }
         }
 
-        Row(
+        // Workout Controls
+        Column(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Button(
-                onClick = { onStart() },
-                enabled = status == WorkoutStatus.READY, //TODO: enabled only when ready
-                modifier = Modifier.weight(1f),
-            ) { Text("Start") }
+            Text("Workout Controls", style = MaterialTheme.typography.labelSmall, color = Color.Gray)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Button(
+                    onClick = { onStart() },
+                    enabled = status == WorkoutStatus.READY,
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Icon(Icons.Default.PlayArrow, contentDescription = null)
+                    Text("Start", modifier = Modifier.padding(start = 4.dp))
+                }
 
-            Button(
-                onClick = { onPauseResumeBoth() },
-                enabled = status == WorkoutStatus.RUNNING || status == WorkoutStatus.PAUSED,
-                modifier = Modifier.weight(1f),
-            ) { Text(if (status == WorkoutStatus.PAUSED) "Resume" else "Pause") }
+                Button(
+                    onClick = { onPauseResumeBoth() },
+                    enabled = status == WorkoutStatus.RUNNING || status == WorkoutStatus.PAUSED,
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Icon(
+                        if (status == WorkoutStatus.PAUSED) Icons.Default.PlayArrow else Icons.Default.Pause,
+                        contentDescription = null
+                    )
+                    Text(
+                        if (status == WorkoutStatus.PAUSED) "Resume" else "Pause",
+                        modifier = Modifier.padding(start = 4.dp)
+                    )
+                }
+            }
 
-            Button(
-                onClick = { onSkip() },
-                enabled = status == WorkoutStatus.RUNNING || status == WorkoutStatus.PAUSED,
-                modifier = Modifier.weight(1f),
-            ) { Text("Skip") }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                OutlinedButton(
+                    onClick = { onReset() },
+                    enabled = status == WorkoutStatus.RUNNING || status == WorkoutStatus.PAUSED || status == WorkoutStatus.FINISHED,
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Icon(Icons.Default.Refresh, contentDescription = null)
+                    Text("Reset", modifier = Modifier.padding(start = 4.dp))
+                }
+
+                OutlinedButton(
+                    onClick = { showResyncDialog = true },
+                    enabled = status == WorkoutStatus.RUNNING || status == WorkoutStatus.PAUSED,
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Icon(Icons.Default.Sync, contentDescription = null)
+                    Text("Resync", modifier = Modifier.padding(start = 4.dp))
+                }
+            }
         }
 
+        HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+
+        // Music Controls (Spotify-like bottom bar)
         Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Button(
-                onClick = { onReset() },
-                enabled = status == WorkoutStatus.RUNNING || status == WorkoutStatus.PAUSED || status == WorkoutStatus.FINISHED,
-                modifier = Modifier.weight(1f),
-            ) { Text("Reset") }
+            AsyncImage(
+                model = imageModel,
+                contentDescription = "Song Artwork",
+                modifier = Modifier
+                    .height(48.dp)
+                    .aspectRatio(1f)
+                    .clip(RoundedCornerShape(4.dp))
+            )
 
-            Button(
-                onClick = { onPauseResume() },
-                enabled = status == WorkoutStatus.RUNNING || status == WorkoutStatus.PAUSED,
-                modifier = Modifier.weight(1f),
-            ) { Text(if (status == WorkoutStatus.PAUSED) "Resume" else "Pause") }
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = musicUiState.currentSong?.title ?: "No Song",
+                    style = MaterialTheme.typography.bodyMedium,
+                    maxLines = 1
+                )
+                Text(
+                    text = musicUiState.currentSong?.artist ?: "Unknown Artist",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color.Gray,
+                    maxLines = 1
+                )
+            }
 
-            Button(
-                onClick = { showResyncDialog = true },
-                enabled = status == WorkoutStatus.RUNNING || status == WorkoutStatus.PAUSED,
-                modifier = Modifier.weight(1f),
-            ) { Text("Resync") }
+            IconButton(onClick = { onLikeSong(!musicUiState.isLiked) }, enabled = musicUiState.currentSong != null) {
+                Icon(
+                    imageVector = if (musicUiState.isLiked) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                    contentDescription = "Like",
+                    tint = if (musicUiState.isLiked) Color.Red else Color.Gray
+                )
+            }
+
+            IconButton(
+                onClick = { if (musicUiState.isPlaying) onMusicPause() else onMusicPlay() },
+                enabled = musicUiState.isMusicAvailable
+            ) {
+                Icon(
+                    imageVector = if (musicUiState.isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                    contentDescription = "Play/Pause"
+                )
+            }
+
+            IconButton(onClick = { onSkip() }, enabled = musicUiState.isMusicAvailable) {
+                Icon(Icons.Default.SkipNext, contentDescription = "Skip")
+            }
         }
     }
 
@@ -248,6 +293,7 @@ fun WorkoutScreenContent(
 
     if (showResyncDialog) {
         ResyncDialog(
+            initialSeconds = workoutUiState.workoutState?.totalElapsed?.inWholeSeconds?.toDouble() ?: 0.0,
             onConfirm = { seconds ->
                 onResync((Duration.parse("${seconds}s")))
                 showResyncDialog = false
@@ -341,23 +387,80 @@ fun WorkoutPickerDialog(
 }
 
 @Composable
-fun ResyncDialog(onConfirm: (Double) -> Unit, onDismiss: () -> Unit) {
-    var text by remember { mutableStateOf("0") }
+fun ResyncDialog(initialSeconds: Double, onConfirm: (Double) -> Unit, onDismiss: () -> Unit) {
+    var text by remember { mutableStateOf(initialSeconds.toInt().toString()) }
+    val currentSeconds = text.toDoubleOrNull() ?: 0.0
+
+    fun adjust(delta: Int) {
+        val newVal = (currentSeconds + delta).coerceAtLeast(0.0)
+        text = if (newVal % 1.0 == 0.0) newVal.toInt().toString() else newVal.toString()
+    }
+
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Resynchronize workout") },
         text = {
-            OutlinedTextField(
-                value = text,
-                onValueChange = { text = it },
-                label = { Text("Workout position (seconds)") },
-            )
+            Column(
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                // Prominent real-time formatted time display
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        text = formatSeconds(currentSeconds),
+                        style = MaterialTheme.typography.displayMedium,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Text(
+                        text = "Adjusted Position",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = Color.Gray
+                    )
+                }
+
+                OutlinedTextField(
+                    value = text,
+                    onValueChange = { text = it },
+                    label = { Text("Total seconds") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceEvenly
+                    ) {
+                        ResyncAdjustButton("-10s") { adjust(-10) }
+                        ResyncAdjustButton("-5s") { adjust(-5) }
+                        ResyncAdjustButton("-1s") { adjust(-1) }
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceEvenly
+                    ) {
+                        ResyncAdjustButton("+1s") { adjust(1) }
+                        ResyncAdjustButton("+5s") { adjust(5) }
+                        ResyncAdjustButton("+10s") { adjust(10) }
+                    }
+                }
+            }
         },
         confirmButton = {
-            TextButton(onClick = { text.toDoubleOrNull()?.let(onConfirm) }) { Text("OK") }
+            TextButton(onClick = { text.toDoubleOrNull()?.let(onConfirm) }) { Text("Apply Sync") }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
     )
+}
+
+@Composable
+fun ResyncAdjustButton(label: String, onClick: () -> Unit) {
+    OutlinedButton(
+        onClick = onClick,
+        contentPadding = PaddingValues(horizontal = 8.dp)
+    ) {
+        Text(label, style = MaterialTheme.typography.bodySmall)
+    }
 }
 
 @Composable
@@ -415,7 +518,8 @@ private fun WorkoutScreenPreview() {
             onLoadWorkouts = {},
             onSelectWorkout = {},
             onStart = {},
-            onPauseResume = {},
+            onMusicPlay = {},
+            onMusicPause = {},
             onPauseResumeBoth = {},
             onSkip = {},
             onReset = {},

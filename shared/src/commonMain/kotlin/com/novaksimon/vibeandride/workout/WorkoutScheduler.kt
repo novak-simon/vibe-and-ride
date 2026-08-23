@@ -114,8 +114,10 @@ class WorkoutScheduler() {
     }
 
     fun musicPrepared() {
-        status = WorkoutStatus.READY
-        println("Status of workout: $status")
+        if (status == WorkoutStatus.NOT_STARTED) {
+            status = WorkoutStatus.READY
+            println("Status of workout: $status")
+        }
     }
 
 

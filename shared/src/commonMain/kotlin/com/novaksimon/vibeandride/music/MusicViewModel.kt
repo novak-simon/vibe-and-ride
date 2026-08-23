@@ -17,6 +17,7 @@ import kotlin.time.Duration.Companion.seconds
 data class MusicUiState(
     val currentSong: Song? = null,
     val isMusicAvailable: Boolean = false,
+    val isPlaying: Boolean = false,
     val debugInfo: List<SongRecommendation>? = null,
     val isLiked: Boolean = false,
 )

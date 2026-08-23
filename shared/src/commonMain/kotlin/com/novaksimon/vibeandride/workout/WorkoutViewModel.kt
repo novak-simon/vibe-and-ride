@@ -50,6 +50,7 @@ class WorkoutViewModel(
                 .distinctUntilChanged()
                 .collect { isMusicAvailable ->
                     if (isMusicAvailable) {
+                        println("Music is available, notifying scheduler")
                         scheduler.musicPrepared()
                         tick()
                     }

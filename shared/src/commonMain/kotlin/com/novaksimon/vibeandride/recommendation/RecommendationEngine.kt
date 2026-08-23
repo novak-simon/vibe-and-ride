@@ -1,11 +1,11 @@
 package com.novaksimon.vibeandride.recommendation
 
-import com.novaksimon.vibeandride.database.getCurrentUser
-import com.novaksimon.vibeandride.database.getStatByUserAndSongId
-import com.novaksimon.vibeandride.music.UserMusicService
+import com.novaksimon.vibeandride.database.getCurrentProfile
+import com.novaksimon.vibeandride.database.getStatByProfileAndSongId
+import com.novaksimon.vibeandride.music.ProfileMusicService
 import com.novaksimon.vibeandride.model.Interval
 import com.novaksimon.vibeandride.model.Song
-import com.novaksimon.vibeandride.model.User
+import com.novaksimon.vibeandride.model.Profile
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -80,9 +80,9 @@ data class RecommendationResult(
     val debugInfo: List<SongRecommendation>,
 )
 
-class RecommendationEngine(userMusicService: UserMusicService) {
+class RecommendationEngine(profileMusicService: ProfileMusicService) {
 
-    val service = userMusicService
+    val service = profileMusicService
 
     suspend fun approximateFilterByInterval(
         interval: Interval,
@@ -111,29 +111,31 @@ class RecommendationEngine(userMusicService: UserMusicService) {
                     )
                 ).toList()
                 if (pool.isEmpty()) {
-                    pool = service.fetchSongs(FIRST_CANDIDATE_POOL_LIMIT / 3)
+                    println("No songs found around cadence, fetching generic songs...")
+                    pool = service.fetchSongs(50)
                 }
             }
         }
+        println("approximateFilterByInterval: found ${pool.size} candidates")
         return pool
     }
 
-    suspend fun getUserPreferenceScore(
+    suspend fun getProfilePreferenceScore(
         song: Song?,
-        user: User?,
+        profile: Profile?,
     ): PreferenceRecommendation {
-        val resolvedUser = user ?: getCurrentUser()
+        val resolvedProfile = profile ?: getCurrentProfile()
         if (song == null) {
             return PreferenceRecommendation()
         }
 
         val numberOfMatchingGenres: Float = if (song.genre.isNotEmpty()) {
-            song.genre.intersect(resolvedUser.genrePreferences.toSet()).size.toFloat()
+            song.genre.intersect(resolvedProfile.genrePreferences.toSet()).size.toFloat()
         } else {
             0.5f
         }
 
-        val stat = getStatByUserAndSongId(resolvedUser.id, song.id)
+        val stat = getStatByProfileAndSongId(resolvedProfile.id, song.id)
 
         if (stat != null) {
             val lastPlayedAt = stat.lastPlayedAt
@@ -152,7 +154,7 @@ class RecommendationEngine(userMusicService: UserMusicService) {
                 return PreferenceRecommendation(
                     song = song,
                     score = score,
-                    user = resolvedUser,
+                    profile = resolvedProfile,
                     numberOfMatchingGenres = round3(numberOfMatchingGenres),
                     repetitionCoefficient = round3(2f),
                     likeCoefficient = likeCoefficient,
@@ -165,7 +167,7 @@ class RecommendationEngine(userMusicService: UserMusicService) {
                 return PreferenceRecommendation(
                     song = song,
                     score = -1f,
-                    user = resolvedUser,
+                    profile = resolvedProfile,
                     numberOfMatchingGenres = round3(numberOfMatchingGenres),
                     repetitionCoefficient = round3(-1f),
                     likeCoefficient = null,
@@ -188,7 +190,7 @@ class RecommendationEngine(userMusicService: UserMusicService) {
             return PreferenceRecommendation(
                 song = song,
                 score = score,
-                user = resolvedUser,
+                profile = resolvedProfile,
                 numberOfMatchingGenres = round3(numberOfMatchingGenres),
                 repetitionCoefficient = round3(repetitionCoefficient),
                 likeCoefficient = likeCoefficient,
@@ -199,7 +201,7 @@ class RecommendationEngine(userMusicService: UserMusicService) {
             return PreferenceRecommendation(
                 song = song,
                 score = score,
-                user = resolvedUser,
+                profile = resolvedProfile,
                 numberOfMatchingGenres = round3(numberOfMatchingGenres),
                 repetitionCoefficient = round3(-1f),
                 likeCoefficient = -1f,
@@ -281,20 +283,20 @@ class RecommendationEngine(userMusicService: UserMusicService) {
 
     suspend fun getSongRecommendationScore(
         song: Song?,
-        user: User?,
+        profile: Profile?,
         interval: Interval?,
     ): SongRecommendation {
-        if (user == null || interval == null || song == null) {
+        if (profile == null || interval == null || song == null) {
             return SongRecommendation(song = song, score = 0f)
         }
-        val userPreference = getUserPreferenceScore(song, user)
+        val profilePreference = getProfilePreferenceScore(song, profile)
         val intervalMatch = getIntervalMatchScore(song, interval)
-        val score = userPreference.score + 1.5f * intervalMatch.score
+        val score = profilePreference.score + 1.5f * intervalMatch.score
 
         return SongRecommendation(
             song = song,
             score = score,
-            preferenceRecommendation = userPreference,
+            preferenceRecommendation = profilePreference,
             intervalRecommendation = intervalMatch,
         )
     }
@@ -303,12 +305,13 @@ class RecommendationEngine(userMusicService: UserMusicService) {
 
     suspend fun recommend(interval: Interval): RecommendationResult {
 
-        val user = getCurrentUser()
+        val profile = getCurrentProfile()
         var firstCandidatePool: List<Song>? = null
         withContext(Dispatchers.IO) {
             firstCandidatePool = approximateFilterByInterval(interval)
         }
         if (firstCandidatePool.isNullOrEmpty()) {
+            println("RecommendationEngine: firstCandidatePool is empty for interval $interval")
             return RecommendationResult(emptyList(), emptyList())
         }
         val algorithmSemaphore = Semaphore(4)
@@ -316,7 +319,7 @@ class RecommendationEngine(userMusicService: UserMusicService) {
             firstCandidatePool.map { candidate ->
                 async(Dispatchers.Default) {
                     algorithmSemaphore.withPermit {
-                        getSongRecommendationScore(candidate, user, interval)
+                        getSongRecommendationScore(candidate, profile, interval)
                     }
                 }
             }.awaitAll()
@@ -332,6 +335,7 @@ class RecommendationEngine(userMusicService: UserMusicService) {
         )
 
         val topSongs = sorted.mapNotNull { it.song }.take(10)
+        println("RecommendationEngine: recommended ${topSongs.size} songs")
         return RecommendationResult(topSongs, sorted)
     }
 }

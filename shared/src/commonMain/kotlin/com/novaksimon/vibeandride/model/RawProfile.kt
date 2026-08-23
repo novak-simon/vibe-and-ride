@@ -4,8 +4,7 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
 @Serializable
-data class User(
-    val id: Int,
-    val name: String,
-    @SerialName("genre_preferences") val genrePreferences: List<String>,
+data class RawProfile(
+    val id: String? = null,
+    @SerialName("genre_preferences") val genrePreferences: List<String>? = null,
 )

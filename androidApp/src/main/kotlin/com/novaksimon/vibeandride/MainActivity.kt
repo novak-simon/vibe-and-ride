@@ -17,11 +17,16 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
+import com.novaksimon.vibeandride.database.initializeProfile
 import com.novaksimon.vibeandride.music.MusicViewModel
 import com.novaksimon.vibeandride.player.AndroidPlaybackController
 import com.novaksimon.vibeandride.player.PlaybackService
 import com.novaksimon.vibeandride.ui.WorkoutScreen
 import com.novaksimon.vibeandride.workout.WorkoutViewModel
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.launch
 import java.io.BufferedReader
 import java.io.InputStreamReader
 
@@ -47,6 +52,10 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
+
+        CoroutineScope(Dispatchers.IO).launch {
+            initializeProfile()
+        }
 
         checkNotificationPermission()
 

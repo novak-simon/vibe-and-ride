@@ -3,12 +3,12 @@ package com.novaksimon.vibeandride.database
 import com.novaksimon.vibeandride.model.Interval
 import com.novaksimon.vibeandride.model.RawInterval
 import com.novaksimon.vibeandride.model.RawSong
-import com.novaksimon.vibeandride.model.RawUser
-import com.novaksimon.vibeandride.model.RawUserSongStats
+import com.novaksimon.vibeandride.model.Profile
+import com.novaksimon.vibeandride.model.ProfileSongStats
+import com.novaksimon.vibeandride.model.RawProfile
+import com.novaksimon.vibeandride.model.RawProfileSongStats
 import com.novaksimon.vibeandride.model.RawWorkout
 import com.novaksimon.vibeandride.model.Song
-import com.novaksimon.vibeandride.model.User
-import com.novaksimon.vibeandride.model.UserSongStats
 import com.novaksimon.vibeandride.model.Workout
 import com.novaksimon.vibeandride.model.estimateCadenceFromPower
 import kotlin.time.Clock
@@ -94,23 +94,22 @@ fun rawToSong(rawSong: RawSong): Song {
     )
 }
 
-fun rawToStat(rawUserSongStats: RawUserSongStats): UserSongStats {
-    return UserSongStats(
-        songId = rawUserSongStats.songId ?: 0,
-        userId = rawUserSongStats.userId ?: 0,
-        playCount = rawUserSongStats.playCount ?: 0,
-        skipCount = rawUserSongStats.skipCount ?: 0,
-        isLiked = rawUserSongStats.isLiked ?: false,
-        firstPlayedAt = rawUserSongStats.firstPlayedAt,
-        lastPlayedAt = rawUserSongStats.lastPlayedAt,
-        lastSkippedAt = rawUserSongStats.lastSkippedAt,
-        totalPlayTime = rawUserSongStats.totalPlayTime ?: 0
+fun rawToStat(rawProfileSongStats: RawProfileSongStats): ProfileSongStats {
+    return ProfileSongStats(
+        songId = rawProfileSongStats.songId ?: 0,
+        profileId = rawProfileSongStats.profileId ?: "",
+        playCount = rawProfileSongStats.playCount ?: 0,
+        skipCount = rawProfileSongStats.skipCount ?: 0,
+        isLiked = rawProfileSongStats.isLiked ?: false,
+        firstPlayedAt = rawProfileSongStats.firstPlayedAt,
+        lastPlayedAt = rawProfileSongStats.lastPlayedAt,
+        lastSkippedAt = rawProfileSongStats.lastSkippedAt,
+        totalPlayTime = rawProfileSongStats.totalPlayTime ?: 0
     )
 }
-fun rawToUser(rawUser: RawUser): User {
-    return User(
-        id = rawUser.id ?: 0,
-        name = rawUser.name ?: "Unknown Name",
-        genrePreferences = rawUser.genrePreferences ?: emptyList()
+fun rawToProfile(rawProfile: RawProfile): Profile {
+    return Profile(
+        id = rawProfile.id ?: "",
+        genrePreferences = rawProfile.genrePreferences ?: emptyList()
     )
 }

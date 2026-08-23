@@ -5,9 +5,9 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
 @Serializable
-data class UserSongStats(
+data class ProfileSongStats(
     @SerialName("song_id") val songId: Int,
-    @SerialName("user_id") val userId: Int,
+    @SerialName("profile_id") val profileId: String,
     @SerialName("is_liked") val isLiked: Boolean,
     @SerialName("play_count") val playCount: Int,
     @SerialName("skip_count") val skipCount: Int,

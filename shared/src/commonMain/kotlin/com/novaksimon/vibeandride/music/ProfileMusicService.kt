@@ -2,7 +2,7 @@ package com.novaksimon.vibeandride.music
 
 import com.novaksimon.vibeandride.model.Song
 
-class UserMusicService(
+class ProfileMusicService(
     private val playbackController: PlaybackController
 ) {
 
@@ -54,6 +54,11 @@ class UserMusicService(
     fun pause() {
         playbackController.pause()
     }
+
+    fun isPlaying(): Boolean {
+        return playbackController.isPlaying()
+    }
+
     fun preloadSong(song: Song) {
         playbackController.preloadSource(song)
     }

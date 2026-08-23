@@ -26,21 +26,36 @@ suspend fun getSongById(id: Int): Song? {
 }
 
 suspend fun fetchSongs(limit: Int = 10): List<Song> {
-    val songs = client.postgrest["songs"]
-        .select { limit(limit.toLong()) }
-        .decodeList<RawSong>()
-        .map { rawToSong(it) }
-    return songs
+    return try {
+        val response = client.postgrest["songs"]
+            .select { 
+                limit(limit.toLong()) 
+            }
+        println("fetchSongs: raw response body: ${response.data}")
+        val rawSongs = response.decodeList<RawSong>()
+        println("fetchSongs: successfully decoded ${rawSongs.size} songs")
+        rawSongs.map { rawToSong(it) }
+    } catch (e: Exception) {
+        println("fetchSongs error: ${e.message}")
+        e.printStackTrace()
+        emptyList()
+    }
 }
 
 suspend fun getPlayableSongs(): List<Song> {
-    val songs = client.postgrest["songs"]
-        .select()
-        .decodeList<RawSong>()
-        .filter { it.audioUrl != null }
-        .map { rawToSong(it) }
-    return songs
+    return try {
+        val rawSongs = client.postgrest["songs"]
+            .select()
+            .decodeList<RawSong>()
+        println("getPlayableSongs: fetched ${rawSongs.size} total songs")
+        rawSongs.filter { it.audioUrl != null }
+            .map { rawToSong(it) }
+    } catch (e: Exception) {
+        println("getPlayableSongs error: ${e.message}")
+        emptyList()
+    }
 }
+
 suspend fun getSongsAroundTargetCadence(
     targetAlgorithmCadence: Int,
     algorithmCadenceToleration: Int = 5,
@@ -49,21 +64,30 @@ suspend fun getSongsAroundTargetCadence(
     val gc = targetAlgorithmCadence - algorithmCadenceToleration
     val lc = targetAlgorithmCadence + algorithmCadenceToleration
     val ranges = listOf(gc to lc, gc/2 to lc/2, gc*2 to lc*2)
-    val songs = client.postgrest["songs"]
-        .select {
-            filter {
-                or {
-                    ranges.forEach { (lo, hi) ->
-                        and {
-                            gte("bpm", lo)
-                            lte("bpm", hi)
+    println("getSongsAroundTargetCadence: target=$targetAlgorithmCadence ranges=$ranges")
+    
+    return try {
+        val rawSongs = client.postgrest["songs"]
+            .select {
+                filter {
+                    or {
+                        ranges.forEach { (lo, hi) ->
+                            and {
+                                gte("bpm", lo)
+                                lte("bpm", hi)
+                            }
                         }
                     }
                 }
+                limit(limit.toLong())
             }
-            limit(limit.toLong())
-        }
-        .decodeList<RawSong>()
-        .map { rawToSong(it) }
-    return songs
+            .decodeList<RawSong>()
+        println("getSongsAroundTargetCadence: found ${rawSongs.size} matching songs")
+        rawSongs.map { rawToSong(it) }
+    } catch (e: Exception) {
+        println("getSongsAroundTargetCadence error: ${e.message}")
+        e.printStackTrace()
+        // Fallback: just fetch some songs if the complex filter fails
+        fetchSongs(limit)
+    }
 }

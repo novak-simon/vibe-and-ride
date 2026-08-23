@@ -2,12 +2,12 @@ package com.novaksimon.vibeandride.recommendation
 
 import com.novaksimon.vibeandride.model.Interval
 import com.novaksimon.vibeandride.model.Song
-import com.novaksimon.vibeandride.model.User
+import com.novaksimon.vibeandride.model.Profile
 
 data class PreferenceRecommendation(
     val song: Song? = null,
     val score: Float = 0f,
-    val user: User? = null,
+    val profile: Profile? = null,
     val numberOfMatchingGenres: Float? = 0f,
     val repetitionCoefficient: Float? = 0f,
     val likeCoefficient: Float? = 0f,
