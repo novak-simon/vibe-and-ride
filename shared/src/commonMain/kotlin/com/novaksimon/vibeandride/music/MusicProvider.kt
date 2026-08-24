@@ -116,7 +116,7 @@ class MusicProvider(val uiState: MutableStateFlow<MusicUiState>, playbackControl
             println("MusicProvider: switching to next track (new interval: false)")
             nextTrack()
         }
-        else if (currentIntervalIndex == -1 && intervalIndex != null) {
+        else if (currentIntervalIndex == -1) {
             println("MusicProvider: starting first track of workout for interval $intervalIndex")
             nextTrack(firstSong = true, newInterval = true, intervalIndex = intervalIndex)
         }
@@ -212,7 +212,7 @@ class MusicProvider(val uiState: MutableStateFlow<MusicUiState>, playbackControl
         if (workoutState.intervalIndex != null) {
             val nextIndex = workoutState.intervalIndex + 1
             if (recommendationIndex.value.getOrNull(nextIndex) == true || activePrecomputations.contains(nextIndex)) return
-            precompute(workoutState.workout?.intervals?.get(nextIndex) ?: return, nextIndex)
+            precompute(workoutState.workout?.intervals?.getOrNull(nextIndex) ?: return, nextIndex)
         }
     }
 

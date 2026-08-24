@@ -81,6 +81,7 @@ class MusicViewModel(
     }
 
     fun songLiked(liked: Boolean) {
+        println("SONG LIKED!!!")
         _uiState.value = _uiState.value.copy(isLiked = liked)
         musicProvider.songLiked(liked)
     }

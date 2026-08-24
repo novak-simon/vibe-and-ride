@@ -148,10 +148,10 @@ class RecommendationEngine(profileMusicService: ProfileMusicService) {
         }
 
         if (stat != null) {
+            val likeCoefficient = if (stat.isLiked) 2f else 1f
             val lastPlayedAt = stat.lastPlayedAt
             if (lastPlayedAt == null) {
                 // No recorded play time despite stat existing — treat as "long ago"
-                val likeCoefficient = if (stat.isLiked) 2f else 1f
                 val skipCoefficient = if (stat.skipCount != 0) {
                     minOf(
                         2f,
@@ -186,7 +186,6 @@ class RecommendationEngine(profileMusicService: ProfileMusicService) {
             }
 
             val repetitionCoefficient = minOf(2.0, sinceLastPlayed / 2.days).toFloat()
-            val likeCoefficient = if (stat.isLiked) 2f else 1f
             val skipCoefficient = if (stat.skipCount != 0) {
                 minOf(
                     2f,
