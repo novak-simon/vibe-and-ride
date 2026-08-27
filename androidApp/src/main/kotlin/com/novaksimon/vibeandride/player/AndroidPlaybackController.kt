@@ -4,10 +4,13 @@ import android.os.Bundle
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionCommand
 import androidx.media3.common.Player
+import androidx.media3.common.PlaybackException
 import com.novaksimon.vibeandride.model.Song
 import com.novaksimon.vibeandride.music.PlaybackController
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.serialization.json.Json
 
@@ -19,10 +22,17 @@ class AndroidPlaybackController(
     private val _isPlayingFlow = MutableStateFlow(controller.isPlaying)
     override val isPlayingFlow: Flow<Boolean> = _isPlayingFlow.asStateFlow()
 
+    private val _errorFlow = MutableSharedFlow<String>(extraBufferCapacity = 1)
+    override val errorFlow: Flow<String> = _errorFlow.asSharedFlow()
+
     init {
         controller.addListener(object : Player.Listener {
             override fun onIsPlayingChanged(isPlaying: Boolean) {
                 _isPlayingFlow.value = isPlaying
+            }
+
+            override fun onPlayerError(error: PlaybackException) {
+                _errorFlow.tryEmit(error.message ?: "Unknown ExoPlayer error")
             }
         })
     }

@@ -13,10 +13,12 @@ I have completed the redesign of the Ride screen and implemented the new Home an
 ### 2. Redesigned Workout Screen (`WorkoutScreenContent.kt`)
 - **Header**: Added a centered workout name header.
 - **Interval Row**: Implemented a three-box display for Previous, Current, and Next intervals. The current interval is emphasized with a blue background and shows live elapsed time.
-- **Workout Profile Chart**: Added a custom-drawn `Canvas` chart showing the power profile of the entire workout with a real-time position marker.
-- **Unified Controls**: Combined Start/Pause/Resume into a single context-aware button. Placed the "Select" button next to it.
+- **Workout Profile Chart**: Added a custom-drawn `Canvas` chart showing the power profile of the entire workout. Intervals are now color-coded by effort (Recovery, Endurance, Tempo, Threshold, VO2 Max, Anaerobic) using a muted color palette. A real-time position marker tracks progress.
+- **Unified Controls**: Combined Start/Pause/Resume into a single context-aware button. The **"SELECT" button** has been updated to an `OutlinedButton` with a yellow border to clearly distinguish it as a clickable action against the dark background. Added a "Bug" icon for debugging information.
 - **Live Readouts**: Added a prominent row for live Power (Watts) and Cadence (RPM).
-- **Music Player**: Restyled the mini-player into a flat Surface card.
+- **Music Player**: Restyled the mini-player into a flat Surface card. Added a horizontal marquee effect (sliding text) for long song titles and artist names using `Modifier.basicMarquee()`.
+- **Centralized Color Palette**: Defined constants for the app's brand colors (**Blue**, **Yellow**, **Purple**, and **Black**) at the top of key UI files. This allows for easy customization while ensuring visual consistency across the Home and Ride screens. The `MaterialTheme` has also been updated to use these colors globally.
+- **Music Preparation Loading State**: Added a `CircularProgressIndicator` and "Preparing songs for you..." message that appears after selecting a workout. This UI element persists until the music engine is ready and the workout status transitions to `READY`, preventing the user from starting the ride before the soundtrack is prepared.
 
 ### 3. Home Screen (`HomeScreen.kt` & `HomeViewModel.kt`)
 - **Recent/Suggested Workouts**: Added horizontal scrollable rows with placeholder cards.

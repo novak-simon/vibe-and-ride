@@ -26,7 +26,7 @@ import kotlin.time.Duration.Companion.seconds
  * MusicEngine is the central orchestrator for music sessions.
  */
 class MusicEngine(
-    playbackController: PlaybackController,
+    private val playbackController: PlaybackController,
     private val songRepository: SongRepository,
     private val profileRepository: ProfileRepository,
     private val mainDispatcher: kotlinx.coroutines.CoroutineDispatcher = Dispatchers.Main,
@@ -49,6 +49,15 @@ class MusicEngine(
 
     private val _state = MutableStateFlow(MusicState())
     val state: StateFlow<MusicState> = _state.asStateFlow()
+
+    init {
+        playbackController.errorFlow
+            .filter { it.isNotEmpty() }
+            .onEach { error ->
+                handlePlaybackError(error)
+            }
+            .launchIn(engineScope)
+    }
 
     fun sessionStarted(sessionState: WorkoutSessionState) {
         val mode = sessionState.mode
@@ -123,12 +132,13 @@ class MusicEngine(
         newInterval: Boolean = false,
         intervalIndex: Int = 0,
         skipped: Boolean = false,
-        firstSong: Boolean = false
+        firstSong: Boolean = false,
+        isRetry: Boolean = false
     ) {
         if (_state.value.isTransitioning) return
         _state.value = _state.value.copy(isTransitioning = true)
         try {
-            if (!firstSong) incrementStatsOnTrackLeave(skipped = skipped)
+            if (!firstSong && !isRetry) incrementStatsOnTrackLeave(skipped = skipped)
 
             _state.value = prepareForNextTrack(_state.value, newInterval, intervalIndex)
             
@@ -144,22 +154,22 @@ class MusicEngine(
                 return
             }
 
-            _state.value = finalizeTrackTransition(_state.value, song)
+            _state.value = finalizeTrackTransition(_state.value, song, isRetry)
 
             statsScope.launch {
                 val songStats: ProfileSongStats? = profileRepository.getStatByProfileAndSongId(songId = song.id)
                 _state.value = _state.value.copy(isLiked = songStats?.isLiked ?: false)
             }
-
-            delay(2.seconds)
-            engineScope.launch {
-                delay(3.seconds)
-                _state.value = _state.value.copy(hasPreloadedSong = false)
-            }
-            incrementStatsOnTrackArrive()
         } finally {
             _state.value = _state.value.copy(isTransitioning = false)
         }
+
+        delay(2.seconds)
+        engineScope.launch {
+            delay(3.seconds)
+            _state.value = _state.value.copy(hasPreloadedSong = false)
+        }
+        incrementStatsOnTrackArrive()
     }
 
     fun skip() {
@@ -328,8 +338,38 @@ class MusicEngine(
         } else state
     }
 
-    fun finalizeTrackTransition(state: MusicState, song: Song): MusicState {
-        return state.copy(currentSong = song, songIndex = state.songIndex + 1)
+    fun finalizeTrackTransition(state: MusicState, song: Song, isRetry: Boolean = false): MusicState {
+        return state.copy(
+            currentSong = song,
+            songIndex = state.songIndex + 1,
+            isLiked = false,
+            playbackErrorCount = if (isRetry) state.playbackErrorCount else 0
+        )
+    }
+
+    private fun handlePlaybackError(message: String) {
+        println("MusicEngine: Playback error received: $message")
+        if (_state.value.isTransitioning) {
+            println("MusicEngine: Ignoring error during transition")
+            return
+        }
+
+        val currentCount = _state.value.playbackErrorCount
+        if (currentCount < 3) {
+            println("MusicEngine: Retrying current song (attempt ${currentCount + 1})")
+            _state.value = _state.value.copy(
+                playbackErrorCount = currentCount + 1,
+                songIndex = (_state.value.songIndex - 1).coerceAtLeast(0)
+            )
+            engineScope.launch {
+                nextTrack(newInterval = false, isRetry = true)
+            }
+        } else {
+            println("MusicEngine: Too many retries, skipping to next song")
+            engineScope.launch {
+                nextTrack(skipped = true)
+            }
+        }
     }
 
     fun decidePrecompute(state: MusicState, currentIntervalIndex: Int?, activePrecomputations: Set<Int>): Int? {

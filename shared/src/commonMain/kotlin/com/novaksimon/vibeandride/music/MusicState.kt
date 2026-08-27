@@ -32,4 +32,5 @@ data class MusicState(
     val songStartPosition: Float = 0f,
     val currentDebug: List<SongRecommendation> = emptyList(),
     val futureDebug: List<SongRecommendation> = emptyList(),
+    val playbackErrorCount: Int = 0,
 )

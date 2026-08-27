@@ -114,15 +114,28 @@ suspend fun setStatDatetime(
 }
 suspend fun changeLikeState(songId: Int, targetState: Boolean, profileId: String? = null) {
     val resolvedProfileId = profileId ?: getCurrentProfile()?.id ?: return
-    val updateBody = buildJsonObject { put("is_liked", targetState) }
-    client.postgrest["profile_song_stats"]
-        .update(updateBody) {
-            filter {
-                eq("song_id", songId)
-                eq("profile_id", resolvedProfileId)
+    val existing = getStatByProfileAndSongId(songId, resolvedProfileId)
+
+    try {
+        if (existing == null) {
+            val insertBody = buildJsonObject {
+                put("profile_id", resolvedProfileId)
+                put("song_id", songId)
+                put("is_liked", targetState)
             }
-            select()
+            client.postgrest["profile_song_stats"].insert(insertBody)
+        } else {
+            val updateBody = buildJsonObject { put("is_liked", targetState) }
+            client.postgrest["profile_song_stats"].update(updateBody) {
+                filter {
+                    eq("song_id", songId)
+                    eq("profile_id", resolvedProfileId)
+                }
+            }
         }
+    } catch (e: Exception) {
+        println("Error changing like state for song $songId: ${e.message}")
+    }
 }
 
 suspend fun getLikedSongsWithDetails(profileId: String? = null): List<com.novaksimon.vibeandride.model.Song> {

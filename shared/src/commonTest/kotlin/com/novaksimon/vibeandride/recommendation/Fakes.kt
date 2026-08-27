@@ -5,13 +5,22 @@ import com.novaksimon.vibeandride.model.Profile
 import com.novaksimon.vibeandride.model.ProfileSongStats
 import com.novaksimon.vibeandride.music.PlaybackController
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
 class FakePlaybackController : PlaybackController {
     override val isPlayingFlow: Flow<Boolean> = MutableStateFlow(false)
+    private val _errorFlow = MutableSharedFlow<String>()
+    override val errorFlow: Flow<String> = _errorFlow.asSharedFlow()
+
+    fun emitError(message: String) {
+        _errorFlow.tryEmit(message)
+    }
+
     override fun play() {}
     override fun pause() {}
     override fun isPlaying(): Boolean = false

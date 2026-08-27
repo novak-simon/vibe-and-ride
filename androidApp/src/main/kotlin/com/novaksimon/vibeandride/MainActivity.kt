@@ -29,6 +29,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.ViewModel
@@ -50,6 +51,12 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import java.io.BufferedReader
 import java.io.InputStreamReader
+
+// App Color Palette
+private val COLOR_BACKGROUND = Color(0xFF000000)
+private val COLOR_PRIMARY = Color(0xFF146EB8)    // Blue
+private val COLOR_SECONDARY = Color(0xFFCC8B2A)  // Yellow
+private val COLOR_TERTIARY = Color(0xFF990FB5)   // Purple
 
 class MainActivity : ComponentActivity() {
 
@@ -162,7 +169,21 @@ class MainActivity : ComponentActivity() {
         setContent {
             var currentScreen by remember { mutableStateOf<Screen>(Screen.Home) }
 
-            MaterialTheme(colorScheme = darkColorScheme()) {
+            MaterialTheme(
+                colorScheme = darkColorScheme(
+                    primary = COLOR_PRIMARY,
+                    secondary = COLOR_SECONDARY,
+                    tertiary = COLOR_TERTIARY,
+                    background = COLOR_BACKGROUND,
+                    surface = COLOR_BACKGROUND,
+                    surfaceVariant = COLOR_BACKGROUND,
+                    onPrimary = Color.White,
+                    onSecondary = Color.White,
+                    onTertiary = Color.White,
+                    onBackground = Color.White,
+                    onSurface = Color.White
+                )
+            ) {
                 Scaffold(
                     bottomBar = {
                         NavigationBar {

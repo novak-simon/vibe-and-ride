@@ -5,6 +5,7 @@ import kotlinx.coroutines.flow.Flow
 
 interface PlaybackController {
     val isPlayingFlow: Flow<Boolean>
+    val errorFlow: Flow<String>
     fun play()
     fun pause()
     fun isPlaying(): Boolean

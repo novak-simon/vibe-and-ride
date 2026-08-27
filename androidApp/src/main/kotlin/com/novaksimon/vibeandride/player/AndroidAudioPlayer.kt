@@ -187,8 +187,11 @@ class AndroidAudioPlayer(
                 val message =
                     error.message ?: "Unknown playback error"
 
+                val uri = player.currentMediaItem?.localConfiguration?.uri
+                val title = player.currentMediaItem?.mediaMetadata?.title
+
                 println(
-                    "Player Slot $slot error: $message"
+                    "Player Slot $slot error: $message | Song: $title | URI: $uri"
                 )
 
                 if (slot == activeSlot) {

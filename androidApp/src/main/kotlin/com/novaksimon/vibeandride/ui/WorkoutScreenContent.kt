@@ -1,7 +1,11 @@
 package com.novaksimon.vibeandride.ui
 
+import androidx.compose.animation.*
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -9,6 +13,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -21,10 +26,14 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -36,7 +45,7 @@ import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.Sync
 import androidx.compose.runtime.*
@@ -48,6 +57,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalInspectionMode
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
@@ -68,6 +78,13 @@ import com.novaksimon.vibeandride.music.MusicUiState
 import com.novaksimon.vibeandride.workout.WorkoutUiState
 import kotlin.time.Duration.Companion.seconds
 
+// App Color Palette
+private val COLOR_BACKGROUND = Color(0xFF000000)
+private val COLOR_PRIMARY = Color(0xFF146EB8)    // Blue
+private val COLOR_SECONDARY = Color(0xFFCC8B2A)  // Yellow
+private val COLOR_TERTIARY = Color(0xFF990FB5)   // Purple
+
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun WorkoutScreenContent(
     workoutUiState: WorkoutUiState,
@@ -90,6 +107,8 @@ fun WorkoutScreenContent(
 ) {
     var showResyncDialog by remember { mutableStateOf(false) }
     var showDebugDialog by remember { mutableStateOf(false) }
+    var showMusicDetail by remember { mutableStateOf(false) }
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     LaunchedEffect(Unit) {
         onLoadWorkouts()
@@ -103,7 +122,7 @@ fun WorkoutScreenContent(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
+            .background(COLOR_BACKGROUND)
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
@@ -148,31 +167,51 @@ fun WorkoutScreenContent(
         }
 
         // 2. Three-box row: prev / current / next
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(120.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            val prevInterval = structured?.let { workout?.intervals?.getOrNull(it.intervalIndex - 1) }
-            val nextInterval = structured?.let { workout?.intervals?.getOrNull(it.intervalIndex + 1) }
+        AnimatedContent(
+            targetState = structured?.intervalIndex ?: -1,
+            transitionSpec = {
+                val duration = 700
+                if (targetState > initialState) {
+                    slideInHorizontally(animationSpec = tween(duration)) { width -> width / 2 } + 
+                            fadeIn(animationSpec = tween(duration)) togetherWith
+                            slideOutHorizontally(animationSpec = tween(duration)) { width -> -width / 2 } + 
+                            fadeOut(animationSpec = tween(duration))
+                } else {
+                    slideInHorizontally(animationSpec = tween(duration)) { width -> -width / 2 } + 
+                            fadeIn(animationSpec = tween(duration)) togetherWith
+                            slideOutHorizontally(animationSpec = tween(duration)) { width -> width / 2 } + 
+                            fadeOut(animationSpec = tween(duration))
+                }.using(SizeTransform(clip = false))
+            },
+            label = "IntervalTransition"
+        ) { targetIndex ->
+            val displayInterval = workout?.intervals?.getOrNull(targetIndex)
+            val displayPrev = workout?.intervals?.getOrNull(targetIndex - 1)
+            val displayNext = workout?.intervals?.getOrNull(targetIndex + 1)
 
-            IntervalBox(
-                interval = prevInterval,
-                modifier = Modifier.weight(1f),
-                isCurrent = false
-            )
-            IntervalBox(
-                interval = structured?.currentInterval,
-                elapsed = structured?.elapsedInInterval,
-                modifier = Modifier.weight(1.5f),
-                isCurrent = true
-            )
-            IntervalBox(
-                interval = nextInterval,
-                modifier = Modifier.weight(1f),
-                isCurrent = false
-            )
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(120.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                IntervalBox(
+                    interval = displayPrev,
+                    modifier = Modifier.weight(1f),
+                    isCurrent = false
+                )
+                IntervalBox(
+                    interval = displayInterval,
+                    elapsed = if (targetIndex == structured?.intervalIndex) structured?.elapsedInInterval else null,
+                    modifier = Modifier.weight(1.5f),
+                    isCurrent = true
+                )
+                IntervalBox(
+                    interval = displayNext,
+                    modifier = Modifier.weight(1f),
+                    isCurrent = false
+                )
+            }
         }
 
         // 3. Line Chart
@@ -187,53 +226,72 @@ fun WorkoutScreenContent(
         }
 
         // 4. Controls
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Button(
-                onClick = { onPickerVisibilityChange(true) },
-                modifier = Modifier.weight(1f),
-                shape = RoundedCornerShape(8.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                    contentColor = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+        if (workout != null && status == WorkoutStatus.NOT_STARTED) {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Text("SELECT")
-            }
-
-            Button(
-                onClick = {
-                    if (status == WorkoutStatus.READY) onStart() else onPauseResumeBoth()
-                },
-                modifier = Modifier.weight(1f),
-                shape = RoundedCornerShape(8.dp),
-                enabled = status != WorkoutStatus.FINISHED && status != WorkoutStatus.NOT_STARTED,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.primary
-                )
-            ) {
+                CircularProgressIndicator(modifier = Modifier.size(32.dp), color = COLOR_TERTIARY)
                 Text(
-                    when (status) {
-                        WorkoutStatus.READY -> "START"
-                        WorkoutStatus.RUNNING -> "PAUSE"
-                        WorkoutStatus.PAUSED -> "RESUME"
-                        else -> "START"
-                    }
+                    "Preparing songs for you...",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = COLOR_TERTIARY
                 )
             }
-
-            IconButton(
-                onClick = { showResyncDialog = true },
-                enabled = status == WorkoutStatus.RUNNING || status == WorkoutStatus.PAUSED
+        } else {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(Icons.Default.Sync, contentDescription = "Resync", tint = MaterialTheme.colorScheme.primary)
-            }
-            
-            IconButton(onClick = { showDebugDialog = true }) {
-                Icon(Icons.Default.Refresh, contentDescription = "Debug", tint = Color.Gray)
+                OutlinedButton(
+                    onClick = { onPickerVisibilityChange(true) },
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(8.dp),
+                    border = BorderStroke(1.dp, COLOR_SECONDARY),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        contentColor = COLOR_SECONDARY
+                    )
+                ) {
+                    Text("SELECT")
+                }
+
+                Button(
+                    onClick = {
+                        if (status == WorkoutStatus.READY) onStart() else onPauseResumeBoth()
+                    },
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(8.dp),
+                    enabled = status != WorkoutStatus.FINISHED && status != WorkoutStatus.NOT_STARTED,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = COLOR_PRIMARY
+                    )
+                ) {
+                    Text(
+                        when (status) {
+                            WorkoutStatus.READY -> "START"
+                            WorkoutStatus.RUNNING -> "PAUSE"
+                            WorkoutStatus.PAUSED -> "RESUME"
+                            else -> "START"
+                        }
+                    )
+                }
+
+                IconButton(
+                    onClick = { showResyncDialog = true },
+                    enabled = status == WorkoutStatus.RUNNING || status == WorkoutStatus.PAUSED
+                ) {
+                    Icon(
+                        Icons.Default.Sync,
+                        contentDescription = "Resync",
+                        tint = COLOR_PRIMARY
+                    )
+                }
+
+                IconButton(onClick = { showDebugDialog = true }) {
+                    Icon(Icons.Default.BugReport, contentDescription = "Debug", tint = Color.Gray)
+                }
             }
         }
 
@@ -245,8 +303,19 @@ fun WorkoutScreenContent(
             onMusicPlay = onMusicPlay,
             onMusicPause = onMusicPause,
             onSkip = onSkip,
-            onLikeSong = onLikeSong
+            onLikeSong = onLikeSong,
+            onClick = { showMusicDetail = true }
         )
+    }
+
+    if (showMusicDetail && musicUiState.currentSong != null) {
+        ModalBottomSheet(
+            onDismissRequest = { showMusicDetail = false },
+            sheetState = sheetState,
+            containerColor = MaterialTheme.colorScheme.surface,
+        ) {
+            SongDetailContent(song = musicUiState.currentSong!!)
+        }
     }
 
     if (workoutUiState.isPickerVisible) {
@@ -298,8 +367,9 @@ fun IntervalBox(
 ) {
     Surface(
         modifier = modifier.fillMaxHeight(),
-        color = if (isCurrent) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant,
-        shape = RoundedCornerShape(8.dp)
+        color = if (isCurrent) COLOR_PRIMARY.copy(alpha = 0.3f) else COLOR_BACKGROUND,
+        shape = RoundedCornerShape(8.dp),
+        border = if (isCurrent) BorderStroke(1.dp, COLOR_PRIMARY) else BorderStroke(1.dp, Color.DarkGray)
     ) {
         if (interval == null) {
             Box(contentAlignment = Alignment.Center) {
@@ -326,7 +396,7 @@ fun IntervalBox(
                         text = "${formatSeconds(elapsed.inWholeSeconds.toDouble())} / ${formatSeconds(interval.duration)}",
                         style = MaterialTheme.typography.labelSmall,
                         fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary
+                        color = COLOR_PRIMARY
                     )
                 } else {
                     Text(
@@ -351,8 +421,7 @@ fun WorkoutProfileChart(
 
     val totalDuration = workout.totalDuration.toFloat()
     val maxPower = intervals.maxOfOrNull { it.power } ?: 1f
-    val accentColor = MaterialTheme.colorScheme.primary
-    val mutedColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f)
+    val accentColor = COLOR_PRIMARY
 
     Canvas(modifier = modifier) {
         val width = size.width
@@ -364,8 +433,17 @@ fun WorkoutProfileChart(
             val intervalWidth = (interval.duration.toFloat() / totalDuration) * width
             val intervalHeight = (interval.power / maxPower) * height
             
+            val effortColor = when {
+                interval.power < 0.6f -> Color(0xFF9E9E9E) // Recovery - Muted Gray
+                interval.power < 0.76f -> Color(0xFF64B5F6) // Endurance - Muted Blue
+                interval.power < 0.91f -> Color(0xFF81C784) // Tempo - Muted Green
+                interval.power < 1.06f -> Color(0xFFFFD54F) // Threshold - Muted Yellow
+                interval.power < 1.21f -> Color(0xFFFFB74D) // VO2 Max - Muted Orange
+                else -> Color(0xFFE57373) // Anaerobic - Muted Red
+            }.copy(alpha = 0.6f)
+
             drawRect(
-                color = mutedColor,
+                color = effortColor,
                 topLeft = Offset(currentX, height - intervalHeight),
                 size = Size(intervalWidth, intervalHeight)
             )
@@ -389,7 +467,8 @@ fun MusicMiniPlayer(
     onMusicPlay: () -> Unit,
     onMusicPause: () -> Unit,
     onSkip: () -> Unit,
-    onLikeSong: (Boolean) -> Unit
+    onLikeSong: (Boolean) -> Unit,
+    onClick: () -> Unit
 ) {
     val imageModel = if (LocalInspectionMode.current) {
         R.drawable.placeholder
@@ -398,9 +477,12 @@ fun MusicMiniPlayer(
     }
 
     Surface(
-        modifier = Modifier.fillMaxWidth(),
-        color = MaterialTheme.colorScheme.surfaceVariant,
-        shape = RoundedCornerShape(12.dp)
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(enabled = musicUiState.currentSong != null) { onClick() },
+        color = COLOR_SECONDARY.copy(alpha = 0.1f),
+        shape = RoundedCornerShape(12.dp),
+        border = BorderStroke(1.dp, Color.DarkGray)
     ) {
         Row(
             modifier = Modifier.padding(8.dp),
@@ -421,13 +503,15 @@ fun MusicMiniPlayer(
                     text = musicUiState.currentSong?.title ?: "Not Playing",
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.Bold,
-                    maxLines = 1
+                    maxLines = 1,
+                    modifier = Modifier.basicMarquee()
                 )
                 Text(
                     text = musicUiState.currentSong?.artist ?: "Unknown Artist",
                     style = MaterialTheme.typography.bodySmall,
                     color = Color.Gray,
-                    maxLines = 1
+                    maxLines = 1,
+                    modifier = Modifier.basicMarquee()
                 )
             }
 
@@ -451,6 +535,92 @@ fun MusicMiniPlayer(
 
             IconButton(onClick = { onSkip() }, enabled = musicUiState.isMusicAvailable) {
                 Icon(Icons.Default.SkipNext, contentDescription = "Skip")
+            }
+        }
+    }
+}
+
+@Composable
+fun SongDetailContent(song: Song) {
+    val uriHandler = LocalUriHandler.current
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(24.dp)
+            .padding(bottom = 32.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        AsyncImage(
+            model = song.image,
+            contentDescription = "Song Artwork",
+            modifier = Modifier
+                .fillMaxWidth()
+                .aspectRatio(1f)
+                .clip(RoundedCornerShape(16.dp)),
+            contentScale = ContentScale.Crop
+        )
+
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(
+                text = song.title,
+                style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center
+            )
+            Text(
+                text = song.artist,
+                style = MaterialTheme.typography.titleLarge,
+                color = COLOR_PRIMARY,
+                textAlign = TextAlign.Center
+            )
+        }
+
+        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Column {
+                Text(
+                    text = "BPM",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = Color.Gray
+                )
+                Text(
+                    text = "${song.bpm}",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+            
+            Column(horizontalAlignment = Alignment.End) {
+                Text(
+                    text = "GENRE",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = Color.Gray
+                )
+                Text(
+                    text = song.genre.firstOrNull() ?: "Unknown",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        }
+
+        if (song.shareUrl.isNotEmpty()) {
+            TextButton(
+                onClick = { try { uriHandler.openUri(song.shareUrl) } catch (e: Exception) {} },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(
+                    text = song.shareUrl,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = COLOR_PRIMARY,
+                    textAlign = TextAlign.Center
+                )
             }
         }
     }

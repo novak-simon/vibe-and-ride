@@ -1,5 +1,8 @@
 package com.novaksimon.vibeandride.ui
 
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.basicMarquee
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -7,6 +10,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
@@ -20,14 +24,25 @@ import com.novaksimon.vibeandride.home.HomeViewModel
 import com.novaksimon.vibeandride.home.WorkoutPlaceholder
 import com.novaksimon.vibeandride.model.Song
 
+// App Color Palette
+private val COLOR_BACKGROUND = Color(0xFF000000)
+private val COLOR_PRIMARY = Color(0xFF146EB8)    // Blue
+private val COLOR_SECONDARY = Color(0xFFCC8B2A)  // Yellow
+private val COLOR_TERTIARY = Color(0xFF990FB5)   // Purple
+
 @Composable
 fun HomeScreen(viewModel: HomeViewModel) {
     val likedSongs by viewModel.likedSongs.collectAsState()
     val isLoadingLikedSongs by viewModel.isLoadingLikedSongs.collectAsState()
 
+    LaunchedEffect(Unit) {
+        viewModel.loadLikedSongs()
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .background(COLOR_BACKGROUND)
             .verticalScroll(rememberScrollState())
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(24.dp)
@@ -85,13 +100,14 @@ fun Section(title: String, content: @Composable () -> Unit) {
 fun WorkoutCard(workout: WorkoutPlaceholder) {
     Card(
         modifier = Modifier.width(160.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+        colors = CardDefaults.cardColors(containerColor = COLOR_PRIMARY.copy(alpha = 0.1f)),
+        border = BorderStroke(1.dp, Color.DarkGray)
     ) {
         Column(modifier = Modifier.padding(12.dp)) {
             Text(workout.name, style = MaterialTheme.typography.titleSmall, maxLines = 1)
             Text(workout.duration, style = MaterialTheme.typography.bodySmall, color = Color.Gray)
             Spacer(modifier = Modifier.height(8.dp))
-            Text(workout.rating, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+            Text(workout.rating, style = MaterialTheme.typography.labelLarge, color = COLOR_SECONDARY)
         }
     }
 }
@@ -112,13 +128,16 @@ fun SongTile(song: Song) {
             style = MaterialTheme.typography.bodySmall,
             fontWeight = FontWeight.Medium,
             maxLines = 1,
-            modifier = Modifier.padding(top = 4.dp)
+            modifier = Modifier
+                .padding(top = 4.dp)
+                .basicMarquee()
         )
         Text(
             song.artist,
             style = MaterialTheme.typography.labelSmall,
             color = Color.Gray,
-            maxLines = 1
+            maxLines = 1,
+            modifier = Modifier.basicMarquee()
         )
     }
 }

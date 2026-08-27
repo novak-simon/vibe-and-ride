@@ -4,10 +4,13 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.novaksimon.vibeandride.database.getLikedSongsWithDetails
 import com.novaksimon.vibeandride.model.Song
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlin.time.Duration.Companion.seconds
 
 data class WorkoutPlaceholder(
     val name: String,
@@ -36,6 +39,16 @@ class HomeViewModel : ViewModel() {
 
     init {
         loadLikedSongs()
+        startPeriodicRefresh()
+    }
+
+    private fun startPeriodicRefresh() {
+        viewModelScope.launch {
+            while (isActive) {
+                delay(30.seconds)
+                loadLikedSongs()
+            }
+        }
     }
 
     fun loadLikedSongs() {

@@ -28,17 +28,60 @@ data class AudiusTrack(
     val is_streamable: Boolean = true
 )
 
-private const val AUDIUS_HOST = "api.audius.co"
+@Serializable
+data class AudiusProvidersResponse(
+    val success: Boolean,
+    val data: List<String>
+)
+
+private const val DEFAULT_AUDIUS_HOST = "api.audius.co"
+
+object AudiusNodeRegistry {
+    private var nodes: List<String> = emptyList()
+    private var lastFetchTime: Long = 0
+    private val cacheDuration = 1000 * 60 * 60 // 1 hour
+
+    suspend fun getNodes(): List<String> {
+        if (nodes.isEmpty() || (System.currentTimeMillis() - lastFetchTime) > cacheDuration) {
+            refreshNodes()
+        }
+        return nodes.ifEmpty { listOf(DEFAULT_AUDIUS_HOST) }
+    }
+
+    private suspend fun refreshNodes() = withContext(Dispatchers.IO) {
+        try {
+            val url = "https://$DEFAULT_AUDIUS_HOST/v1/discovery-providers"
+            val request = Request.Builder().url(url).build()
+            
+            httpClient.newCall(request).execute().use { response ->
+                if (response.isSuccessful) {
+                    val body = response.body.string()
+                    val providersResponse = json.decodeFromString<AudiusProvidersResponse>(body)
+                    if (providersResponse.success) {
+                        nodes = providersResponse.data.shuffled()
+                        lastFetchTime = System.currentTimeMillis()
+                        println("AudiusNodeRegistry: Refreshed ${nodes.size} nodes")
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            println("AudiusNodeRegistry: Failed to refresh nodes: ${e.message}")
+        }
+    }
+}
 
 suspend fun getAudiusStreamUrl(
     audiusId: String,
 ): String? = withContext(Dispatchers.IO) {
     val apiKey = "0xfe22f3410fff4707efd27f66e6277ce84105868c"
     
-    // We try api.audius.co with retries as it is the primary entry point
-    for (attempt in 1..3) {
+    val candidateNodes = AudiusNodeRegistry.getNodes()
+    
+    // Try up to 3 different nodes
+    for (attempt in 0 until minOf(3, candidateNodes.size)) {
+        val host = candidateNodes[attempt].replace("https://", "").replace("http://", "")
         try {
-            val url = "https://$AUDIUS_HOST/v1/tracks/$audiusId?app_name=VIBE_AND_RIDE"
+            val url = "https://$host/v1/tracks/$audiusId?app_name=VIBE_AND_RIDE"
             val request = Request.Builder()
                 .url(url)
                 .addHeader("x-api-key", apiKey)
@@ -54,7 +97,8 @@ suspend fun getAudiusStreamUrl(
                     }
                     
                     if (trackResponse?.data != null) {
-                        return@use "https://$AUDIUS_HOST/v1/tracks/$audiusId/stream?app_name=VIBE_AND_RIDE"
+                        // Return the stream URL pointing to the SAME host that confirmed the metadata
+                        return@use "https://$host/v1/tracks/$audiusId/stream?app_name=VIBE_AND_RIDE"
                     }
                 }
                 null
@@ -63,11 +107,11 @@ suspend fun getAudiusStreamUrl(
             if (streamUrl != null) return@withContext streamUrl
             
         } catch (e: Exception) {
-            println("Audius request failed on $AUDIUS_HOST (attempt $attempt): ${e.message}")
+            println("Audius request failed on $host (attempt ${attempt + 1}): ${e.message}")
         }
         
-        if (attempt < 3) {
-            delay((500L * attempt).milliseconds)
+        if (attempt < 2) {
+            delay((300L * (attempt + 1)).milliseconds)
         }
     }
     

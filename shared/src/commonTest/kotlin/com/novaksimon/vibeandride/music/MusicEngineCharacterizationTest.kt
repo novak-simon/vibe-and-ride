@@ -13,7 +13,9 @@ import com.novaksimon.vibeandride.workout.WorkoutStatus
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
@@ -32,6 +34,14 @@ import kotlin.time.Duration.Companion.seconds
 class EngineCharacterizationFakePlaybackController : PlaybackController {
     var isPlayingVal = false
     override val isPlayingFlow: Flow<Boolean> = MutableStateFlow(isPlayingVal)
+
+    private val _errorFlow = MutableSharedFlow<String>(extraBufferCapacity = 1)
+    override val errorFlow: Flow<String> = _errorFlow.asSharedFlow()
+
+    fun emitError(message: String) {
+        _errorFlow.tryEmit(message)
+    }
+
     override fun play() { isPlayingVal = true }
     override fun pause() { isPlayingVal = false }
     override fun isPlaying(): Boolean = isPlayingVal
@@ -316,5 +326,50 @@ class MusicEngineCharacterizationTest {
         
         engine.songLiked(true)
         assertTrue(engine.state.value.isLiked)
+    }
+
+    @Test
+    fun testPlaybackErrorRecovery_RetryAndSkip() = runTest {
+        val song1 = createSong(1)
+        val song2 = createSong(2)
+        songRepository.songsAroundTargetCadenceResults.add(listOf(song1, song2))
+        profileRepository.profile = Profile("p1", emptyList())
+
+        val engine = createEngine()
+        val workout = createWorkout(listOf(createInterval()))
+        engine.sessionStarted(createStructuredSessionState(workout))
+        
+        while (!engine.state.value.recommendationIndex.any { it }) delay(10.milliseconds)
+        
+        // Start song 1
+        engine.nextTrack(newInterval = true, intervalIndex = 0, firstSong = true)
+        assertEquals(1, engine.state.value.currentSong?.id)
+        assertEquals(0, engine.state.value.playbackErrorCount)
+        assertEquals(1, engine.state.value.songIndex)
+
+        // Error 1 -> Retry
+        playbackController.emitError("404")
+        delay(10.milliseconds)
+        assertEquals(1, engine.state.value.playbackErrorCount)
+        assertEquals(1, engine.state.value.currentSong?.id, "Should still be song 1 after retry")
+        assertEquals(1, engine.state.value.songIndex, "Song index should be back to 1")
+
+        // Error 2 -> Retry
+        playbackController.emitError("404")
+        delay(10.milliseconds)
+        assertEquals(2, engine.state.value.playbackErrorCount)
+
+        // Error 3 -> Retry
+        playbackController.emitError("404")
+        delay(10.milliseconds)
+        assertEquals(3, engine.state.value.playbackErrorCount)
+
+        // Error 4 -> Skip
+        playbackController.emitError("404")
+        delay(10.milliseconds)
+        
+        // Should skip to song 2
+        assertEquals(2, engine.state.value.currentSong?.id)
+        assertEquals(0, engine.state.value.playbackErrorCount)
     }
 }
