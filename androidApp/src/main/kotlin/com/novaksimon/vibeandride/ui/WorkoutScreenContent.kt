@@ -420,7 +420,7 @@ fun WorkoutProfileChart(
 
     val totalDuration = workout.totalDuration.toFloat()
     val maxPower = intervals.maxOfOrNull { it.power } ?: 1f
-    val accentColor = COLOR_PRIMARY
+    val accentColor = COLOR_TERTIARY
 
     Canvas(modifier = modifier) {
         val width = size.width
@@ -437,7 +437,7 @@ fun WorkoutProfileChart(
                 interval.power < 0.76f -> Color(0xFF64B5F6) // Endurance - Muted Blue
                 interval.power < 0.91f -> Color(0xFF81C784) // Tempo - Muted Green
                 interval.power < 1.06f -> Color(0xFFFFD54F) // Threshold - Muted Yellow
-                interval.power < 1.21f -> Color(0xFFFFB74D) // VO2 Max - Muted Orange
+                interval.power < 1.21f -> Color(0xFFFF6639) // VO2 Max - Muted Orange
                 else -> Color(0xFFE57373) // Anaerobic - Muted Red
             }.copy(alpha = 0.6f)
 
