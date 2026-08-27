@@ -2,16 +2,19 @@ package com.novaksimon.vibeandride.music
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.novaksimon.vibeandride.database.SupabaseProfileRepository
+import com.novaksimon.vibeandride.database.SupabaseSongRepository
 import com.novaksimon.vibeandride.model.Song
-import kotlinx.coroutines.launch
 import com.novaksimon.vibeandride.recommendation.SongRecommendation
 import com.novaksimon.vibeandride.workout.WorkoutStatus
 import com.novaksimon.vibeandride.workout.WorkoutViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
 import kotlin.time.Duration.Companion.seconds
 
 data class MusicUiState(
@@ -28,9 +31,35 @@ class MusicViewModel(
 ) : ViewModel() {
 
     private lateinit var workoutViewModel: WorkoutViewModel
+    private val musicEngine: MusicEngine = MusicEngine(
+        playbackController,
+        SupabaseSongRepository(),
+        SupabaseProfileRepository()
+    )
     private val _uiState = MutableStateFlow(MusicUiState())
-    private val musicProvider: MusicProvider = MusicProvider(_uiState, playbackController)
     val uiState: StateFlow<MusicUiState> = _uiState.asStateFlow()
+
+    init {
+        viewModelScope.launch {
+            // Synchronize MusicEngine state to MusicUiState
+            combine(
+                musicEngine.state,
+                playbackController.isPlayingFlow
+            ) { musicState, isPlaying ->
+                val targetIndex = if (musicState.currentIntervalIndex == -1) 0 else musicState.currentIntervalIndex
+                
+                MusicUiState(
+                    currentSong = musicState.currentSong,
+                    isMusicAvailable = musicState.recommendationIndex.getOrNull(targetIndex) ?: false,
+                    isPlaying = isPlaying,
+                    debugInfo = musicState.currentDebug,
+                    isLiked = musicState.isLiked
+                )
+            }.collect { 
+                _uiState.value = it 
+            }
+        }
+    }
 
     fun initWorkoutViewModel(workoutViewModel: WorkoutViewModel) {
         this.workoutViewModel = workoutViewModel
@@ -40,49 +69,41 @@ class MusicViewModel(
                 .distinctUntilChanged()
                 .collect { workoutState ->
                     if (workoutState?.status == WorkoutStatus.NOT_STARTED) {
-                        musicProvider.workoutSelected(workoutState)
+                        musicEngine.workoutSelected(workoutState)
                     } else if (workoutState?.status == WorkoutStatus.RUNNING) {
 
-                        musicProvider.play(
+                        musicEngine.play(
                             workoutState.intervalIndex,
                             workoutState.remainingInInterval
                         )
                     }
                     workoutState?.remainingInInterval?.let {
                         if (it < 40.seconds) {
-                            musicProvider.precomputeNextRecommendation(workoutState)
+                            musicEngine.precomputeNextRecommendation(workoutState)
                         }
                     }
                 }
         }
     }
     fun skip() {
-        viewModelScope.launch {
-            musicProvider.skip()
-        }
+        musicEngine.skip()
     }
 
     fun pauseResume() {
-        viewModelScope.launch {
-            musicProvider.pauseResume()
-        }
+        musicEngine.pauseResume()
     }
 
     fun play() {
-        viewModelScope.launch {
-            musicProvider.play()
-        }
+        musicEngine.play()
     }
 
     fun pause() {
-        viewModelScope.launch {
-            musicProvider.pause()
-        }
+        musicEngine.pause()
     }
 
     fun songLiked(liked: Boolean) {
         println("SONG LIKED!!!")
         _uiState.value = _uiState.value.copy(isLiked = liked)
-        musicProvider.songLiked(liked)
+        musicEngine.songLiked(liked)
     }
 }

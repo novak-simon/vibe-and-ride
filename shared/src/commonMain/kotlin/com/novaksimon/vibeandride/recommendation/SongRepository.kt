@@ -1,0 +1,15 @@
+package com.novaksimon.vibeandride.recommendation
+
+import com.novaksimon.vibeandride.model.Song
+
+interface SongRepository {
+    suspend fun getSongsAroundTargetCadence(
+        targetAlgorithmCadence: Int,
+        algorithmCadenceToleration: Int,
+        limit: Int
+    ): List<Song>
+
+    suspend fun fetchSongs(limit: Int): List<Song>
+
+    suspend fun getAudioUrl(song: Song): String?
+}

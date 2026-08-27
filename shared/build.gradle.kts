@@ -37,6 +37,7 @@ kotlin {
             implementation(libs.compose.uiToolingPreview)
             implementation(libs.compose.uiTooling)
             implementation(libs.ktor.client.okhttp)
+            implementation(libs.androidx.media3.session)
         }
         commonMain.dependencies {
             implementation(libs.compose.runtime)
@@ -53,15 +54,12 @@ kotlin {
             implementation(libs.supabase.auth)
             implementation(libs.ktor.client.core)
             implementation(libs.xmlutil)
-            implementation(libs.androidx.media3.session)
             implementation(libs.okhttp)
 
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)
-            implementation(libs.mockk.common)
             implementation(libs.kotlinx.coroutines.test)
-            implementation(libs.kotlin.testJunit)
         }
     }
 }

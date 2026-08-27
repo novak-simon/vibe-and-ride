@@ -1,8 +1,5 @@
 package com.novaksimon.vibeandride.recommendation
 
-import com.novaksimon.vibeandride.database.getProfileForRecommendation
-import com.novaksimon.vibeandride.database.getStatByProfileAndSongId
-import com.novaksimon.vibeandride.music.ProfileMusicService
 import com.novaksimon.vibeandride.model.Interval
 import com.novaksimon.vibeandride.model.Song
 import com.novaksimon.vibeandride.model.Profile
@@ -76,17 +73,20 @@ data class RecommendationResult(
     val debugInfo: List<SongRecommendation>,
 )
 
-class RecommendationEngine(profileMusicService: ProfileMusicService) {
-
-    val service = profileMusicService
+class RecommendationEngine(
+    private val songRepository: SongRepository,
+    private val profileRepository: ProfileRepository,
+    private val ioDispatcher: kotlinx.coroutines.CoroutineDispatcher = Dispatchers.IO,
+    private val defaultDispatcher: kotlinx.coroutines.CoroutineDispatcher = Dispatchers.Default,
+) {
 
     suspend fun approximateFilterByInterval(
         interval: Interval,
     ): List<Song> {
         val cadence = interval.cadence.toInt()
         val targetCadence = getAlgorithmCadence(cadence)
-        var pool = withContext(Dispatchers.IO) {
-            service.getSongsAroundTargetCadence(
+        var pool = withContext(ioDispatcher) {
+            songRepository.getSongsAroundTargetCadence(
                 targetCadence,
                 algorithmCadenceToleration = 2,
                 limit = FIRST_CANDIDATE_POOL_LIMIT
@@ -94,8 +94,8 @@ class RecommendationEngine(profileMusicService: ProfileMusicService) {
         }
         if (pool.size < FIRST_CANDIDATE_POOL_LIMIT) {
             pool = pool.union(
-                withContext(Dispatchers.IO) {
-                    service.getSongsAroundTargetCadence(
+                withContext(ioDispatcher) {
+                    songRepository.getSongsAroundTargetCadence(
                         targetCadence,
                         algorithmCadenceToleration = 5,
                         limit = FIRST_CANDIDATE_POOL_LIMIT - pool.size
@@ -104,8 +104,8 @@ class RecommendationEngine(profileMusicService: ProfileMusicService) {
             ).toList()
             if (pool.size < FIRST_CANDIDATE_POOL_LIMIT) {
                 pool = pool.union(
-                    withContext(Dispatchers.IO) {
-                        service.getSongsAroundTargetCadence(
+                    withContext(ioDispatcher) {
+                        songRepository.getSongsAroundTargetCadence(
                             targetCadence,
                             algorithmCadenceToleration = 10,
                             limit = FIRST_CANDIDATE_POOL_LIMIT
@@ -114,8 +114,8 @@ class RecommendationEngine(profileMusicService: ProfileMusicService) {
                 ).toList()
                 if (pool.isEmpty()) {
                     println("No songs found around cadence, fetching generic songs...")
-                    withContext(Dispatchers.IO) {
-                        pool = service.fetchSongs(50)
+                    withContext(ioDispatcher) {
+                        pool = songRepository.fetchSongs(50)
                     }
                 }
             }
@@ -133,10 +133,7 @@ class RecommendationEngine(profileMusicService: ProfileMusicService) {
         }
 
         val numberOfMatchingGenres: Float = profile.genrePreferences.intersect(song.genre.toSet()).size.toFloat()
-        val stat: ProfileSongStats?
-        withContext(Dispatchers.IO) {
-            stat = getStatByProfileAndSongId(songId = song.id, profileId = profile.id)
-        }
+        val stat: ProfileSongStats? = profileRepository.getStatByProfileAndSongId(songId = song.id, profileId = profile.id)
 
         if (stat != null) {
             val likeCoefficient = if (stat.isLiked) 2f else 1f
@@ -299,7 +296,7 @@ class RecommendationEngine(profileMusicService: ProfileMusicService) {
 
     suspend fun recommend(interval: Interval): RecommendationResult {
         var firstCandidatePool: List<Song>? = null
-        withContext(Dispatchers.IO) {
+        withContext(ioDispatcher) {
             firstCandidatePool = approximateFilterByInterval(interval)
         }
         if (firstCandidatePool.isNullOrEmpty()) {
@@ -307,13 +304,10 @@ class RecommendationEngine(profileMusicService: ProfileMusicService) {
             return RecommendationResult(emptyList(), emptyList())
         }
         val algorithmSemaphore = Semaphore(4)
-        val profile: Profile
-        withContext(Dispatchers.IO) {
-            profile = getProfileForRecommendation()
-        }
+        val profile: Profile = profileRepository.getProfileForRecommendation()
         val candidates = coroutineScope {
             firstCandidatePool.map { candidate ->
-                async(Dispatchers.Default) {
+                async(defaultDispatcher) {
                     algorithmSemaphore.withPermit {
                         getSongRecommendationScore(candidate, interval, profile)
                     }

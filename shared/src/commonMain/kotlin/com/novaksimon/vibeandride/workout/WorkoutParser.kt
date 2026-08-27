@@ -47,11 +47,38 @@ class WorkoutParser {
                                 return reader.getAttributeValue("", name)?.toDoubleOrNull() ?: 0.0
                             }
 
+                            val duration = attr("Duration")
+                            var power = attr("Power").toFloat()
+                            if (power == 0f) {
+                                val pLow = attr("PowerLow").toFloat()
+                                val pHigh = attr("PowerHigh").toFloat()
+                                power = if (pLow != 0f && pHigh != 0f) {
+                                    (pLow + pHigh) / 2f
+                                } else if (pLow != 0f) {
+                                    pLow
+                                } else {
+                                    pHigh
+                                }
+                            }
+
+                            var cadence = attr("Cadence")
+                            if (cadence == 0.0) {
+                                val cLow = attr("CadenceLow")
+                                val cHigh = attr("CadenceHigh")
+                                cadence = if (cLow != 0.0 && cHigh != 0.0) {
+                                    kotlin.math.round((cLow + cHigh) / 2)
+                                } else if (cLow != 0.0) {
+                                    cLow
+                                } else {
+                                    cHigh
+                                }
+                            }
+
                             intervals.add(
                                 Interval(
-                                    duration = attr("Duration"),
-                                    power = attr("Power").toFloat(),
-                                    cadence = attr("Cadence"),
+                                    duration = duration,
+                                    power = power,
+                                    cadence = cadence,
                                     type = localName
                                 )
                             )

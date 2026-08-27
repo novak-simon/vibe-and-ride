@@ -1,13 +1,12 @@
 package com.novaksimon.vibeandride.music
 
-import com.novaksimon.vibeandride.api.getAudiusStreamUrl
-import com.novaksimon.vibeandride.database.getAudiusAudioUrlBySongId
-import com.novaksimon.vibeandride.database.getJamendoAudioUrlBySongId
 import com.novaksimon.vibeandride.model.Song
+import com.novaksimon.vibeandride.recommendation.SongRepository
 import kotlinx.coroutines.flow.Flow
 
 class ProfileMusicService(
-    private val playbackController: PlaybackController
+    private val playbackController: PlaybackController,
+    private val songRepository: SongRepository
 ) {
 
     val isPlayingFlow: Flow<Boolean> = playbackController.isPlayingFlow
@@ -17,8 +16,7 @@ class ProfileMusicService(
     private var preloadedAudioUrl: String? = null
 
     suspend fun fetchSongs(limit: Int): List<Song> {
-        return com.novaksimon.vibeandride.database
-            .fetchSongs(limit)
+        return songRepository.fetchSongs(limit)
     }
 
     suspend fun getSongsAroundTargetCadence(
@@ -26,12 +24,11 @@ class ProfileMusicService(
         algorithmCadenceToleration: Int = 5,
         limit: Int = 20
     ): List<Song> {
-        return com.novaksimon.vibeandride.database
-            .getSongsAroundTargetCadence(
-                targetAlgorithmCadence,
-                algorithmCadenceToleration,
-                limit
-            )
+        return songRepository.getSongsAroundTargetCadence(
+            targetAlgorithmCadence,
+            algorithmCadenceToleration,
+            limit
+        )
     }
 
     fun pauseResume() {
@@ -100,13 +97,6 @@ class ProfileMusicService(
     }
 
     suspend fun getAudioUrl(song: Song): String? {
-        val jamendo = getJamendoAudioUrlBySongId(song.id)
-        println("JAMENDO STREAM: $jamendo")
-        if (jamendo != null) return jamendo
-        val audius = getAudiusAudioUrlBySongId(song.id)
-        println("AUDIUS STREAM: $audius")
-        if (audius != null) return audius
-        println("NO URL")
-        return null
+        return songRepository.getAudioUrl(song)
     }
 }
