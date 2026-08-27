@@ -27,16 +27,6 @@ suspend fun getWorkoutById(id: Int): Workout? {
     return if (rawWorkout != null) rawToWorkout(rawWorkout) else null
 }
 
-suspend fun valueExists(value: String, column: String): Boolean {
-    return client.postgrest["workouts"]
-        .select {
-            filter { eq(column, value) }
-            limit(1)
-        }
-        .decodeList<Map<String, kotlinx.serialization.json.JsonElement>>()
-        .isNotEmpty()
-}
-
 /**
  * TODO: uploadParsedWorkout currently relies on positional indexing into
  * parsed XML children (matches original Python behavior) — fragile if

@@ -621,8 +621,4 @@ class AndroidAudioPlayer(
         onEndOfMedia = null
         onError = null
     }
-
-    fun isAvailable(): Boolean {
-        return activePlayer() != null
-    }
 }

@@ -14,7 +14,7 @@ import com.novaksimon.vibeandride.workout.WorkoutMode
  * domain data independent of UI projection or Android playback implementation details.
  *
  * It is introduced as part of the incremental extraction of music logic from
- * [MusicProvider] into a more portable representation.
+ * MusicProvider into a more portable representation.
  */
 data class MusicState(
     val mode: WorkoutMode? = null,

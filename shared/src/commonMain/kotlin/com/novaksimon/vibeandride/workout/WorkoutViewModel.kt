@@ -16,7 +16,6 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
-import kotlin.time.Duration.Companion.seconds
 
 data class WorkoutUiState(
     val workoutState: WorkoutSessionState? = null,
@@ -89,17 +88,6 @@ class WorkoutViewModel(
         scheduler.pauseResume()
     }
 
-    fun reset() {
-        scheduler.reset()
-        stopTicking()
-        _uiState.value = WorkoutUiState(bleStatus = cadenceSource?.status?.value ?: CadenceSourceStatus.IDLE)
-    }
-
-    fun resync(time: Duration) {
-        scheduler.resync(time)
-        tick()
-    }
-
     fun adjustTime(delta: Duration) {
         scheduler.adjustTime(delta)
         tick()
@@ -138,6 +126,9 @@ class WorkoutViewModel(
     fun selectWorkout(workoutId: Int) {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoading = true)
+            scheduler.reset()
+            stopTicking()
+            _uiState.value = WorkoutUiState(bleStatus = cadenceSource?.status?.value ?: CadenceSourceStatus.IDLE)
             scheduler.workoutIdSelected(workoutId)
             tick()
             _uiState.value = _uiState.value.copy(isLoading = false)
@@ -149,12 +140,6 @@ class WorkoutViewModel(
         startWorkout()
         tick()
     }
-
-    fun updateLiveCadence(cadence: Double) {
-        scheduler.updateLiveCadence(cadence)
-        tick()
-    }
-
     fun toggleBle() {
         val source = cadenceSource ?: return
         when (source.status.value) {

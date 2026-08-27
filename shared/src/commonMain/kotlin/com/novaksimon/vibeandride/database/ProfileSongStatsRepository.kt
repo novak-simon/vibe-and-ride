@@ -8,16 +8,6 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import kotlin.time.Instant
 
-suspend fun getStatById(id: Int): ProfileSongStats? {
-    val stat = client.postgrest["profile_song_stats"]
-        .select {
-            filter { eq("id", id) }
-            limit(1)
-        }
-        .decodeSingleOrNull<RawProfileSongStats>()
-    return if (stat != null) rawToStat(stat) else null
-}
-
 suspend fun getStatByProfileAndSongId(songId: Int, profileId: String? = null): ProfileSongStats? {
     val resolvedProfileId = profileId ?: getCurrentProfile()?.id ?: return null
     return client.postgrest["profile_song_stats"]
@@ -30,17 +20,6 @@ suspend fun getStatByProfileAndSongId(songId: Int, profileId: String? = null): P
         }
         .decodeSingleOrNull<RawProfileSongStats>()
         ?.let(::rawToStat)
-}
-
-suspend fun getStatsByProfileId(profileId: String? = null, limit: Int? = 50): List<ProfileSongStats> {
-    val resolvedProfileId = profileId ?: getCurrentProfile()?.id ?: return emptyList()
-    return client.postgrest["profile_song_stats"]
-        .select {
-            filter { eq("profile_id", resolvedProfileId) }
-            if (limit != null) limit(limit.toLong())
-        }
-        .decodeList<RawProfileSongStats>()
-        .map(::rawToStat)
 }
 
 /**

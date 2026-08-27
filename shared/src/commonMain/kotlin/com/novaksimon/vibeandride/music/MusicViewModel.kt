@@ -6,7 +6,6 @@ import com.novaksimon.vibeandride.database.SupabaseProfileRepository
 import com.novaksimon.vibeandride.database.SupabaseSongRepository
 import com.novaksimon.vibeandride.model.Song
 import com.novaksimon.vibeandride.recommendation.SongRecommendation
-import com.novaksimon.vibeandride.workout.WorkoutSessionState
 import com.novaksimon.vibeandride.workout.WorkoutStatus
 import com.novaksimon.vibeandride.workout.WorkoutViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -93,10 +92,6 @@ class MusicViewModel(
     }
     fun skip() {
         musicEngine.skip()
-    }
-
-    fun pauseResume() {
-        musicEngine.pauseResume()
     }
 
     fun play() {

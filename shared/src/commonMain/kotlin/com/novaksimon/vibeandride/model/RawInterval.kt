@@ -2,7 +2,6 @@ package com.novaksimon.vibeandride.model
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
-import kotlin.math.round
 
 @Serializable
 data class RawInterval(

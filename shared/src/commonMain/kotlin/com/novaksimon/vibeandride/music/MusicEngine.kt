@@ -9,7 +9,6 @@ import com.novaksimon.vibeandride.recommendation.RecommendationResult
 import com.novaksimon.vibeandride.recommendation.SongRepository
 import com.novaksimon.vibeandride.workout.WorkoutMode
 import com.novaksimon.vibeandride.workout.WorkoutSessionState
-import com.novaksimon.vibeandride.workout.WorkoutStatus
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -19,17 +18,16 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import kotlin.math.min
-import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 
 /**
  * MusicEngine is the central orchestrator for music sessions.
  */
 class MusicEngine(
-    private val playbackController: PlaybackController,
-    private val songRepository: SongRepository,
+    playbackController: PlaybackController,
+    songRepository: SongRepository,
     private val profileRepository: ProfileRepository,
-    private val mainDispatcher: kotlinx.coroutines.CoroutineDispatcher = Dispatchers.Main,
+    mainDispatcher: kotlinx.coroutines.CoroutineDispatcher = Dispatchers.Main,
     private val ioDispatcher: kotlinx.coroutines.CoroutineDispatcher = Dispatchers.IO,
     private val defaultDispatcher: kotlinx.coroutines.CoroutineDispatcher = Dispatchers.Default,
 ) {
@@ -377,7 +375,7 @@ class MusicEngine(
         val nextIndex = currentIntervalIndex + 1
         if (state.recommendationIndex.getOrNull(nextIndex) == true || activePrecomputations.contains(nextIndex)) return null
         val intervalCount = state.workout?.intervals?.size ?: 0
-        if (nextIndex >= 0 && nextIndex < intervalCount) return nextIndex
+        if (nextIndex in 0..<intervalCount) return nextIndex
         return null
     }
 }

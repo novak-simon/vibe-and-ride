@@ -5,16 +5,6 @@ import com.novaksimon.vibeandride.model.RawSong
 import com.novaksimon.vibeandride.model.Song
 import io.github.jan.supabase.postgrest.postgrest
 
-suspend fun getSongByJamendoId(jamendoId: String): Song? {
-    val rawSong = client.postgrest["songs"]
-        .select {
-            filter { eq("jamendo_id", jamendoId) }
-            limit(1)
-        }
-        .decodeSingleOrNull<RawSong>()
-    return if (rawSong != null) rawToSong(rawSong) else null
-}
-
 suspend fun getSongById(id: Int): Song? {
     val rawSong = client.postgrest["songs"]
         .select {
@@ -38,19 +28,6 @@ suspend fun fetchSongs(limit: Int = 10): List<Song> {
     } catch (e: Exception) {
         println("fetchSongs error: ${e.message}")
         e.printStackTrace()
-        emptyList()
-    }
-}
-
-suspend fun getPlayableSongs(): List<Song> {
-    return try {
-        val rawSongs = client.postgrest["songs"]
-            .select()
-            .decodeList<RawSong>()
-        println("getPlayableSongs: fetched ${rawSongs.size} total songs")
-        rawSongs.map { rawToSong(it) }
-    } catch (e: Exception) {
-        println("getPlayableSongs error: ${e.message}")
         emptyList()
     }
 }

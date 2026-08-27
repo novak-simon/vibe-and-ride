@@ -25,7 +25,7 @@ data class AudiusTrackResponse(
 @Serializable
 data class AudiusTrack(
     val id: String,
-    val is_streamable: Boolean = true
+    val isStreamable: Boolean = true
 )
 
 @Serializable
@@ -39,10 +39,10 @@ private const val DEFAULT_AUDIUS_HOST = "api.audius.co"
 object AudiusNodeRegistry {
     private var nodes: List<String> = emptyList()
     private var lastFetchTime: Long = 0
-    private val cacheDuration = 1000 * 60 * 60 // 1 hour
+    private const val CACHE_DURATION = 1000 * 60 * 60 // 1 hour
 
     suspend fun getNodes(): List<String> {
-        if (nodes.isEmpty() || (System.currentTimeMillis() - lastFetchTime) > cacheDuration) {
+        if (nodes.isEmpty() || (System.currentTimeMillis() - lastFetchTime) > CACHE_DURATION) {
             refreshNodes()
         }
         return nodes.ifEmpty { listOf(DEFAULT_AUDIUS_HOST) }
@@ -93,6 +93,7 @@ suspend fun getAudiusStreamUrl(
                     val trackResponse = try {
                         json.decodeFromString<AudiusTrackResponse>(body)
                     } catch (e: Exception) {
+                        println(e)
                         null
                     }
                     

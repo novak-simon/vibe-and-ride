@@ -97,7 +97,6 @@ fun WorkoutScreenContent(
     onMusicPlay: () -> Unit,
     onMusicPause: () -> Unit,
     onSkip: () -> Unit,
-    onReset: () -> Unit,
     onAdjustTime: (Duration) -> Unit,
     onLikeSong: (Boolean) -> Unit,
     onUploadWorkout: () -> Unit,
@@ -202,7 +201,7 @@ fun WorkoutScreenContent(
                 )
                 IntervalBox(
                     interval = displayInterval,
-                    elapsed = if (targetIndex == structured?.intervalIndex) structured?.elapsedInInterval else null,
+                    elapsed = if (targetIndex == structured?.intervalIndex) structured.elapsedInInterval else null,
                     modifier = Modifier.weight(1.5f),
                     isCurrent = true
                 )
@@ -218,7 +217,7 @@ fun WorkoutScreenContent(
         if (workout != null) {
             WorkoutProfileChart(
                 workout = workout,
-                currentElapsed = state?.totalElapsed ?: 0.seconds,
+                currentElapsed = state.totalElapsed,
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(80.dp)
@@ -612,7 +611,7 @@ fun SongDetailContent(song: Song) {
 
         if (song.shareUrl.isNotEmpty()) {
             TextButton(
-                onClick = { try { uriHandler.openUri(song.shareUrl) } catch (e: Exception) {} },
+                onClick = { try { uriHandler.openUri(song.shareUrl) } catch (e: Exception) {println("Exception when clicking share url: $e")} },
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Text(
@@ -834,7 +833,6 @@ private fun WorkoutScreenPreview() {
             onMusicPause = {},
             onPauseResumeBoth = {},
             onSkip = {},
-            onReset = {},
             onAdjustTime = {},
             onLikeSong = {},
             onUploadWorkout = {},

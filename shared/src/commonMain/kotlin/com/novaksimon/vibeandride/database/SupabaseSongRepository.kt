@@ -28,6 +28,7 @@ class SupabaseSongRepository : SongRepository {
             return try {
                 getJamendoAudioUrlBySongId(song.id)
             } catch (e: Exception) {
+                println(e)
                 null
             }
         }
@@ -36,15 +37,16 @@ class SupabaseSongRepository : SongRepository {
             return try {
                 getAudiusAudioUrlBySongId(song.id)
             } catch (e: Exception) {
+                println(e)
                 null
             }
         }
 
         // Fallback for older data or unknown sources
-        val jamendo = try { getJamendoAudioUrlBySongId(song.id) } catch (e: Exception) { null }
+        val jamendo = try { getJamendoAudioUrlBySongId(song.id) } catch (e: Exception) { println(e); null }
         if (jamendo != null) return jamendo
         
-        val audius = try { getAudiusAudioUrlBySongId(song.id) } catch (e: Exception) { null }
+        val audius = try { getAudiusAudioUrlBySongId(song.id) } catch (e: Exception) { println(e); null }
         if (audius != null) return audius
 
         return null

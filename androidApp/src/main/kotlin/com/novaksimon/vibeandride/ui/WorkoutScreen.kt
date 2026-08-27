@@ -36,7 +36,6 @@ fun WorkoutScreen(
             }
         },
         onSkip = { musicViewModel.skip() },
-        onReset = { workoutViewModel.reset() },
         onAdjustTime = { workoutViewModel.adjustTime(it) },
         onLikeSong = { musicViewModel.songLiked(it) },
         onUploadWorkout = onUploadWorkout,

@@ -18,6 +18,7 @@ suspend fun getAudiusAudioUrlBySongId(songId: Int): String? {
 
         getAudiusStreamUrl(audiusId)
     } catch (e: Exception) {
+        println(e)
         null
     }
 }

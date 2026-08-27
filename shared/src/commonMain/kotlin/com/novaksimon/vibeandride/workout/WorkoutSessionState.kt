@@ -1,7 +1,6 @@
 package com.novaksimon.vibeandride.workout
 
 import com.novaksimon.vibeandride.model.Interval
-import com.novaksimon.vibeandride.model.Workout
 import kotlin.time.Duration
 
 enum class WorkoutStatus {

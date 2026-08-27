@@ -16,7 +16,7 @@ private data class IntervalLookup(
     val startOffset: Duration,
 )
 
-class WorkoutScheduler() {
+class WorkoutScheduler {
     private val timeSource: TimeSource.WithComparableMarks = TimeSource.Monotonic
     
     var mode: WorkoutMode? = null
@@ -83,9 +83,8 @@ class WorkoutScheduler() {
 
     fun resync(workoutTime: Duration) {
         if (workoutTime < Duration.ZERO) throw IllegalArgumentException("Workout time for resync must be non-negative")
-        
-        val m = mode
-        val total = when (m) {
+
+        val total = when (val m = mode) {
             is WorkoutMode.Structured -> m.workout.totalDuration.seconds
             else -> Duration.INFINITE
         }
@@ -186,8 +185,7 @@ class WorkoutScheduler() {
     }
 
     private fun currentElapsed(): Duration {
-        val m = mode
-        val total = when (m) {
+        val total = when (val m = mode) {
             is WorkoutMode.Structured -> m.workout.totalDuration.seconds
             else -> Duration.INFINITE
         }

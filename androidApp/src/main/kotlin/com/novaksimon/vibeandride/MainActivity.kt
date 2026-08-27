@@ -14,7 +14,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.DirectionsBike
+import androidx.compose.material.icons.automirrored.filled.DirectionsBike
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
@@ -219,7 +219,7 @@ class MainActivity : ComponentActivity() {
 
     private sealed class Screen(val route: String, val label: String, val icon: ImageVector) {
         object Home : Screen("home", "Home", Icons.Default.Home)
-        object Ride : Screen("ride", "Ride", Icons.Default.DirectionsBike)
+        object Ride : Screen("ride", "Ride", Icons.AutoMirrored.Filled.DirectionsBike)
         object Settings : Screen("settings", "Settings", Icons.Default.Settings)
     }
 

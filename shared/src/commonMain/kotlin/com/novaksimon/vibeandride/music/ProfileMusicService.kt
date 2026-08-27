@@ -2,35 +2,16 @@ package com.novaksimon.vibeandride.music
 
 import com.novaksimon.vibeandride.model.Song
 import com.novaksimon.vibeandride.recommendation.SongRepository
-import kotlinx.coroutines.flow.Flow
 
 class ProfileMusicService(
     private val playbackController: PlaybackController,
     private val songRepository: SongRepository
 ) {
 
-    val isPlayingFlow: Flow<Boolean> = playbackController.isPlayingFlow
-
     private var informedAboutTrackEnd = false
     private var currentSong: Song? = null
     private var preloadedAudioUrl: String? = null
     private var preloadedSongId: Int? = null
-
-    suspend fun fetchSongs(limit: Int): List<Song> {
-        return songRepository.fetchSongs(limit)
-    }
-
-    suspend fun getSongsAroundTargetCadence(
-        targetAlgorithmCadence: Int,
-        algorithmCadenceToleration: Int = 5,
-        limit: Int = 20
-    ): List<Song> {
-        return songRepository.getSongsAroundTargetCadence(
-            targetAlgorithmCadence,
-            algorithmCadenceToleration,
-            limit
-        )
-    }
 
     fun pauseResume() {
         if (playbackController.isPlaying()) {
