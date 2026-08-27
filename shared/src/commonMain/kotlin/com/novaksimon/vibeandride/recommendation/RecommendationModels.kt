@@ -18,7 +18,6 @@ data class IntervalRecommendation(
     val song: Song? = null,
     val score: Float = 0f,
     val cadenceScore: Float? = 0f,
-    val confScore: Float? = 0f,
     val songScore: Float? = 0f,
     val cadenceCompatibleBonus: Float? = 0f,
     val interval: Interval? = null,

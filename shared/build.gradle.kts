@@ -36,6 +36,7 @@ kotlin {
         androidMain.dependencies {
             implementation(libs.compose.uiToolingPreview)
             implementation(libs.compose.uiTooling)
+            implementation(libs.ktor.client.okhttp)
         }
         commonMain.dependencies {
             implementation(libs.compose.runtime)
@@ -53,6 +54,7 @@ kotlin {
             implementation(libs.ktor.client.core)
             implementation(libs.xmlutil)
             implementation(libs.androidx.media3.session)
+            implementation(libs.okhttp)
 
         }
         commonTest.dependencies {

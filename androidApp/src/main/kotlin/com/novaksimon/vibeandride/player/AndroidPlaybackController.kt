@@ -41,12 +41,14 @@ class AndroidPlaybackController(
 
     override fun setSource(
         song: Song,
+        audioUrl: String,
         startTimeSeconds: Float
     ) {
         sendCommand(
             PlaybackService.COMMAND_SET_SOURCE,
             Bundle().apply {
                 putString("song", Json.encodeToString(song))
+                putString("audioUrl", audioUrl)
                 putFloat("startTime", startTimeSeconds)
             }
         )
@@ -54,6 +56,7 @@ class AndroidPlaybackController(
 
     override fun preloadSource(
         song: Song,
+        audioUrl: String,
     ) {
         println("AndroidPlaybackController: PRELOAD $song")
 
@@ -61,11 +64,13 @@ class AndroidPlaybackController(
             PlaybackService.COMMAND_PRELOAD,
             Bundle().apply {
                 putString("song", Json.encodeToString(song))
+                putString("audioUrl", audioUrl)
             }
         )
     }
     override fun crossfadeToPreloaded(
         song: Song,
+        audioUrl: String,
         durationMs: Long
     ) {
         println("AndroidPlaybackController: sending CROSSFADE")
@@ -73,6 +78,7 @@ class AndroidPlaybackController(
             PlaybackService.COMMAND_CROSSFADE,
             Bundle().apply {
                 putString("song", Json.encodeToString(song))
+                putString("audioUrl", audioUrl)
                 putLong("durationMs", durationMs)
             }
         )

@@ -25,6 +25,7 @@ compose-icons-version = "1.7.3"
 media3Exoplayer = "1.11.0"
 media3Session = "1.11.0"
 mockkCommon = "1.13.7"
+okhttp = "5.5.0"
 supabase = "3.7.0"
 xmlutil = "1.0.2"
 
@@ -60,6 +61,7 @@ kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serializa
 ktor-client-core = { module = "io.ktor:ktor-client-core", version.ref = "ktor" }
 ktor-client-okhttp = { module = "io.ktor:ktor-client-okhttp", version.ref = "ktorClientOkhttp" }
 mockk-common = { module = "io.mockk:mockk-common", version.ref = "mockkCommon" }
+okhttp = { module = "com.squareup.okhttp3:okhttp", version.ref = "okhttp" }
 supabase-bom = { module = "io.github.jan-tennert.supabase:bom", version.ref = "supabase" }
 supabase-postgrest = { module = "io.github.jan-tennert.supabase:postgrest-kt" }
 supabase-auth = { module = "io.github.jan-tennert.supabase:auth-kt" }

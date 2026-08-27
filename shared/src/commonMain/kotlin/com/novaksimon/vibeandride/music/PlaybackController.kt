@@ -10,13 +10,16 @@ interface PlaybackController {
     fun isPlaying(): Boolean
     fun setSource(
         song: Song,
+        audioUrl: String,
         startTimeSeconds: Float = 0f
     )
     fun preloadSource(
         song: Song,
+        audioUrl: String,
     )
     fun crossfadeToPreloaded(
         song: Song,
+        audioUrl: String,
         durationMs: Long
     )
     fun clearPreloaded()

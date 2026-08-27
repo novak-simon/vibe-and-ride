@@ -461,7 +461,7 @@ fun DebugDialog(info: List<SongRecommendation>?, onDismiss: () -> Unit) {
                     items(info) { rec ->
                         Column(modifier = Modifier.padding(vertical = 8.dp)) {
                             Text("${rec.song?.title ?: "-"} by ${rec.song?.artist ?: "-"}", style = MaterialTheme.typography.titleSmall)
-                            Text("BPM: ${rec.song?.bpm ?: "-"}, confidence: ${rec.song?.bpmConfidence ?: "-"}")
+                            Text("BPM: ${rec.song?.bpm ?: "-"}")
                             Text("Preference score: ${rec.preferenceRecommendation?.score ?: "-"}")
                             Row(modifier = Modifier.padding(start = 4.dp)) {
                                 Text("G: ${rec.preferenceRecommendation?.numberOfMatchingGenres}," +
@@ -472,7 +472,6 @@ fun DebugDialog(info: List<SongRecommendation>?, onDismiss: () -> Unit) {
                             Text("Interval score: ${rec.intervalRecommendation?.score ?: "-"}")
                             Row(modifier = Modifier.padding(start = 4.dp)) {
                                 Text("Cd: ${rec.intervalRecommendation?.cadenceScore}," +
-                                        "Cf: ${rec.intervalRecommendation?.confScore}," +
                                         "S: ${rec.intervalRecommendation?.songScore}," +
                                         "Cm: ${rec.intervalRecommendation?.cadenceCompatibleBonus}")
                             }
@@ -560,21 +559,13 @@ private fun previewMusicState(): MusicUiState {
             artist = "test artist",
             releaseDate = "2024-01-01",
             genre = listOf("Electronic", "Synthwave"),
-            instruments = listOf("Synthesizer", "Drums"),
-            vartags = listOf("upbeat", "energetic"),
             duration = 210,
-            speed = 3,
             bpm = 120,
-            bpmConfidence = 95,
-            audioUrl = "https://example.com/audio.mp3",
             startTime = 0f,
             endTime = 210f,
             image = "https://usercontent.jamendo.com?type=album&id=4117&width=300&trackid=33324",
             shareUrl = "https://example.com/share",
-            lang = "en",
-            gender = "male",
-            isInstrumental = false,
-            isElectric = true
+            tags = listOf("energetic"),
         ),
         isMusicAvailable = true
     )

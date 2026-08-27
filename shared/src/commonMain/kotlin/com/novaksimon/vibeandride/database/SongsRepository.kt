@@ -48,8 +48,7 @@ suspend fun getPlayableSongs(): List<Song> {
             .select()
             .decodeList<RawSong>()
         println("getPlayableSongs: fetched ${rawSongs.size} total songs")
-        rawSongs.filter { it.audioUrl != null }
-            .map { rawToSong(it) }
+        rawSongs.map { rawToSong(it) }
     } catch (e: Exception) {
         println("getPlayableSongs error: ${e.message}")
         emptyList()

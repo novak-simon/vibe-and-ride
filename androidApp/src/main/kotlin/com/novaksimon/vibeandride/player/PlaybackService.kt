@@ -109,6 +109,7 @@ class PlaybackService : MediaSessionService() {
 
                         COMMAND_SET_SOURCE -> {
                             val songJson = args.getString("song")
+                            val audioUrl = args.getString("audioUrl", "")
                             val startTime =
                                 args.getFloat("startTime", 0f)
 
@@ -116,6 +117,7 @@ class PlaybackService : MediaSessionService() {
                                 val song = Json.decodeFromString<Song>(songJson)
                                 audioPlayer.setSource(
                                     song,
+                                    audioUrl,
                                     startTime
                                 )
                             }
@@ -125,13 +127,14 @@ class PlaybackService : MediaSessionService() {
                             println("PlaybackService: PRELOAD")
 
                             val songJson = args.getString("song")
+                            val audioUrl = args.getString("audioUrl", "")
                             val startTime = args.getFloat("startTime", 0f)
 
                             println("songJson=$songJson startTime=$startTime")
 
                             if (songJson != null) {
                                 val song = Json.decodeFromString<Song>(songJson)
-                                audioPlayer.preloadSource(song)
+                                audioPlayer.preloadSource(song, audioUrl)
                             }
                         }
 
@@ -170,11 +173,12 @@ class PlaybackService : MediaSessionService() {
                                 "durationMs",
                                 3000L
                             )
+                            val audioUrl = args.getString("audioUrl", "")
                             val song = Json.decodeFromString<Song>(args.getString("song", ""))
 
                             println("Crossfade duration=$duration")
 
-                            audioPlayer.crossfadeToPreloaded(song,duration)
+                            audioPlayer.crossfadeToPreloaded(song, audioUrl, duration)
                         }
                     }
 

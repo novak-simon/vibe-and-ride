@@ -90,19 +90,24 @@ class MusicProvider(val uiState: MutableStateFlow<MusicUiState>, playbackControl
         val remaining = min(remainingInInterval, timeUntilTrackEnd)
 
         // Preload logic
-        if (remaining < 15f && !hasPreloadedSong) {
-            val songToPreload = if (remainingInInterval <= timeUntilTrackEnd + 5f) {
+        if (remaining < 30f && !hasPreloadedSong) {
+            val songToPreload: Song?
+            if (remainingInInterval <= timeUntilTrackEnd + 5f) {
                 // Interval is ending soon (or before this track ends), preload first song of next interval
-                recommendationBuffer.getOrNull(intervalIndex + 1)?.topSongs?.firstOrNull() ?: futureIntervalSong
+                songIndex = 0
+                songToPreload = recommendationBuffer.getOrNull(intervalIndex + 1)?.topSongs?.getOrNull(songIndex) ?: futureIntervalSong
             } else {
                 // Track is ending, but interval still has time, preload next song in current interval
-                recommendationBuffer.getOrNull(intervalIndex)?.topSongs?.getOrNull(songIndex)
+                songToPreload = recommendationBuffer.getOrNull(intervalIndex)?.topSongs?.getOrNull(songIndex)
             }
 
             if (songToPreload != null && songToPreload.id != preloadedSongId && songToPreload.id != currentSong?.id) {
                 println("MusicProvider: preloading song ${songToPreload.title} (ID: ${songToPreload.id})")
+                if (!service.preloadSong(songToPreload)){
+                    songIndex += 1
+                    return
+                }
                 hasPreloadedSong = true
-                service.preloadSong(songToPreload)
                 preloadedSongId = songToPreload.id
             }
         }
@@ -119,6 +124,8 @@ class MusicProvider(val uiState: MutableStateFlow<MusicUiState>, playbackControl
         else if (currentIntervalIndex == -1) {
             println("MusicProvider: starting first track of workout for interval $intervalIndex")
             nextTrack(firstSong = true, newInterval = true, intervalIndex = intervalIndex)
+        } else if (!service.isPlaying()) {
+            nextTrack(newInterval = false)
         }
     }
 
@@ -159,6 +166,12 @@ class MusicProvider(val uiState: MutableStateFlow<MusicUiState>, playbackControl
                 println("No more songs in recommendation for interval $currentIntervalIndex (index $songIndex)")
                 return
             }
+            if (!service.crossfadeTo(song, 1000L)) {
+                songIndex += 1
+                println("Invalid URL in NEXT TRACK")
+                isTransitioning = false
+                return
+            }
             statsScope.launch {
                 val songStats: ProfileSongStats? = getStatByProfileAndSongId(songId = song.id)
                 println("Current song: $song")
@@ -169,7 +182,7 @@ class MusicProvider(val uiState: MutableStateFlow<MusicUiState>, playbackControl
                 )
             }
             currentSong = song
-            service.crossfadeTo(song, 1000L)
+
             
             // Wait for crossfade to complete before allowing another transition
             delay(2.seconds)

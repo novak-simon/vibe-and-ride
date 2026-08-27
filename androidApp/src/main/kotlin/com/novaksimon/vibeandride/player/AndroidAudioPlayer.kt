@@ -227,6 +227,7 @@ class AndroidAudioPlayer(
 
     override fun setSource(
         song: Song,
+        audioUrl: String,
         startTimeSeconds: Float
     ) {
         val player = activePlayer() ?: return
@@ -236,19 +237,20 @@ class AndroidAudioPlayer(
         needsSeekOnReady[slot] = true
 
         player.volume = 1f
-        player.setMediaItem(createMediaItem(song))
+        player.setMediaItem(createMediaItem(song, audioUrl))
         player.prepare()
     }
 
     override fun preloadSource(
         song: Song,
+        audioUrl: String,
     ) {
         val player = preloadedPlayer() ?: return
         val slot = preloadedSlot()
 
         // Check if the same song is already preloaded or playing in this slot
         val currentUri = player.currentMediaItem?.localConfiguration?.uri?.toString()
-        if (currentUri == song.audioUrl) {
+        if (currentUri == audioUrl) {
             println("AndroidAudioPlayer: Song ${song.title} already set in slot $slot, skipping preload")
             return
         }
@@ -261,13 +263,13 @@ class AndroidAudioPlayer(
         player.playWhenReady = false
         player.volume = 0f
 
-        player.setMediaItem(createMediaItem(song))
+        player.setMediaItem(createMediaItem(song, audioUrl))
         player.prepare()
     }
 
-    private fun createMediaItem(song: Song): MediaItem {
+    private fun createMediaItem(song: Song, audioUrl: String): MediaItem {
         return MediaItem.Builder()
-            .setUri(song.audioUrl)
+            .setUri(audioUrl)
             .setMediaMetadata(
                 MediaMetadata.Builder()
                     .setTitle(song.title)
@@ -475,11 +477,11 @@ class AndroidAudioPlayer(
             null
         }
     }
-    fun crossfadeToPreloaded(song: Song, durationMs: Long) {
+    fun crossfadeToPreloaded(song: Song, audioUrl: String, durationMs: Long) {
         val oldPlayer = activePlayer() ?: return
         val newPlayer = preloadedPlayer() ?: return
 
-        if (currentCrossfadeSongUrl == song.audioUrl) {
+        if (currentCrossfadeSongUrl == audioUrl) {
             println("AndroidAudioPlayer: Already crossfading to ${song.title}, skipping duplicate request")
             return
         }
@@ -490,7 +492,7 @@ class AndroidAudioPlayer(
         )
 
         fadeJob?.cancel()
-        currentCrossfadeSongUrl = song.audioUrl
+        currentCrossfadeSongUrl = audioUrl
 
         fadeJob = scope.launch {
             try {
@@ -573,7 +575,7 @@ class AndroidAudioPlayer(
             } catch (e: Exception) {
                 println("AndroidAudioPlayer: crossfade failed: ${e.message}")
             } finally {
-                if (currentCrossfadeSongUrl == song.audioUrl) {
+                if (currentCrossfadeSongUrl == audioUrl) {
                     currentCrossfadeSongUrl = null
                 }
             }

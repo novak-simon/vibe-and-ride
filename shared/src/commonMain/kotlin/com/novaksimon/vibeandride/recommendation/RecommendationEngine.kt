@@ -67,11 +67,6 @@ private val TAG_WEIGHTS = mapOf(
     "drone" to -1f,
 )
 
-private val INSTRUMENT_WEIGHTS = mapOf(
-    "drums" to 0.1f, "drummachine" to 0.1f, "bass" to 0.1f,
-    "electricguitar" to 0.05f, "electroamplified" to 0.05f, "synthesizer" to 0.05f,
-)
-
 private val GENRE_WEIGHTS = mapOf(
     "ambient" to -1f, "ambientdub" to -1f, "drone" to -1f,
 )
@@ -137,11 +132,7 @@ class RecommendationEngine(profileMusicService: ProfileMusicService) {
             return PreferenceRecommendation()
         }
 
-        val numberOfMatchingGenres: Float = if (song.genre.isNotEmpty()) {
-            song.genre.intersect(profile.genrePreferences.toSet()).size.toFloat()
-        } else {
-            0.5f
-        }
+        val numberOfMatchingGenres: Float = profile.genrePreferences.intersect(song.genre.toSet()).size.toFloat()
         val stat: ProfileSongStats?
         withContext(Dispatchers.IO) {
             stat = getStatByProfileAndSongId(songId = song.id, profileId = profile.id)
@@ -233,7 +224,6 @@ class RecommendationEngine(profileMusicService: ProfileMusicService) {
         val targetCadence = interval.cadence
 
         val sbpm = song.bpm
-        val bpmConf = song.bpmConfidence
 
         var cadenceDiff: Float
         var cadenceScore: Float
@@ -262,28 +252,23 @@ class RecommendationEngine(profileMusicService: ProfileMusicService) {
             cadenceScore = 0f
         }
 
-        val confScore = clamp01(bpmConf / 100f)
 
         val tagScore =
-            song.vartags.sumOf { TAG_WEIGHTS.getOrDefault(it, 0f).toDouble() }
+            song.tags.sumOf { TAG_WEIGHTS.getOrDefault(it, 0f).toDouble() }
                 .toFloat()
-        val instrumentScore = song.instruments.sumOf {
-            INSTRUMENT_WEIGHTS.getOrDefault(it, 0f).toDouble()
-        }.toFloat()
         val genreScore =
             song.genre.sumOf { GENRE_WEIGHTS.getOrDefault(it, 0f).toDouble() }
                 .toFloat()
-        val songScore = clamp02(tagScore + instrumentScore + genreScore)
+        val songScore = clamp02(tagScore + genreScore)
 
         var totalScore =
-            0.05f * cadenceScore + 0.05f * confScore + 0.90f * songScore + cadenceCompatibleBonus
+            0.90f * cadenceScore + 0.10f * songScore + cadenceCompatibleBonus //TODO
         totalScore = clamp02(totalScore, 1.0f)
 
         return IntervalRecommendation(
             song = song,
             score = totalScore,
             cadenceScore = round3(cadenceScore),
-            confScore = round3(confScore),
             songScore = round3(songScore),
             cadenceCompatibleBonus = round3(cadenceCompatibleBonus),
             interval = interval,
@@ -340,7 +325,6 @@ class RecommendationEngine(profileMusicService: ProfileMusicService) {
             compareByDescending<SongRecommendation> { it.score }
                 .thenByDescending { it.preferenceRecommendation?.score ?: 0f }
                 .thenByDescending { it.intervalRecommendation?.cadenceScore ?: 0f }
-                .thenByDescending { it.intervalRecommendation?.confScore ?: 0f }
                 .thenByDescending { it.intervalRecommendation?.songScore ?: 0f }
                 .thenBy { it.song?.id ?: Int.MAX_VALUE }
         )

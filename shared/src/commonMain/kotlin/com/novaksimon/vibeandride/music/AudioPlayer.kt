@@ -5,9 +5,9 @@ import com.novaksimon.vibeandride.model.Song
 interface AudioPlayer {
     fun initialize()
     /** Prepares and loads the track, seeking to startTimeSeconds once ready. */
-    fun setSource(song: Song, startTimeSeconds: Float)
+    fun setSource(song: Song, audioUrl: String, startTimeSeconds: Float)
     /** Prepares a secondary track that can be started while the current one is still playing. */
-    fun preloadSource(song: Song)
+    fun preloadSource(song: Song, audioUrl: String)
     fun hasPreloadedSource(): Boolean
     fun startPreloaded(volume: Float)
     fun rampPreloadedVolume(targetVolume: Float, durationMs: Long)
