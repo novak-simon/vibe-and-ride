@@ -17,6 +17,16 @@ suspend fun listWorkouts(): List<Workout> {
     return workouts
 }
 
+suspend fun getSuggestedWorkouts(limit: Int = 10): List<Workout> {
+    return client.postgrest["workouts"]
+        .select {
+            order("chosen_count", Order.DESCENDING)
+            limit(limit.toLong())
+        }
+        .decodeList<RawWorkout>()
+        .map { rawToWorkout(it) }
+}
+
 suspend fun getWorkoutById(id: Int): Workout? {
     val rawWorkout = client.postgrest["workouts"]
         .select {
@@ -25,6 +35,16 @@ suspend fun getWorkoutById(id: Int): Workout? {
         }
         .decodeSingleOrNull<RawWorkout>()
     return if (rawWorkout != null) rawToWorkout(rawWorkout) else null
+}
+
+suspend fun incrementWorkoutChosenCount(workoutId: Int) {
+    val workout = getWorkoutById(workoutId) ?: return
+    val newCount = workout.chosenCount + 1
+    client.postgrest["workouts"].update(
+        mapOf("chosen_count" to newCount)
+    ) {
+        filter { eq("id", workoutId) }
+    }
 }
 
 /**

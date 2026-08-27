@@ -63,6 +63,7 @@ fun rawToWorkout(rawWorkout: RawWorkout): Workout {
         sportType = rawWorkout.sportType ?: true,
         tags = rawWorkout.tags ?: emptyList(),
         description = rawWorkout.description ?: "No description",
+        chosenCount = rawWorkout.chosenCount ?: 0,
         intervals = rawWorkout.intervals?.map { rawToInterval(it) } ?: emptyList()
     )
 }

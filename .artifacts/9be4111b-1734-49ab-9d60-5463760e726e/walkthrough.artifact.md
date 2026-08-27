@@ -17,6 +17,8 @@ I have completed the redesign of the Ride screen and implemented the new Home an
 - **Unified Controls**: Combined Start/Pause/Resume into a single context-aware button. The **"SELECT" button** has been updated to an `OutlinedButton` with a yellow border to clearly distinguish it as a clickable action against the dark background. Added a "Bug" icon for debugging information.
 - **Live Readouts**: Added a prominent row for live Power (Watts) and Cadence (RPM).
 - **Music Player**: Restyled the mini-player into a flat Surface card. Added a horizontal marquee effect (sliding text) for long song titles and artist names using `Modifier.basicMarquee()`.
+- **Suggested Workouts Real Data**: The "Suggested workouts" section on the Home screen now displays the top 10 workouts from the database, sorted by their `chosen_count`. Each card shows the workout name, total duration, and its popularity score.
+- **Workout Popularity Tracking**: Selecting a workout now automatically increments its `chosen_count` in the database, allowing the suggestion engine to reflect real user preferences over time.
 - **Centralized Color Palette**: Defined constants for the app's brand colors (**Blue**, **Yellow**, **Purple**, and **Black**) at the top of key UI files. This allows for easy customization while ensuring visual consistency across the Home and Ride screens. The `MaterialTheme` has also been updated to use these colors globally.
 - **Music Preparation Loading State**: Added a `CircularProgressIndicator` and "Preparing songs for you..." message that appears after selecting a workout. This UI element persists until the music engine is ready and the workout status transitions to `READY`, preventing the user from starting the ride before the soundtrack is prepared.
 

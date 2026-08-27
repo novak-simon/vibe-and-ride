@@ -11,5 +11,6 @@ data class RawWorkout(
     @SerialName("sport_type_is_bike") val sportType: Boolean? = null,
     val tags: List<String>? = null,
     val description: String? = null,
+    @SerialName("chosen_count") val chosenCount: Int? = null,
     val intervals: List<RawInterval>? = null,
 )

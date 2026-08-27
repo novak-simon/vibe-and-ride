@@ -11,6 +11,7 @@ data class Workout(
     @SerialName("sport_type_is_bike") val sportType: Boolean = true,
     val tags: List<String> = emptyList(),
     val description: String = "No description",
+    @SerialName("chosen_count") val chosenCount: Int = 0,
     val intervals: List<Interval> = emptyList(),
 ) {
     val totalDuration: Int

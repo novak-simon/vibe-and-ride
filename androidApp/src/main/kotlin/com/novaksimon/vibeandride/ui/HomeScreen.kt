@@ -23,6 +23,8 @@ import coil3.compose.AsyncImage
 import com.novaksimon.vibeandride.home.HomeViewModel
 import com.novaksimon.vibeandride.home.WorkoutPlaceholder
 import com.novaksimon.vibeandride.model.Song
+import com.novaksimon.vibeandride.model.Workout
+import com.novaksimon.vibeandride.util.formatSeconds
 
 // App Color Palette
 private val COLOR_BACKGROUND = Color(0xFF000000)
@@ -34,9 +36,10 @@ private val COLOR_TERTIARY = Color(0xFF990FB5)   // Purple
 fun HomeScreen(viewModel: HomeViewModel) {
     val likedSongs by viewModel.likedSongs.collectAsState()
     val isLoadingLikedSongs by viewModel.isLoadingLikedSongs.collectAsState()
+    val suggestedWorkouts by viewModel.suggestedWorkouts.collectAsState()
 
     LaunchedEffect(Unit) {
-        viewModel.loadLikedSongs()
+        viewModel.loadData()
     }
 
     Column(
@@ -56,9 +59,13 @@ fun HomeScreen(viewModel: HomeViewModel) {
         }
 
         Section(title = "Suggested workouts") {
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                items(viewModel.suggestedWorkouts) { workout ->
-                    WorkoutCard(workout)
+            if (suggestedWorkouts.isEmpty()) {
+                Text("No suggestions yet", color = Color.Gray)
+            } else {
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    items(suggestedWorkouts) { workout ->
+                        RealWorkoutCard(workout)
+                    }
                 }
             }
         }
@@ -108,6 +115,30 @@ fun WorkoutCard(workout: WorkoutPlaceholder) {
             Text(workout.duration, style = MaterialTheme.typography.bodySmall, color = Color.Gray)
             Spacer(modifier = Modifier.height(8.dp))
             Text(workout.rating, style = MaterialTheme.typography.labelLarge, color = COLOR_SECONDARY)
+        }
+    }
+}
+
+@Composable
+fun RealWorkoutCard(workout: Workout) {
+    Card(
+        modifier = Modifier.width(160.dp),
+        colors = CardDefaults.cardColors(containerColor = COLOR_SECONDARY.copy(alpha = 0.1f)),
+        border = BorderStroke(1.dp, Color.DarkGray)
+    ) {
+        Column(modifier = Modifier.padding(12.dp)) {
+            Text(workout.name, style = MaterialTheme.typography.titleSmall, maxLines = 1)
+            Text(
+                formatSeconds(workout.totalDuration.toDouble()),
+                style = MaterialTheme.typography.bodySmall,
+                color = Color.Gray
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                "Popularity: ${workout.chosenCount}",
+                style = MaterialTheme.typography.labelLarge,
+                color = COLOR_PRIMARY
+            )
         }
     }
 }

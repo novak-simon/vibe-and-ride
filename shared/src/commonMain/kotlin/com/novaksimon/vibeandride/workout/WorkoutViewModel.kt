@@ -3,6 +3,7 @@ package com.novaksimon.vibeandride.workout
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.novaksimon.vibeandride.model.Workout
+import com.novaksimon.vibeandride.database.incrementWorkoutChosenCount
 import com.novaksimon.vibeandride.database.listWorkouts
 import com.novaksimon.vibeandride.music.MusicViewModel
 import kotlinx.coroutines.Dispatchers
@@ -16,6 +17,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration.Companion.seconds
 
 data class WorkoutUiState(
     val workoutState: WorkoutSessionState? = null,
@@ -36,6 +38,7 @@ class WorkoutViewModel(
     private val _availableWorkouts = MutableStateFlow<List<Workout>>(emptyList())
     val availableWorkouts: StateFlow<List<Workout>> = _availableWorkouts.asStateFlow()
     private var tickJob: Job? = null
+    private var hasIncrementedChosenCount = false
 
     init {
         viewModelScope.launch {
@@ -130,6 +133,7 @@ class WorkoutViewModel(
             stopTicking()
             _uiState.value = WorkoutUiState(bleStatus = cadenceSource?.status?.value ?: CadenceSourceStatus.IDLE)
             scheduler.workoutIdSelected(workoutId)
+            hasIncrementedChosenCount = false
             tick()
             _uiState.value = _uiState.value.copy(isLoading = false)
         }
@@ -137,6 +141,7 @@ class WorkoutViewModel(
 
     fun startFreeRide() {
         scheduler.startFreeRide()
+        hasIncrementedChosenCount = false
         startWorkout()
         tick()
     }
@@ -171,6 +176,25 @@ class WorkoutViewModel(
         _uiState.value = _uiState.value.copy(
             workoutState = state,
         )
+
+        // Increment chosen_count if workout is more than half finished
+        if (!hasIncrementedChosenCount && state.status == WorkoutStatus.RUNNING) {
+            val mode = state.mode
+            if (mode is WorkoutMode.Structured) {
+                val workout = mode.workout
+                val totalDuration = workout.totalDuration.seconds
+                if (state.totalElapsed > totalDuration / 2) {
+                    hasIncrementedChosenCount = true
+                    viewModelScope.launch(Dispatchers.IO) {
+                        try {
+                            incrementWorkoutChosenCount(workout.id)
+                        } catch (e: Exception) {
+                            println("Failed to increment chosen count: ${e.message}")
+                        }
+                    }
+                }
+            }
+        }
     }
 
     @Suppress("EmptySuperCall")
