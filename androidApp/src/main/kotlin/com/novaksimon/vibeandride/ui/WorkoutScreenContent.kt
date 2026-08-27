@@ -46,7 +46,9 @@ import com.novaksimon.vibeandride.model.Song
 import com.novaksimon.vibeandride.model.Workout
 import com.novaksimon.vibeandride.recommendation.SongRecommendation
 import com.novaksimon.vibeandride.util.formatSeconds
-import com.novaksimon.vibeandride.workout.WorkoutState
+import com.novaksimon.vibeandride.workout.StructuredState
+import com.novaksimon.vibeandride.workout.WorkoutMode
+import com.novaksimon.vibeandride.workout.WorkoutSessionState
 import com.novaksimon.vibeandride.workout.WorkoutStatus
 import kotlin.time.Duration
 import coil3.compose.AsyncImage
@@ -73,6 +75,7 @@ fun WorkoutScreenContent(
     onLikeSong: (Boolean) -> Unit,
     onUploadWorkout: () -> Unit,
     onPickerVisibilityChange: (Boolean) -> Unit,
+    onStartFreeRide: () -> Unit,
 ) {
     var showResyncDialog by remember { mutableStateOf(false) }
     var showDebugDialog by remember { mutableStateOf(false) }
@@ -130,27 +133,51 @@ fun WorkoutScreenContent(
                 )
 
                 workoutUiState.workoutState?.let { state ->
-                    Text(
-                        text = if (state.intervalIndex == null) "Interval: finished"
-                        else "Int ${state.intervalIndex!! + 1}: ${state.currentInterval?.type ?: ""} (${formatSeconds(state.currentInterval?.duration)})",
-                        style = MaterialTheme.typography.bodyLarge
-                    )
+                    val mode = state.mode
+                    if (mode is WorkoutMode.Structured) {
+                        val structured = state.structuredState
+                        Text(
+                            text = if (structured == null) "Interval: finished"
+                            else "Int ${structured.intervalIndex + 1}: ${structured.currentInterval.type} (${formatSeconds(structured.currentInterval.duration)})",
+                            style = MaterialTheme.typography.bodyLarge
+                        )
+                        Text(
+                            text = buildString {
+                                structured?.currentInterval?.power?.let { append("Pwr: $it") }
+                                structured?.currentInterval?.cadence?.let { append(" · Cad: $it") }
+                            },
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+
+                        HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+
+                        Text(
+                            text = "Interval Time: ${formatSeconds(structured?.elapsedInInterval?.inWholeSeconds?.toDouble())} / ${formatSeconds(structured?.currentInterval?.duration)}",
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                        Text(
+                            text = "Total Time: ${formatSeconds(state.totalElapsed.inWholeSeconds.toDouble())} / ${formatSeconds((state.totalElapsed + (structured?.totalRemaining ?: Duration.ZERO)).inWholeSeconds.toDouble())}",
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    } else if (mode is WorkoutMode.FreeRide) {
+                        Text(
+                            text = "Free Ride",
+                            style = MaterialTheme.typography.bodyLarge
+                        )
+                        Text(
+                            text = "Total Time: ${formatSeconds(state.totalElapsed.inWholeSeconds.toDouble())}",
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    }
+
                     Text(
                         text = buildString {
-                            state.currentInterval?.power?.let { append("Pwr: $it") }
-                            state.currentInterval?.cadence?.let { append(" · Cad: $it") }
+                            state.currentPower?.let { append("Pwr: ${it.toInt()}W") }
+                            state.currentCadence?.let {
+                                if (this.isNotEmpty()) append(" · ")
+                                append("Cad: ${it.toInt()} rpm")
+                            }
                         },
-                        style = MaterialTheme.typography.bodyMedium
-                    )
-
-                    HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
-
-                    Text(
-                        text = "Interval Time: ${formatSeconds(state.elapsedInInterval.inWholeSeconds.toDouble())} / ${formatSeconds(state.intervalLength.inWholeSeconds.toDouble())}",
-                        style = MaterialTheme.typography.bodyMedium
-                    )
-                    Text(
-                        text = "Total Time: ${formatSeconds(state.totalElapsed.inWholeSeconds.toDouble())} / ${formatSeconds((state.totalElapsed + state.totalRemaining).inWholeSeconds.toDouble())}",
                         style = MaterialTheme.typography.bodyMedium
                     )
 
@@ -287,6 +314,10 @@ fun WorkoutScreenContent(
                 onPickerVisibilityChange(false)
             },
             onUpload = onUploadWorkout,
+            onStartFreeRide = {
+                onStartFreeRide()
+                onPickerVisibilityChange(false)
+            },
             onDismiss = { onPickerVisibilityChange(false) },
         )
     }
@@ -313,6 +344,7 @@ fun WorkoutPickerDialog(
     workouts: List<Workout>,
     onSelect: (Int) -> Unit,
     onUpload: () -> Unit,
+    onStartFreeRide: () -> Unit,
     onDismiss: () -> Unit,
 ) {
     var searchQuery by remember { mutableStateOf("") }
@@ -325,6 +357,15 @@ fun WorkoutPickerDialog(
         title = { Text("Select workout") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(
+                    onClick = onStartFreeRide,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Start Free Ride")
+                }
+
+                HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+
                 OutlinedTextField(
                     value = searchQuery,
                     onValueChange = { searchQuery = it },
@@ -511,6 +552,7 @@ private fun WorkoutScreenPreview() {
             onLikeSong = {},
             onUploadWorkout = {},
             onPickerVisibilityChange = {},
+            onStartFreeRide = {},
         )
     }
 }
@@ -537,17 +579,21 @@ private fun previewWorkouts(): List<Workout> {
     )
 }
 private fun previewWorkoutState(): WorkoutUiState {
+    val workout = previewWorkouts().first()
     return WorkoutUiState(
-        workoutState = WorkoutState(
-            workout = previewWorkouts().first(),
+        workoutState = WorkoutSessionState(
+            mode = WorkoutMode.Structured(workout),
             status = WorkoutStatus.RUNNING,
-            intervalIndex = 3,
-            currentInterval = Interval(type = "SteadyState", power = 0.8f, cadence = 90.toDouble(), duration = 60.0),
-            elapsedInInterval = Duration.ZERO,
-            remainingInInterval = 60.seconds,
-            intervalLength = 60.seconds,
             totalElapsed = 180.seconds,
-            totalRemaining = 240.seconds,
+            currentCadence = 90.0,
+            currentPower = 200.0,
+            structuredState = StructuredState(
+                intervalIndex = 3,
+                currentInterval = Interval(type = "SteadyState", power = 0.8f, cadence = 90.toDouble(), duration = 60.0),
+                elapsedInInterval = 30.seconds,
+                remainingInInterval = 30.seconds,
+                totalRemaining = 240.seconds,
+            )
         )
     )
 }

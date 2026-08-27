@@ -36,6 +36,7 @@ fun WorkoutScreen(
         onAdjustTime = { workoutViewModel.adjustTime(it) },
         onLikeSong = { musicViewModel.songLiked(it) },
         onUploadWorkout = onUploadWorkout,
-        onPickerVisibilityChange = { workoutViewModel.setPickerVisible(it) }
+        onPickerVisibilityChange = { workoutViewModel.setPickerVisible(it) },
+        onStartFreeRide = { workoutViewModel.startFreeRide() }
     )
 }

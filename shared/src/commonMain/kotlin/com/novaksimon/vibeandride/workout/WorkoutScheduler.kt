@@ -10,55 +10,49 @@ import kotlin.time.Duration.Companion.seconds
 import kotlin.time.TimeMark
 import kotlin.time.TimeSource
 
-enum class WorkoutStatus {
-    NOT_STARTED, READY, RUNNING, PAUSED, FINISHED
-}
-
-data class WorkoutState(
-    val workout: Workout?,
-    var status: WorkoutStatus,
-    val intervalIndex: Int?,
-    val currentInterval: Interval?,
-    val elapsedInInterval: Duration,
-    val remainingInInterval: Duration,
-    val intervalLength: Duration,
-    val totalElapsed: Duration,
-    val totalRemaining: Duration,
-)
-
 private data class IntervalLookup(
     val index: Int?,
     val interval: Interval?,
     val startOffset: Duration,
 )
+
 class WorkoutScheduler() {
     private val timeSource: TimeSource.WithComparableMarks = TimeSource.Monotonic
-    var workout: Workout? = null
-        private set
+    
+    var mode: WorkoutMode? = null
+        internal set
 
     var status: WorkoutStatus = WorkoutStatus.NOT_STARTED
         private set
 
     private var startMark: TimeMark? = null
     private var elapsedBeforeStart: Duration = Duration.ZERO
-    private var lastIntervalIndex: Int? = -2 // sentinel distinct from any real index or null
+    
+    private var liveCadence: Double? = null
+    private var livePower: Double? = null
 
     val isRunning: Boolean get() = status == WorkoutStatus.RUNNING
+    
     fun start() {
-        val w = workout ?: return
+        val m = mode ?: return
         if (isRunning) return
-        if (w.totalDuration <= 0f) {
+        
+        val total = when (m) {
+            is WorkoutMode.Structured -> m.workout.totalDuration.seconds
+            is WorkoutMode.FreeRide -> Duration.INFINITE
+        }
+
+        if (total <= Duration.ZERO) {
             status = WorkoutStatus.FINISHED
             elapsedBeforeStart = Duration.ZERO
             startMark = null
-            lastIntervalIndex = -2
             return
         }
+        
         if (status == WorkoutStatus.READY) {
             status = WorkoutStatus.RUNNING
             elapsedBeforeStart = Duration.ZERO
             startMark = timeSource.markNow()
-            lastIntervalIndex = -2
         }
     }
 
@@ -67,7 +61,7 @@ class WorkoutScheduler() {
             elapsedBeforeStart = currentElapsed()
             startMark = null
             status = WorkoutStatus.PAUSED
-        } else {
+        } else if (status == WorkoutStatus.PAUSED || status == WorkoutStatus.READY) {
             startMark = timeSource.markNow()
             status = WorkoutStatus.RUNNING
         }
@@ -77,7 +71,9 @@ class WorkoutScheduler() {
         status = WorkoutStatus.NOT_STARTED
         startMark = null
         elapsedBeforeStart = Duration.ZERO
-        lastIntervalIndex = -2
+        mode = null
+        liveCadence = null
+        livePower = null
     }
 
     fun adjustTime(delta: Duration) {
@@ -87,25 +83,31 @@ class WorkoutScheduler() {
 
     fun resync(workoutTime: Duration) {
         if (workoutTime < Duration.ZERO) throw IllegalArgumentException("Workout time for resync must be non-negative")
-        val total = workout?.totalDuration?.seconds ?: Duration.ZERO
+        
+        val m = mode
+        val total = when (m) {
+            is WorkoutMode.Structured -> m.workout.totalDuration.seconds
+            else -> Duration.INFINITE
+        }
+        
         val clamped = minOf(workoutTime, total)
         val running = isRunning
         elapsedBeforeStart = clamped
+        
         if (running) {
             startMark = timeSource.markNow()
-            if (clamped >= total) {
+            if (clamped >= total && total != Duration.INFINITE) {
                 status = WorkoutStatus.FINISHED
                 startMark = null
             }
         } else {
             startMark = null
             status = when {
-                clamped >= total -> WorkoutStatus.FINISHED
+                clamped >= total && total != Duration.INFINITE -> WorkoutStatus.FINISHED
                 status == WorkoutStatus.NOT_STARTED && clamped == Duration.ZERO -> WorkoutStatus.NOT_STARTED
                 else -> WorkoutStatus.PAUSED
             }
         }
-        lastIntervalIndex = -2
     }
 
     suspend fun workoutIdSelected(workoutId: Int) {
@@ -115,7 +117,21 @@ class WorkoutScheduler() {
         if (workout == null) {
             return
         }
-        initializeWithWorkout(workout)
+        mode = WorkoutMode.Structured(workout)
+        status = WorkoutStatus.NOT_STARTED
+    }
+    
+    fun startFreeRide() {
+        mode = WorkoutMode.FreeRide
+        status = WorkoutStatus.READY
+    }
+    
+    fun updateLiveCadence(cadence: Double) {
+        liveCadence = cadence
+    }
+    
+    fun updateLivePower(power: Double) {
+        livePower = power
     }
 
     fun musicPrepared() {
@@ -125,69 +141,66 @@ class WorkoutScheduler() {
         }
     }
 
-
-    fun getState(): WorkoutState {
-        val w = workout
+    fun getState(): WorkoutSessionState {
+        val m = mode
         var totalElapsed = Duration.ZERO
         if (status != WorkoutStatus.NOT_STARTED) {
             totalElapsed = currentElapsed()
         }
-        val total = w?.totalDuration?.seconds ?: Duration.ZERO
+        
+        val total = when (m) {
+            is WorkoutMode.Structured -> m.workout.totalDuration.seconds
+            else -> Duration.INFINITE
+        }
 
-        if (isRunning && totalElapsed >= total) {
+        if (isRunning && totalElapsed >= total && total != Duration.INFINITE) {
             status = WorkoutStatus.FINISHED
             startMark = null
             elapsedBeforeStart = total
             totalElapsed = total
         }
 
+        val structuredState = if (m is WorkoutMode.Structured) {
+            val lookup = findInterval(totalElapsed, m.workout)
+            if (lookup.interval != null && lookup.index != null) {
+                val elapsedInInterval = totalElapsed - lookup.startOffset
+                val intervalLength = lookup.interval.duration.seconds
+                StructuredState(
+                    intervalIndex = lookup.index,
+                    currentInterval = lookup.interval,
+                    elapsedInInterval = elapsedInInterval,
+                    remainingInInterval = maxOf(Duration.ZERO, intervalLength - elapsedInInterval),
+                    totalRemaining = maxOf(Duration.ZERO, total - totalElapsed)
+                )
+            } else null
+        } else null
 
-        val lookup = findInterval(totalElapsed)
-        val elapsedInInterval: Duration
-        val remainingInInterval: Duration
-        val intervalLength: Duration
-
-        if (lookup.interval == null) {
-            elapsedInInterval = Duration.ZERO
-            remainingInInterval = Duration.ZERO
-            intervalLength = Duration.ZERO
-        } else {
-            elapsedInInterval = totalElapsed - lookup.startOffset
-            intervalLength = lookup.interval.duration.seconds
-            remainingInInterval = maxOf(Duration.ZERO, intervalLength - elapsedInInterval)
-        }
-        return WorkoutState(
-            workout = workout,
+        return WorkoutSessionState(
+            mode = mode,
             status = status,
-            intervalIndex = lookup.index,
-            currentInterval = lookup.interval,
-            elapsedInInterval = elapsedInInterval,
-            remainingInInterval = remainingInInterval,
-            intervalLength = intervalLength,
             totalElapsed = totalElapsed,
-            totalRemaining = if (w != null) maxOf(Duration.ZERO, total - totalElapsed) else Duration.ZERO,
+            currentCadence = liveCadence ?: (structuredState?.currentInterval?.cadence),
+            currentPower = livePower ?: (structuredState?.currentInterval?.power?.toDouble()),
+            structuredState = structuredState
         )
     }
 
-    private fun initializeWithWorkout(workout: Workout) {
-        this.workout = workout
-    }
-
     private fun currentElapsed(): Duration {
-        val w = workout
-        val total = w?.totalDuration?.seconds ?: Duration.ZERO
+        val m = mode
+        val total = when (m) {
+            is WorkoutMode.Structured -> m.workout.totalDuration.seconds
+            else -> Duration.INFINITE
+        }
 
         return when {
             isRunning && startMark != null -> minOf(elapsedBeforeStart + startMark!!.elapsedNow(), total)
-            w != null -> minOf(elapsedBeforeStart, total)
-            else -> elapsedBeforeStart
+            else -> minOf(elapsedBeforeStart, total)
         }
     }
 
-    private fun findInterval(workoutTime: Duration): IntervalLookup {
+    private fun findInterval(workoutTime: Duration, workout: Workout): IntervalLookup {
         var elapsed = Duration.ZERO
-        val w = workout ?: return IntervalLookup(null, null, elapsed)
-        w.intervals.forEachIndexed { index, interval ->
+        workout.intervals.forEachIndexed { index, interval ->
             val intervalDuration = interval.duration.seconds
             if (workoutTime < elapsed + intervalDuration) {
                 return IntervalLookup(index, interval, elapsed)

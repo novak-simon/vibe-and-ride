@@ -5,8 +5,10 @@ import com.novaksimon.vibeandride.model.ProfileSongStats
 import com.novaksimon.vibeandride.model.Song
 import com.novaksimon.vibeandride.recommendation.ProfileRepository
 import com.novaksimon.vibeandride.recommendation.RecommendationEngine
+import com.novaksimon.vibeandride.recommendation.RecommendationResult
 import com.novaksimon.vibeandride.recommendation.SongRepository
-import com.novaksimon.vibeandride.workout.WorkoutState
+import com.novaksimon.vibeandride.workout.WorkoutMode
+import com.novaksimon.vibeandride.workout.WorkoutSessionState
 import com.novaksimon.vibeandride.workout.WorkoutStatus
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -22,12 +24,6 @@ import kotlin.time.Duration.Companion.seconds
 
 /**
  * MusicEngine is the central orchestrator for music sessions.
- *
- * It decides WHAT should happen (song selection, transitions, preloading)
- * and coordinates with infrastructure components (recommender, playback, repositories)
- * to make it happen.
- *
- * It maintains the [MusicState] as the single source of truth for the session.
  */
 class MusicEngine(
     playbackController: PlaybackController,
@@ -54,38 +50,50 @@ class MusicEngine(
     private val _state = MutableStateFlow(MusicState())
     val state: StateFlow<MusicState> = _state.asStateFlow()
 
-    fun workoutSelected(workoutState: WorkoutState) {
-        val intervalCount = workoutState.workout?.intervals?.size ?: 0
+    fun sessionStarted(sessionState: WorkoutSessionState) {
+        val mode = sessionState.mode
+        if (mode == _state.value.mode && _state.value.recommendationBuffer.isNotEmpty()) {
+            return
+        }
+
+        val workout = if (mode is WorkoutMode.Structured) mode.workout else null
+        val intervalCount = workout?.intervals?.size ?: 1 // At least 1 for FreeRide
+
         _state.value = _state.value.copy(
+            mode = mode,
+            workout = workout,
             currentIntervalIndex = -1,
             preloadedSongId = null,
             isTransitioning = false,
-            workout = workoutState.workout,
             recommendationBuffer = List(intervalCount) { null },
             recommendationIndex = List(intervalCount) { false }
         )
         activePrecomputations.clear()
-        println("MusicEngine: Workout selected. Interval index: ${workoutState.intervalIndex}")
-        if (workoutState.intervalIndex != null) {
-            precompute(workoutState.workout?.intervals?.getOrNull(workoutState.intervalIndex) ?: return, workoutState.intervalIndex)
+        
+        if (mode is WorkoutMode.Structured) {
+            val startIndex = sessionState.structuredState?.intervalIndex ?: 0
+            precompute(mode.workout.intervals[startIndex], startIndex)
+        } else if (mode is WorkoutMode.FreeRide) {
+            // Precompute initial recommendation for FreeRide based on current (or default) cadence
+            precomputeFreeRide(sessionState.currentCadence ?: 90.0)
         }
     }
 
-    suspend fun play(intervalIndex: Int?, remainingInterval: Duration) {
-        if (intervalIndex == null || _state.value.isTransitioning) return
+    suspend fun update(sessionState: WorkoutSessionState) {
+        if (_state.value.isTransitioning) return
 
         val timeUntilTrackEnd = service.timeUntilTrackEnd()
-        val remainingInInterval = remainingInterval.inWholeMilliseconds.toFloat() / 1000f
+        val remainingInInterval = sessionState.structuredState?.remainingInInterval?.inWholeMilliseconds?.toFloat()?.div(1000f) ?: Float.MAX_VALUE
 
         // Preload logic
-        val preloadDecision = decidePreload(_state.value, remainingInInterval, timeUntilTrackEnd)
+        val preloadDecision = decidePreload(_state.value, remainingInInterval, timeUntilTrackEnd, sessionState)
         if (preloadDecision is PreloadDecision.Preload) {
             val songToPreload = preloadDecision.song
             if (preloadDecision.newSongIndex != null) {
                 _state.value = _state.value.copy(songIndex = preloadDecision.newSongIndex)
             }
 
-            println("MusicEngine: preloading song ${songToPreload.title} (ID: ${songToPreload.id})")
+            println("MusicEngine: preloading song ${songToPreload.title}")
             if (!service.preloadSong(songToPreload)) {
                 _state.value = _state.value.copy(songIndex = _state.value.songIndex + 1)
                 return
@@ -96,14 +104,13 @@ class MusicEngine(
         // Transition logic
         val transitionDecision = decideTransition(
             state = _state.value,
-            targetIntervalIndex = intervalIndex,
+            sessionState = sessionState,
             remainingInInterval = remainingInInterval,
             timeUntilTrackEnd = timeUntilTrackEnd,
             isPlaying = service.isPlaying()
         )
 
         if (transitionDecision is TransitionDecision.NextTrack) {
-            println("MusicEngine: engine decided transition: $transitionDecision")
             nextTrack(
                 newInterval = transitionDecision.newInterval,
                 intervalIndex = transitionDecision.intervalIndex,
@@ -124,33 +131,16 @@ class MusicEngine(
             if (!firstSong) incrementStatsOnTrackLeave(skipped = skipped)
 
             _state.value = prepareForNextTrack(_state.value, newInterval, intervalIndex)
-            if (newInterval) {
-                println("MusicEngine: INTERVAL CHANGED, new index: $intervalIndex")
-            }
-
+            
             val song = selectSongFromBuffer(_state.value, _state.value.currentIntervalIndex, _state.value.songIndex) ?: run {
-                if (_state.value.recommendationBuffer.getOrNull(_state.value.currentIntervalIndex) == null) {
-                    println("MusicEngine: No recommendation ready for interval ${_state.value.currentIntervalIndex}")
-                } else {
-                    println("MusicEngine: No more songs in recommendation for interval ${_state.value.currentIntervalIndex} (index ${_state.value.songIndex})")
-                }
+                println("MusicEngine: No recommendation ready for index ${_state.value.currentIntervalIndex}")
                 return
             }
             
             if (!service.crossfadeTo(song, 1000L)) {
-                println("MusicEngine: Invalid URL in NEXT TRACK: ${song.title}")
-                _state.value = _state.value.copy(
-                    songIndex = _state.value.songIndex + 1,
-                    isTransitioning = false
-                )
-                // Add a small delay to avoid tight loop consuming recommendation buffer on network/data issues
+                _state.value = _state.value.copy(songIndex = _state.value.songIndex + 1, isTransitioning = false)
                 delay(1.seconds)
-                nextTrack(
-                    newInterval = false,
-                    intervalIndex = _state.value.currentIntervalIndex,
-                    skipped = false,
-                    firstSong = false
-                )
+                nextTrack(newInterval = false, intervalIndex = _state.value.currentIntervalIndex)
                 return
             }
 
@@ -161,15 +151,12 @@ class MusicEngine(
                 _state.value = _state.value.copy(isLiked = songStats?.isLiked ?: false)
             }
 
-            // Wait for crossfade to complete before allowing another transition
             delay(2.seconds)
-
             engineScope.launch {
                 delay(3.seconds)
                 _state.value = _state.value.copy(hasPreloadedSong = false)
             }
             incrementStatsOnTrackArrive()
-            println("MusicEngine: transition to ${song.title} complete")
         } finally {
             _state.value = _state.value.copy(isTransitioning = false)
         }
@@ -189,24 +176,16 @@ class MusicEngine(
         }
     }
 
-    fun pauseResume() {
-        service.pauseResume()
-    }
+    fun pauseResume() { service.pauseResume() }
+    fun play() { service.play() }
+    fun pause() { service.pause() }
 
-    fun play() {
-        service.play()
-    }
-
-    fun pause() {
-        service.pause()
-    }
-
-    fun precomputeNextRecommendation(workoutState: WorkoutState) {
-        val nextIndex = decidePrecompute(_state.value, workoutState.intervalIndex, activePrecomputations)
-        if (nextIndex != null) {
-            val interval = workoutState.workout?.intervals?.getOrNull(nextIndex)
-            if (interval != null) {
-                precompute(interval, nextIndex)
+    fun precomputeNextRecommendation(sessionState: WorkoutSessionState) {
+        if (sessionState.mode is WorkoutMode.Structured) {
+            val nextIndex = decidePrecompute(_state.value, sessionState.structuredState?.intervalIndex, activePrecomputations)
+            if (nextIndex != null) {
+                val interval = sessionState.mode.workout.intervals.getOrNull(nextIndex)
+                if (interval != null) precompute(interval, nextIndex)
             }
         }
     }
@@ -215,30 +194,35 @@ class MusicEngine(
         activePrecomputations.add(intervalIndex)
         recommendScope.launch {
             val recommendation = recommendSemaphore.withPermit {
-                println("MusicEngine: Recommending songs for interval: $intervalIndex")
                 recommender.recommend(interval)
             }
-
-            val currentBuffer = _state.value.recommendationBuffer.toMutableList()
-            if (intervalIndex < currentBuffer.size) {
-                currentBuffer[intervalIndex] = recommendation
-            }
-
-            // Update recommendationIndex to signal readiness
-            val currentReady = _state.value.recommendationIndex.toMutableList()
-            if (intervalIndex < currentReady.size) {
-                currentReady[intervalIndex] = true
-            }
-
-            _state.value = _state.value.copy(
-                recommendationBuffer = currentBuffer,
-                futureDebug = recommendation.debugInfo,
-                futureIntervalSong = recommendation.topSongs.firstOrNull(),
-                recommendationIndex = currentReady
-            )
-
-            println("MusicEngine: Recommendation complete for interval: $intervalIndex")
+            updateBuffer(intervalIndex, recommendation)
         }
+    }
+
+    fun precomputeFreeRide(cadence: Double) {
+        val interval = Interval(duration = 3600.0, power = 0.5f, cadence = cadence, type = "FreeRide")
+        recommendScope.launch {
+            val recommendation = recommendSemaphore.withPermit {
+                recommender.recommend(interval)
+            }
+            updateBuffer(0, recommendation)
+        }
+    }
+
+    private fun updateBuffer(index: Int, recommendation: RecommendationResult) {
+        val currentBuffer = _state.value.recommendationBuffer.toMutableList()
+        if (index < currentBuffer.size) currentBuffer[index] = recommendation
+
+        val currentReady = _state.value.recommendationIndex.toMutableList()
+        if (index < currentReady.size) currentReady[index] = true
+
+        _state.value = _state.value.copy(
+            recommendationBuffer = currentBuffer,
+            futureDebug = recommendation.debugInfo,
+            futureIntervalSong = recommendation.topSongs.getOrNull(0),
+            recommendationIndex = currentReady
+        )
     }
 
     private fun incrementStatsOnTrackLeave(skipped: Boolean = false) {
@@ -259,63 +243,50 @@ class MusicEngine(
         }
     }
 
-    /**
-     * Given the current state and requested indices, decides which song should be selected.
-     *
-     * This logic is pure and does not perform any side effects.
-     */
     fun selectSongFromBuffer(state: MusicState, intervalIndex: Int, songIndex: Int): Song? {
-        if (intervalIndex < 0) return null
-        val recommendation = state.recommendationBuffer.getOrNull(intervalIndex) ?: return null
+        val actualIndex = if (state.mode is WorkoutMode.FreeRide) 0 else intervalIndex
+        if (actualIndex < 0) return null
+        val recommendation = state.recommendationBuffer.getOrNull(actualIndex) ?: return null
         return recommendation.topSongs.getOrNull(songIndex)
     }
 
-    /**
-     * Decides whether a song should be preloaded based on current playback and interval state.
-     */
     fun decidePreload(
         state: MusicState,
         remainingInInterval: Float,
-        timeUntilTrackEnd: Float
+        timeUntilTrackEnd: Float,
+        sessionState: WorkoutSessionState
     ): PreloadDecision {
         val remaining = min(remainingInInterval, timeUntilTrackEnd)
-        val intervalIndex = state.currentIntervalIndex
-
+        
         if (remaining < 30f && !state.hasPreloadedSong) {
-            val songToPreload = if (remainingInInterval <= timeUntilTrackEnd + 5f) {
-                // Interval is ending soon, preload first song of next interval
-                selectSongFromBuffer(state, intervalIndex + 1, 0) ?: state.futureIntervalSong
+            val songToPreload = if (state.mode is WorkoutMode.FreeRide) {
+                selectSongFromBuffer(state, 0, state.songIndex)
+            } else if (remainingInInterval <= timeUntilTrackEnd + 5f) {
+                selectSongFromBuffer(state, state.currentIntervalIndex + 1, 0) ?: state.futureIntervalSong
             } else {
-                // Track is ending, but interval still has time, preload next song in current interval
-                selectSongFromBuffer(state, intervalIndex, state.songIndex)
+                selectSongFromBuffer(state, state.currentIntervalIndex, state.songIndex)
             }
 
-            val newSongIndex = if (remainingInInterval <= timeUntilTrackEnd + 5f) 0 else null
+            val newSongIndex = if (state.mode is WorkoutMode.Structured && remainingInInterval <= timeUntilTrackEnd + 5f) 0 else null
 
-            if (songToPreload != null && 
-                songToPreload.id != state.preloadedSongId && 
-                songToPreload.id != state.currentSong?.id
-            ) {
+            if (songToPreload != null && songToPreload.id != state.preloadedSongId && songToPreload.id != state.currentSong?.id) {
                 return PreloadDecision.Preload(songToPreload, newSongIndex)
             }
         }
         return PreloadDecision.None
     }
 
-    /**
-     * Decides whether a track transition should occur based on current playback and interval state.
-     */
     fun decideTransition(
         state: MusicState,
-        targetIntervalIndex: Int,
+        sessionState: WorkoutSessionState,
         remainingInInterval: Float,
         timeUntilTrackEnd: Float,
         isPlaying: Boolean
     ): TransitionDecision {
         if (state.isTransitioning) return TransitionDecision.None
 
-        if (remainingInInterval < 1f) {
-            return TransitionDecision.NextTrack(newInterval = true, intervalIndex = targetIntervalIndex + 1)
+        if (state.mode is WorkoutMode.Structured && remainingInInterval < 1f) {
+            return TransitionDecision.NextTrack(newInterval = true, intervalIndex = (sessionState.structuredState?.intervalIndex ?: 0) + 1)
         }
 
         if (timeUntilTrackEnd < 1f) {
@@ -326,14 +297,10 @@ class MusicEngine(
             return TransitionDecision.NextTrack(
                 firstSong = true, 
                 newInterval = true, 
-                intervalIndex = targetIntervalIndex
+                intervalIndex = sessionState.structuredState?.intervalIndex ?: 0
             )
         }
 
-        // Auto-start if playback stopped unexpectedly but we are not yet at the end of the track.
-        // We only do this if we don't have a current song yet. 
-        // If we HAVE a current song and it's not playing, we assume it's paused by the user 
-        // unless it's at the very end (handled above).
         if (!isPlaying && state.currentSong == null) {
             return TransitionDecision.NextTrack(newInterval = false)
         }
@@ -341,81 +308,36 @@ class MusicEngine(
         return TransitionDecision.None
     }
 
-    /**
-     * Prepares the state for a track transition.
-     */
-    fun prepareForNextTrack(
-        state: MusicState,
-        newInterval: Boolean,
-        intervalIndex: Int
-    ): MusicState {
-        return if (newInterval) {
+    fun prepareForNextTrack(state: MusicState, newInterval: Boolean, intervalIndex: Int): MusicState {
+        return if (newInterval || state.mode is WorkoutMode.FreeRide) {
             state.copy(
                 currentDebug = state.futureDebug,
-                currentIntervalIndex = intervalIndex,
-                songIndex = 0
+                currentIntervalIndex = if (state.mode is WorkoutMode.FreeRide) 0 else intervalIndex,
+                songIndex = if (newInterval) 0 else state.songIndex
             )
-        } else {
-            state
-        }
+        } else state
     }
 
-    /**
-     * Finalizes the state after a successful track transition.
-     */
-    fun finalizeTrackTransition(
-        state: MusicState,
-        song: Song
-    ): MusicState {
-        return state.copy(
-            currentSong = song,
-            songIndex = state.songIndex + 1
-        )
+    fun finalizeTrackTransition(state: MusicState, song: Song): MusicState {
+        return state.copy(currentSong = song, songIndex = state.songIndex + 1)
     }
 
-    /**
-     * Decides whether a recommendation precomputation should occur for the next interval.
-     * Returns the index of the interval to precompute, or null if no precomputation is needed.
-     */
-    fun decidePrecompute(
-        state: MusicState,
-        currentIntervalIndex: Int?,
-        activePrecomputations: Set<Int>
-    ): Int? {
+    fun decidePrecompute(state: MusicState, currentIntervalIndex: Int?, activePrecomputations: Set<Int>): Int? {
         if (currentIntervalIndex == null) return null
         val nextIndex = currentIntervalIndex + 1
-
-        if (state.recommendationIndex.getOrNull(nextIndex) == true || 
-            activePrecomputations.contains(nextIndex)
-        ) {
-            return null
-        }
-
+        if (state.recommendationIndex.getOrNull(nextIndex) == true || activePrecomputations.contains(nextIndex)) return null
         val intervalCount = state.workout?.intervals?.size ?: 0
-        if (nextIndex >= 0 && nextIndex < intervalCount) {
-            return nextIndex
-        }
-
+        if (nextIndex >= 0 && nextIndex < intervalCount) return nextIndex
         return null
     }
 }
 
-/**
- * Represents the decision made by the MusicEngine regarding preloading.
- */
 sealed class PreloadDecision {
     object None : PreloadDecision()
     data class Preload(val song: Song, val newSongIndex: Int? = null) : PreloadDecision()
 }
 
-/**
- * Represents the decision made by the MusicEngine regarding transitions.
- */
 sealed class TransitionDecision {
     object None : TransitionDecision()
-    data class NextTrack(
-        val newInterval: Boolean = false,
-        val intervalIndex: Int = 0,
-        val firstSong: Boolean = false
-    ) : TransitionDecision()
+    data class NextTrack(val newInterval: Boolean = false, val intervalIndex: Int = 0, val firstSong: Boolean = false) : TransitionDecision()
 }

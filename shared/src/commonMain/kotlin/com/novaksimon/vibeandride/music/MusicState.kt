@@ -5,6 +5,8 @@ import com.novaksimon.vibeandride.model.Workout
 import com.novaksimon.vibeandride.recommendation.RecommendationResult
 import com.novaksimon.vibeandride.recommendation.SongRecommendation
 
+import com.novaksimon.vibeandride.workout.WorkoutMode
+
 /**
  * Represents the pure application/domain state for the music system.
  *
@@ -15,6 +17,7 @@ import com.novaksimon.vibeandride.recommendation.SongRecommendation
  * [MusicProvider] into a more portable representation.
  */
 data class MusicState(
+    val mode: WorkoutMode? = null,
     val workout: Workout? = null,
     val recommendationBuffer: List<RecommendationResult?> = emptyList(),
     val recommendationIndex: List<Boolean> = emptyList(),

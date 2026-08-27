@@ -6,6 +6,7 @@ import com.novaksimon.vibeandride.database.SupabaseProfileRepository
 import com.novaksimon.vibeandride.database.SupabaseSongRepository
 import com.novaksimon.vibeandride.model.Song
 import com.novaksimon.vibeandride.recommendation.SongRecommendation
+import com.novaksimon.vibeandride.workout.WorkoutSessionState
 import com.novaksimon.vibeandride.workout.WorkoutStatus
 import com.novaksimon.vibeandride.workout.WorkoutViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -66,21 +67,22 @@ class MusicViewModel(
         viewModelScope.launch {
             workoutViewModel.uiState
                 .map { it.workoutState }
-                .distinctUntilChanged()
-                .collect { workoutState ->
-                    if (workoutState?.status == WorkoutStatus.NOT_STARTED) {
-                        musicEngine.workoutSelected(workoutState)
-                    } else if (workoutState?.status == WorkoutStatus.RUNNING) {
-
-                        musicEngine.play(
-                            workoutState.intervalIndex,
-                            workoutState.remainingInInterval
-                        )
+                .distinctUntilChanged { old, new ->
+                    old?.status == new?.status && 
+                    old?.mode == new?.mode && 
+                    old?.structuredState?.intervalIndex == new?.structuredState?.intervalIndex
+                }
+                .collect { sessionState ->
+                    if (sessionState == null) return@collect
+                    
+                    if (sessionState.status == WorkoutStatus.NOT_STARTED || sessionState.status == WorkoutStatus.READY) {
+                        musicEngine.sessionStarted(sessionState)
+                    } else if (sessionState.status == WorkoutStatus.RUNNING) {
+                        musicEngine.update(sessionState)
                     }
-                    workoutState?.remainingInInterval?.let {
-                        if (it < 40.seconds) {
-                            musicEngine.precomputeNextRecommendation(workoutState)
-                        }
+                    
+                    if (sessionState.structuredState != null && sessionState.structuredState.remainingInInterval < 40.seconds) {
+                        musicEngine.precomputeNextRecommendation(sessionState)
                     }
                 }
         }

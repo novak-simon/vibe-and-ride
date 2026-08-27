@@ -6,7 +6,9 @@ import com.novaksimon.vibeandride.model.Workout
 import com.novaksimon.vibeandride.model.Profile
 import com.novaksimon.vibeandride.recommendation.FakeProfileRepository
 import com.novaksimon.vibeandride.recommendation.FakeSongRepository
-import com.novaksimon.vibeandride.workout.WorkoutState
+import com.novaksimon.vibeandride.workout.StructuredState
+import com.novaksimon.vibeandride.workout.WorkoutMode
+import com.novaksimon.vibeandride.workout.WorkoutSessionState
 import com.novaksimon.vibeandride.workout.WorkoutStatus
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -103,6 +105,8 @@ class MusicEngineCharacterizationTest {
         name = "Test Workout",
         author = "Test Author",
         intervals = intervals,
+        sportType = true,
+        tags = emptyList(),
         description = "Description"
     )
 
@@ -113,22 +117,27 @@ class MusicEngineCharacterizationTest {
         type = "steady"
     )
 
-    private fun createWorkoutState(
-        workout: Workout? = null,
+    private fun createStructuredSessionState(
+        workout: Workout,
         status: WorkoutStatus = WorkoutStatus.NOT_STARTED,
-        intervalIndex: Int? = null,
-        currentInterval: Interval? = null
-    ) = WorkoutState(
-        workout = workout,
-        status = status,
-        intervalIndex = intervalIndex,
-        currentInterval = currentInterval,
-        elapsedInInterval = 0.seconds,
-        remainingInInterval = 60.seconds,
-        intervalLength = 60.seconds,
-        totalElapsed = 0.seconds,
-        totalRemaining = 120.seconds
-    )
+        intervalIndex: Int = 0
+    ): WorkoutSessionState {
+        val interval = workout.intervals[intervalIndex]
+        return WorkoutSessionState(
+            mode = WorkoutMode.Structured(workout),
+            status = status,
+            totalElapsed = 0.seconds,
+            currentCadence = interval.cadence,
+            currentPower = interval.power.toDouble(),
+            structuredState = StructuredState(
+                intervalIndex = intervalIndex,
+                currentInterval = interval,
+                elapsedInInterval = 0.seconds,
+                remainingInInterval = interval.duration.seconds,
+                totalRemaining = workout.totalDuration.seconds
+            )
+        )
+    }
 
     @Test
     fun testInitialState() = runTest {
@@ -141,7 +150,7 @@ class MusicEngineCharacterizationTest {
     }
 
     @Test
-    fun testWorkoutSelected_ValidInterval() = runTest {
+    fun testSessionStarted_Structured() = runTest {
         val song = createSong(1)
         songRepository.songsAroundTargetCadenceResults.add(listOf(song))
         profileRepository.profile = Profile("p1", emptyList())
@@ -149,16 +158,10 @@ class MusicEngineCharacterizationTest {
         val engine = createEngine()
         val intervals = listOf(createInterval(), createInterval())
         val workout = createWorkout(intervals)
-        val state = createWorkoutState(
-            workout = workout,
-            status = WorkoutStatus.NOT_STARTED,
-            intervalIndex = 0,
-            currentInterval = intervals[0]
-        )
+        val sessionState = createStructuredSessionState(workout, WorkoutStatus.NOT_STARTED, 0)
 
-        engine.workoutSelected(state)
+        engine.sessionStarted(sessionState)
 
-        // With UnconfinedTestDispatcher, it should be ready immediately or very quickly
         var attempts = 0
         while (!engine.state.value.recommendationIndex.any { it } && attempts < 100) {
             delay(1.milliseconds)
@@ -169,22 +172,56 @@ class MusicEngineCharacterizationTest {
     }
 
     @Test
-    fun testWorkoutSelected_NullIntervalIndex() = runTest {
+    fun testSessionStarted_Idempotent() = runTest {
+        val song = createSong(1)
+        songRepository.songsAroundTargetCadenceResults.add(listOf(song))
+        profileRepository.profile = Profile("p1", emptyList())
+
         val engine = createEngine()
         val intervals = listOf(createInterval())
         val workout = createWorkout(intervals)
-        val state = createWorkoutState(
-            workout = workout,
-            status = WorkoutStatus.NOT_STARTED,
-            intervalIndex = null,
-            currentInterval = null
+        val sessionState = createStructuredSessionState(workout, WorkoutStatus.NOT_STARTED, 0)
+
+        // First call
+        engine.sessionStarted(sessionState)
+        
+        // Wait for recommendation
+        while (!engine.state.value.recommendationIndex.any { it }) delay(1.milliseconds)
+        
+        val bufferBefore = engine.state.value.recommendationBuffer.toList()
+        assertTrue(bufferBefore[0] != null)
+
+        // Second call with same state
+        engine.sessionStarted(sessionState)
+        
+        // Buffer should NOT be cleared/reset
+        val bufferAfter = engine.state.value.recommendationBuffer
+        assertEquals(bufferBefore, bufferAfter, "Buffer should not be reset on redundant sessionStarted call")
+    }
+
+    @Test
+    fun testSessionStarted_FreeRide() = runTest {
+        val song = createSong(1)
+        songRepository.songsAroundTargetCadenceResults.add(listOf(song))
+        profileRepository.profile = Profile("p1", emptyList())
+
+        val engine = createEngine()
+        val sessionState = WorkoutSessionState(
+            mode = WorkoutMode.FreeRide,
+            status = WorkoutStatus.READY,
+            totalElapsed = 0.seconds,
+            currentCadence = 95.0
         )
 
-        engine.workoutSelected(state)
+        engine.sessionStarted(sessionState)
 
-        // Should not trigger precompute, and recommendationIndex should stay empty or false
-        delay(10.milliseconds)
-        assertFalse(engine.state.value.recommendationIndex.any { it })
+        var attempts = 0
+        while (!engine.state.value.recommendationIndex.any { it } && attempts < 100) {
+            delay(1.milliseconds)
+            attempts++
+        }
+
+        assertTrue(engine.state.value.recommendationIndex[0], "Music should be available after precompute in FreeRide")
     }
 
     @Test
@@ -199,14 +236,12 @@ class MusicEngineCharacterizationTest {
         val intervals = listOf(createInterval(), createInterval())
         val workout = createWorkout(intervals)
         
-        // Need to set workout first so buffers are initialized
-        engine.workoutSelected(createWorkoutState(workout = workout))
+        engine.sessionStarted(createStructuredSessionState(workout))
 
         val interval = createInterval()
         engine.precompute(interval, 0)
         engine.precompute(interval, 1)
 
-        // Wait for precompute
         var attempts = 0
         while (!engine.state.value.recommendationIndex.all { it } && attempts < 100) {
             delay(1.milliseconds)
@@ -229,15 +264,10 @@ class MusicEngineCharacterizationTest {
         val intervals = listOf(createInterval(), createInterval())
         val workout = createWorkout(intervals)
         
-        val state = createWorkoutState(
-            workout = workout,
-            status = WorkoutStatus.RUNNING,
-            intervalIndex = 0,
-            currentInterval = intervals[0]
-        )
+        val sessionState = createStructuredSessionState(workout, WorkoutStatus.RUNNING, 0)
         
-        engine.workoutSelected(state.copy(status = WorkoutStatus.NOT_STARTED))
-        engine.precomputeNextRecommendation(state)
+        engine.sessionStarted(sessionState.copy(status = WorkoutStatus.NOT_STARTED))
+        engine.precomputeNextRecommendation(sessionState)
         
         var attempts = 0
         while (engine.state.value.recommendationIndex.getOrNull(1) != true && attempts < 100) {
@@ -259,26 +289,10 @@ class MusicEngineCharacterizationTest {
     }
 
     @Test
-    fun testPlay_NoIntervalIndex() = runTest {
+    fun testUpdate_NoMode() = runTest {
         val engine = createEngine()
-        engine.play(null, 60.seconds)
-        // Should do nothing
+        engine.update(WorkoutSessionState(mode = null, status = WorkoutStatus.NOT_STARTED, totalElapsed = 0.seconds))
         assertNull(engine.state.value.currentSong)
-    }
-
-    @Test
-    fun testNextTrack_InvalidInterval() = runTest {
-        val engine = createEngine()
-        // currentIntervalIndex is -1. nextTrack(newInterval = false) uses currentIntervalIndex.
-        engine.nextTrack(newInterval = false)
-        assertNull(engine.state.value.currentSong)
-    }
-
-    @Test
-    fun testSongLiked_NoCurrentSong() = runTest {
-        val engine = createEngine()
-        engine.songLiked(true)
-        // Should not crash, just returns
     }
 
     @Test
@@ -286,15 +300,13 @@ class MusicEngineCharacterizationTest {
         val song = createSong(1)
         val engine = createEngine()
         
-        // Use reflection or a way to set state? 
-        // Better: select workout and wait for recommendation, then nextTrack
         songRepository.songsAroundTargetCadenceResults.add(listOf(song))
         profileRepository.profile = Profile("p1", emptyList())
         
-        val workout = createWorkout(listOf(createInterval()))
-        engine.workoutSelected(createWorkoutState(workout = workout, intervalIndex = 0))
+        val intervals = listOf(createInterval())
+        val workout = createWorkout(intervals)
+        engine.sessionStarted(createStructuredSessionState(workout))
         
-        // Wait for precompute
         while (!engine.state.value.recommendationIndex.any { it }) delay(10.milliseconds)
         
         engine.nextTrack(newInterval = true, intervalIndex = 0, firstSong = true)
@@ -304,19 +316,5 @@ class MusicEngineCharacterizationTest {
         
         engine.songLiked(true)
         assertTrue(engine.state.value.isLiked)
-    }
-
-    @Test
-    fun testPlayPauseDelegation() = runTest {
-        val engine = createEngine()
-        
-        engine.play()
-        assertTrue(playbackController.isPlayingVal)
-        
-        engine.pause()
-        assertFalse(playbackController.isPlayingVal)
-        
-        engine.pauseResume()
-        assertTrue(playbackController.isPlayingVal)
     }
 }

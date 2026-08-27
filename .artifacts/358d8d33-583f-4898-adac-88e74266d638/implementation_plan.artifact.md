@@ -1,43 +1,34 @@
-# Recommendation Scoring Fix and Roadmap Planning
+# Fix: Repeated Recommendations and Playback Issues
 
-Correct the inverted skip penalty logic in the `RecommendationEngine` and plan the subsequent architectural steps.
+Address the bug where `sessionStarted` is called repeatedly, resetting the music engine state and causing infinite recommendation loops.
 
 ## User Review Required
 
 > [!IMPORTANT]
-> The skip penalty formula is being changed from a multiplicative one that erroneously increased with skips to a ratio-based one:
-> `skipCoefficient = 2.0 * (playCount / (playCount + skipCount))`
-> This ensures that songs with more skips relative to plays are correctly penalized.
+> The root cause was that `MusicViewModel` was calling `musicEngine.sessionStarted()` every time the workout state updated (every 200ms) while in `READY` status. This cleared the music buffer and triggered new recommendations constantly.
 
 ## Proposed Changes
 
-### Recommendation Engine
+### Music Engine
 
-#### [MODIFY] [RecommendationEngine.kt](file:///C:/Users/novak/Documents/vibe-and-ride/shared/src/commonMain/kotlin/com/novaksimon/vibeandride/recommendation/RecommendationEngine.kt)
-- Update `getProfilePreferenceScore` to use the new skip penalty formula in both `lastPlayedAt == null` and standard blocks.
+#### [MODIFY] [MusicEngine.kt](file:///C:/Users/novak/Documents/vibe-and-ride/shared/src/commonMain/kotlin/com/novaksimon/vibeandride/music/MusicEngine.kt)
+- Update `sessionStarted` to check if the session is already initialized for the given workout/mode and return early if so.
+- This provides a robust safeguard against redundant initialization.
 
-#### [MODIFY] [RecommendationEngineTest.kt](file:///C:/Users/novak/Documents/vibe-and-ride/shared/src/commonTest/kotlin/com/novaksimon/vibeandride/recommendation/RecommendationEngineTest.kt)
-- Add a specific test case `testProfilePreference_SkipPenaltyCorrectness` to verify that increasing skips reduces the score and that the inversion bug is fixed.
+### Music ViewModel
+
+#### [MODIFY] [MusicViewModel.kt](file:///C:/Users/novak/Documents/vibe-and-ride/shared/src/commonMain/kotlin/com/novaksimon/vibeandride/music/MusicViewModel.kt)
+- Refine the observation of `workoutViewModel.uiState`.
+- Use `distinctUntilChanged` more effectively to avoid processing the same state repeatedly.
+- Ensure `sessionStarted` is only called when the workout or mode actually changes.
 
 ## Verification Plan
 
 ### Automated Tests
-- Run `shared:commonTest` to verify all recommendation tests pass.
-- Specifically verify the new `testProfilePreference_SkipPenaltyCorrectness` test.
+- Run existing `MusicEngineTest` and `MusicEngineCharacterizationTest`.
+- Add a test case to `MusicEngineCharacterizationTest` that calls `sessionStarted` twice with the same state and verifies that the buffer is NOT cleared the second time.
 
 ### Manual Verification
-- None required for this logic-only fix, though the Human PM may notice improved variety and better avoidance of skipped tracks in the live app.
-
----
-
-# Roadmap Planning: Next Steps
-
-After this fix, we will proceed with the following phases:
-
-1. **Phase 4: Workout Domain Redesign**
-   - Introduce `WorkoutSession` abstraction.
-   - Support "Free Ride" mode.
-2. **Phase 7: Workout Parsing Improvements**
-   - Fix range-based power/cadence in `WorkoutParser`.
-3. **Phase 5: BLE Integration**
-   - Implement Bluetooth cadence source.
+- Check Logcat for "Recommending songs..." spam. It should now only appear once per workout selection.
+- Verify that music actually starts playing when "Start" is pressed.
+- Verify that "isMusicAvailable" remains true once the first recommendation is finished.

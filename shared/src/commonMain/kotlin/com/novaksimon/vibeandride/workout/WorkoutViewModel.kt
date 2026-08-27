@@ -19,7 +19,7 @@ import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 
 data class WorkoutUiState(
-    val workoutState: WorkoutState? = null,
+    val workoutState: WorkoutSessionState? = null,
     val isPickerVisible: Boolean = false,
     val isLoading: Boolean = false,
 )
@@ -117,11 +117,19 @@ class WorkoutViewModel(
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoading = true)
             scheduler.workoutIdSelected(workoutId)
-            _uiState.value = _uiState.value.copy(
-                workoutState = scheduler.getState(),
-                isLoading = false
-            )
+            tick()
+            _uiState.value = _uiState.value.copy(isLoading = false)
         }
+    }
+
+    fun startFreeRide() {
+        scheduler.startFreeRide()
+        tick()
+    }
+
+    fun updateLiveCadence(cadence: Double) {
+        scheduler.updateLiveCadence(cadence)
+        tick()
     }
 
 
