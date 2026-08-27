@@ -1,34 +1,55 @@
-# Phase 7: Workout Parsing Improvements (Repeats & Ranges)
+# Phase 5: BLE Integration
 
-Improve the `WorkoutParser` to correctly handle workout repeats (`IntervalsT`) and verify/fix power/cadence range handling.
+Implement read-only cadence support from compatible smart trainers via Bluetooth Low Energy.
 
 ## User Review Required
 
 > [!IMPORTANT]
-> The parser will now flatten `<IntervalsT>` blocks into individual intervals. A repeat of 5 with an On/Off pair will result in 10 separate intervals in the list. This ensures compatibility with the existing `WorkoutScheduler` without needing to change the domain model.
+> This integration requires **Bluetooth** and **Location** permissions on Android. The app will prompt for these when scanning starts.
+>
+> [!NOTE]
+> For the initial implementation, the app will automatically attempt to connect to the first device broadcasting the **Cycling Speed and Cadence (CSC)** or **Cycling Power (CP)** service.
 
 ## Proposed Changes
 
-### Workout Parsing
+### Domain Interfaces
 
-#### [MODIFY] [WorkoutParser.kt](file:///C:/Users/novak/Documents/vibe-and-ride/shared/src/commonMain/kotlin/com/novaksimon/vibeandride/workout/WorkoutParser.kt)
-- Add special handling for the `IntervalsT` tag:
-    - Parse `Repeat`, `OnDuration`, `OffDuration`, `OnPower`, `OffPower`, `OnCadence`, `OffCadence`.
-    - Generate `Repeat` number of interval pairs.
-- Refactor attribute reading to distinguish between "missing" and "zero" if necessary, although averaging `PowerLow`/`High` is generally correct for the target cadence/power in this app.
-- Ensure `CadenceLow`/`High` are rounded to the nearest integer when averaged.
+#### [NEW] [CadenceSource.kt](file:///C:/Users/novak/Documents/vibe-and-ride/shared/src/commonMain/kotlin/com/novaksimon/vibeandride/workout/CadenceSource.kt)
+- Define `CadenceSource` interface with a `Flow<Double?>` for live cadence.
 
-### Tests
+### Platform Implementations
 
-#### [MODIFY] [WorkoutParserCharacterizationTest.kt](file:///C:/Users/novak/Documents/vibe-and-ride/shared/src/commonTest/kotlin/com/novaksimon/vibeandride/workout/WorkoutParserCharacterizationTest.kt)
-- Add a test case that parses a ZWO string containing `<IntervalsT>`.
-- Verify that the total duration and interval count are correct (e.g., parsing `ZwiftWorkoutAspire2h.zwo` should now yield a ~2h duration).
+#### [NEW] [AndroidBluetoothCadenceSource.kt](file:///C:/Users/novak/Documents/vibe-and-ride/shared/src/androidMain/kotlin/com/novaksimon/vibeandride/workout/AndroidBluetoothCadenceSource.kt)
+- Implement `CadenceSource` using Android's `BluetoothAdapter` and `BluetoothGatt`.
+- Handle scanning for CSC (UUID `0x1816`) and Cycling Power (UUID `0x1818`) services.
+- Parse GATT notifications for cadence (RPM).
+
+### Workout Logic Integration
+
+#### [MODIFY] [WorkoutScheduler.kt](file:///C:/Users/novak/Documents/vibe-and-ride/shared/src/commonMain/kotlin/com/novaksimon/vibeandride/workout/WorkoutScheduler.kt)
+- Update constructor to accept a `CadenceSource`.
+- In `start()`, begin observing the `CadenceSource` flow and update `liveCadence` automatically.
+
+#### [MODIFY] [WorkoutViewModel.kt](file:///C:/Users/novak/Documents/vibe-and-ride/shared/src/commonMain/kotlin/com/novaksimon/vibeandride/workout/WorkoutViewModel.kt)
+- Expose methods to trigger Bluetooth scanning and connection status.
+
+### Android Application Layer
+
+#### [MODIFY] [MainActivity.kt](file:///C:/Users/novak/Documents/vibe-and-ride/androidApp/src/main/kotlin/com/novaksimon/vibeandride/MainActivity.kt)
+- Add permission requests for `Manifest.permission.BLUETOOTH_SCAN` and `Manifest.permission.BLUETOOTH_CONNECT` (Android 12+).
+- Inject the real `AndroidBluetoothCadenceSource` into `WorkoutViewModel`.
+
+#### [MODIFY] [AndroidManifest.xml](file:///C:/Users/novak/Documents/vibe-and-ride/androidApp/src/main/AndroidManifest.xml)
+- Add necessary Bluetooth and Location `<uses-permission>` tags.
 
 ## Verification Plan
 
 ### Automated Tests
-- Run `shared:commonTest` specifically focusing on `WorkoutParserCharacterizationTest`.
-- Create a new test `testParseRepeats` that uses a snippet from the provided `ZwiftWorkoutAspire2h.zwo`.
+- Create `FakeCadenceSource` in `commonTest`.
+- Update `WorkoutSchedulerTest` to verify that `liveCadence` is updated when the source emits values.
 
 ### Manual Verification
-- Upload the `ZwiftWorkoutAspire2h.zwo` file in the app and verify that the "Total Time" displayed on the UI is correct (~2 hours).
+- Deploy to a physical Android device.
+- Grant Bluetooth permissions.
+- Turn on a smart trainer/cadence sensor.
+- Verify "Free Ride" or "Structured Workout" displays live cadence from the device.

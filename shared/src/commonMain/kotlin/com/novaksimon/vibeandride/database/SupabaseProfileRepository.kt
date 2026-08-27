@@ -17,8 +17,8 @@ class SupabaseProfileRepository : ProfileRepository {
         com.novaksimon.vibeandride.database.changeLikeState(songId, targetState, profileId)
     }
 
-    override suspend fun incrementStat(statColumn: String, songId: Int, profileId: String?) {
-        com.novaksimon.vibeandride.database.incrementStat(statColumn, songId, profileId)
+    override suspend fun incrementStat(statColumn: String, songId: Int, incrementBy: Int, profileId: String?) {
+        com.novaksimon.vibeandride.database.incrementStat(statColumn, songId, profileId, incrementBy)
     }
 
     override suspend fun setStatDatetime(statColumn: String, songId: Int, profileId: String?) {

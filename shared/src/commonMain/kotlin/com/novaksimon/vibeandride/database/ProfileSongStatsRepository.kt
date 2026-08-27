@@ -71,6 +71,7 @@ suspend fun incrementStat(
     val currentValue = when (stat) {
         "play_count" -> existing.playCount
         "skip_count" -> existing.skipCount
+        "total_play_time" -> existing.totalPlayTime
         else -> 0
     }
     val newValue = currentValue + incrementBy

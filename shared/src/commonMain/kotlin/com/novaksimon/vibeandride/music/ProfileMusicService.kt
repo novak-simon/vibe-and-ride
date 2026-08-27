@@ -52,6 +52,10 @@ class ProfileMusicService(
         return playbackController.isPlaying()
     }
 
+    fun currentPosition(): Float {
+        return playbackController.positionSeconds() ?: 0f
+    }
+
     suspend fun preloadSong(song: Song): Boolean {
         val audioUrl: String? = getAudioUrl(song)
         if (!audioUrl.isNullOrEmpty()) {
@@ -79,7 +83,12 @@ class ProfileMusicService(
         val treatedEnd = duration - endTime
         val remaining = treatedEnd - position
 
-        return if (remaining < 0f) 0f else remaining
+        return if (remaining <= 0f) {
+            informedAboutTrackEnd = true
+            0f
+        } else {
+            remaining
+        }
     }
 
     suspend fun crossfadeTo(

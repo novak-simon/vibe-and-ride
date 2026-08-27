@@ -46,7 +46,7 @@ class FakeProfileRepository(
         Unit
     }
 
-    override suspend fun incrementStat(statColumn: String, songId: Int, profileId: String?) = mutex.withLock {
+    override suspend fun incrementStat(statColumn: String, songId: Int, incrementBy: Int, profileId: String?) = mutex.withLock {
         calls.add("incrementStat")
         Unit
     }

@@ -68,9 +68,13 @@ class MusicViewModel(
             workoutViewModel.uiState
                 .map { it.workoutState }
                 .distinctUntilChanged { old, new ->
-                    old?.status == new?.status && 
-                    old?.mode == new?.mode && 
-                    old?.structuredState?.intervalIndex == new?.structuredState?.intervalIndex
+                    val statusChanged = old?.status != new?.status
+                    val modeChanged = old?.mode != new?.mode
+                    val intervalChanged = old?.structuredState?.intervalIndex != new?.structuredState?.intervalIndex
+
+                    // Only skip emission if NOTHING changed AND we are not in RUNNING state.
+                    // When RUNNING, we need every tick to monitor song progress.
+                    !statusChanged && !modeChanged && !intervalChanged && new?.status != WorkoutStatus.RUNNING
                 }
                 .collect { sessionState ->
                     if (sessionState == null) return@collect

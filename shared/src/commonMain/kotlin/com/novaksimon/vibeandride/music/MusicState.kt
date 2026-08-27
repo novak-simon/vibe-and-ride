@@ -29,6 +29,7 @@ data class MusicState(
     val preloadedSongId: Int? = null,
     val hasPreloadedSong: Boolean = false,
     val isTransitioning: Boolean = false,
+    val songStartPosition: Float = 0f,
     val currentDebug: List<SongRecommendation> = emptyList(),
     val futureDebug: List<SongRecommendation> = emptyList(),
 )

@@ -227,17 +227,27 @@ class MusicEngine(
 
     private fun incrementStatsOnTrackLeave(skipped: Boolean = false) {
         val song = _state.value.currentSong ?: return
+        val endPosition = service.currentPosition()
+        val startPosition = _state.value.songStartPosition
+        val playTimeSeconds = (endPosition - startPosition).toInt().coerceAtLeast(0)
+
         statsScope.launch {
             if (skipped) {
                 profileRepository.incrementStat("skip_count", song.id)
                 profileRepository.setStatDatetime("last_skipped_at", song.id)
             }
             profileRepository.incrementStat("play_count", song.id)
+            if (playTimeSeconds > 0) {
+                profileRepository.incrementStat("total_play_time", song.id, incrementBy = playTimeSeconds)
+            }
         }
     }
 
     private fun incrementStatsOnTrackArrive() {
         val song = _state.value.currentSong ?: return
+        val currentPosition = service.currentPosition()
+        _state.value = _state.value.copy(songStartPosition = currentPosition)
+
         statsScope.launch {
             profileRepository.setStatDatetime("last_played_at", song.id)
         }
