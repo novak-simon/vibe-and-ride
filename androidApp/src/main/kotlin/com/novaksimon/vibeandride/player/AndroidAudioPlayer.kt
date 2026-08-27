@@ -45,6 +45,8 @@ class AndroidAudioPlayer(
      */
     private var activeSlot: Int = 0
 
+    private var isReleased = false
+
     private val pendingStartTimes = FloatArray(2)
     private val needsSeekOnReady = BooleanArray(2)
 
@@ -91,6 +93,7 @@ class AndroidAudioPlayer(
     }
 
     override fun initialize() {
+        if (isReleased) return
         if (playerA != null && playerB != null) {
             return
         }
@@ -230,6 +233,7 @@ class AndroidAudioPlayer(
         audioUrl: String,
         startTimeSeconds: Float
     ) {
+        if (isReleased) return
         val player = activePlayer() ?: return
         val slot = activeSlot
 
@@ -245,6 +249,7 @@ class AndroidAudioPlayer(
         song: Song,
         audioUrl: String,
     ) {
+        if (isReleased) return
         val player = preloadedPlayer() ?: return
         val slot = preloadedSlot()
 
@@ -290,6 +295,7 @@ class AndroidAudioPlayer(
     override fun startPreloaded(
         volume: Float
     ) {
+        if (isReleased) return
         val player = preloadedPlayer() ?: return
 
         player.volume =
@@ -302,6 +308,7 @@ class AndroidAudioPlayer(
         targetVolume: Float,
         durationMs: Long
     ) {
+        if (isReleased) return
         val player = preloadedPlayer() ?: return
 
         val clampedTarget =
@@ -350,6 +357,7 @@ class AndroidAudioPlayer(
     }
 
     override fun promotePreloadedToCurrent() {
+        if (isReleased) return
         val nextActive =
             preloadedPlayer() ?: return
 
@@ -386,6 +394,7 @@ class AndroidAudioPlayer(
     }
 
     override fun clearPreloaded() {
+        if (isReleased) return
         fadeJob?.cancel()
 
         val player =
@@ -396,6 +405,7 @@ class AndroidAudioPlayer(
     }
 
     override fun play() {
+        if (isReleased) return
         val player =
             activePlayer() ?: return
 
@@ -412,6 +422,7 @@ class AndroidAudioPlayer(
     }
 
     override fun pause() {
+        if (isReleased) return
         activePlayer()?.pause()
         preloadedPlayer()?.pause()
     }
@@ -421,6 +432,7 @@ class AndroidAudioPlayer(
     }
 
     override fun stop() {
+        if (isReleased) return
         fadeJob?.cancel()
 
         activePlayer()?.stop()
@@ -478,6 +490,7 @@ class AndroidAudioPlayer(
         }
     }
     fun crossfadeToPreloaded(song: Song, audioUrl: String, durationMs: Long) {
+        if (isReleased) return
         val oldPlayer = activePlayer() ?: return
         val newPlayer = preloadedPlayer() ?: return
 
@@ -583,6 +596,9 @@ class AndroidAudioPlayer(
     }
 
     override fun release() {
+        if (isReleased) return
+        isReleased = true
+
         fadeJob?.cancel()
         fadeJob = null
 
@@ -593,12 +609,7 @@ class AndroidAudioPlayer(
         playerListenerA = null
         playerListenerB = null
 
-        playerA?.stop()
-        playerA?.clearMediaItems()
         playerA?.release()
-
-        playerB?.stop()
-        playerB?.clearMediaItems()
         playerB?.release()
 
         playerA = null
