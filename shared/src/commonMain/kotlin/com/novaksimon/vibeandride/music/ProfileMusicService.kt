@@ -14,6 +14,7 @@ class ProfileMusicService(
     private var informedAboutTrackEnd = false
     private var currentSong: Song? = null
     private var preloadedAudioUrl: String? = null
+    private var preloadedSongId: Int? = null
 
     suspend fun fetchSongs(limit: Int): List<Song> {
         return songRepository.fetchSongs(limit)
@@ -55,10 +56,12 @@ class ProfileMusicService(
         val audioUrl: String? = getAudioUrl(song)
         if (!audioUrl.isNullOrEmpty()) {
             preloadedAudioUrl = audioUrl
+            preloadedSongId = song.id
             playbackController.preloadSource(song, audioUrl)
             return true
+        } else {
+            return false
         }
-        else return false
     }
 
     fun timeUntilTrackEnd(): Float {
@@ -85,7 +88,20 @@ class ProfileMusicService(
     ): Boolean {
         informedAboutTrackEnd = false
         currentSong = song
-        val audioUrl = preloadedAudioUrl ?: getAudioUrl(song) ?: return false
+
+        // Only use preloaded URL if it matches the song we are transitioning to
+        val audioUrl = if (preloadedSongId == song.id) {
+            preloadedAudioUrl ?: getAudioUrl(song)
+        } else {
+            getAudioUrl(song)
+        }
+
+        // Clear preload state after use (or discard)
+        preloadedAudioUrl = null
+        preloadedSongId = null
+
+        if (audioUrl == null) return false
+
         playbackController.preloadSource(song, audioUrl)
 
         playbackController.crossfadeToPreloaded(

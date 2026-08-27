@@ -140,11 +140,8 @@ class RecommendationEngine(
             val lastPlayedAt = stat.lastPlayedAt
             if (lastPlayedAt == null) {
                 // No recorded play time despite stat existing — treat as "long ago"
-                val skipCoefficient = if (stat.skipCount != 0) {
-                    minOf(
-                        2f,
-                        stat.playCount / 3f * stat.skipCount
-                    )
+                val skipCoefficient = if (stat.skipCount + stat.playCount > 0) {
+                    2f * (stat.playCount.toFloat() / (stat.playCount + stat.skipCount).toFloat())
                 } else {
                     2f
                 }
@@ -174,11 +171,8 @@ class RecommendationEngine(
             }
 
             val repetitionCoefficient = minOf(2.0, sinceLastPlayed / 2.days).toFloat()
-            val skipCoefficient = if (stat.skipCount != 0) {
-                minOf(
-                    2f,
-                    stat.playCount / 3f * stat.skipCount
-                )
+            val skipCoefficient = if (stat.skipCount + stat.playCount > 0) {
+                2f * (stat.playCount.toFloat() / (stat.playCount + stat.skipCount).toFloat())
             } else {
                 2f
             }

@@ -271,10 +271,52 @@ class RecommendationEngineTest {
             totalPlayTime = 0
         )
         val result = engine.getProfilePreferenceScore(song, profile)
-        // skipCoefficient = minOf(2.0, 3 / 3 * 1) = 1.0
-        assertEquals(1.0f, result.skipCoefficient)
-        // score = 1 * 2 * 1 * 1 = 2.0
-        assertEquals(2.0f, result.score)
+        // skipCoefficient = 2.0 * (3 / (3 + 1)) = 1.5
+        assertEquals(1.5f, result.skipCoefficient)
+        // score = 1 * 2 * 1 * 1.5 = 3.0
+        assertEquals(3.0f, result.score)
+    }
+
+    @Test
+    fun testProfilePreference_SkipPenaltyCorrectness() = runTest {
+        val song = createSong(id = 100, genre = listOf("pop"))
+        val profile = Profile("p1", listOf("pop"))
+        
+        // Base case: 10 plays, 0 skips -> skipCoefficient should be 2.0
+        fakeRepository.stats[100 to "p1"] = ProfileSongStats(
+            songId = 100, profileId = "p1", playCount = 10, skipCount = 0, isLiked = false,
+            firstPlayedAt = null, lastPlayedAt = null, lastSkippedAt = null, totalPlayTime = 0
+        )
+        assertEquals(2.0f, engine.getProfilePreferenceScore(song, profile).skipCoefficient)
+
+        // 10 plays, 10 skips -> skipCoefficient should be 1.0 (2.0 * 10/20)
+        fakeRepository.stats[100 to "p1"] = ProfileSongStats(
+            songId = 100, profileId = "p1", playCount = 10, skipCount = 10, isLiked = false,
+            firstPlayedAt = null, lastPlayedAt = null, lastSkippedAt = null, totalPlayTime = 0
+        )
+        assertEquals(1.0f, engine.getProfilePreferenceScore(song, profile).skipCoefficient)
+
+        // 0 plays, 10 skips -> skipCoefficient should be 0.0
+        fakeRepository.stats[100 to "p1"] = ProfileSongStats(
+            songId = 100, profileId = "p1", playCount = 0, skipCount = 10, isLiked = false,
+            firstPlayedAt = null, lastPlayedAt = null, lastSkippedAt = null, totalPlayTime = 0
+        )
+        assertEquals(0.0f, engine.getProfilePreferenceScore(song, profile).skipCoefficient)
+        
+        // Higher skips than plays should result in lower coefficient than plays > skips
+        fakeRepository.stats[100 to "p1"] = ProfileSongStats(
+            songId = 100, profileId = "p1", playCount = 1, skipCount = 9, isLiked = false,
+            firstPlayedAt = null, lastPlayedAt = null, lastSkippedAt = null, totalPlayTime = 0
+        )
+        val lowSkipPref = engine.getProfilePreferenceScore(song, profile).skipCoefficient ?: 0f
+        
+        fakeRepository.stats[100 to "p1"] = ProfileSongStats(
+            songId = 100, profileId = "p1", playCount = 9, skipCount = 1, isLiked = false,
+            firstPlayedAt = null, lastPlayedAt = null, lastSkippedAt = null, totalPlayTime = 0
+        )
+        val highSkipPref = engine.getProfilePreferenceScore(song, profile).skipCoefficient ?: 0f
+        
+        assertTrue(highSkipPref > lowSkipPref, "Higher play-to-skip ratio should have higher preference")
     }
 
     @Test
