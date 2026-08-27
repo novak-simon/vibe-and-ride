@@ -1,34 +1,34 @@
-# Fix: Repeated Recommendations and Playback Issues
+# Phase 7: Workout Parsing Improvements (Repeats & Ranges)
 
-Address the bug where `sessionStarted` is called repeatedly, resetting the music engine state and causing infinite recommendation loops.
+Improve the `WorkoutParser` to correctly handle workout repeats (`IntervalsT`) and verify/fix power/cadence range handling.
 
 ## User Review Required
 
 > [!IMPORTANT]
-> The root cause was that `MusicViewModel` was calling `musicEngine.sessionStarted()` every time the workout state updated (every 200ms) while in `READY` status. This cleared the music buffer and triggered new recommendations constantly.
+> The parser will now flatten `<IntervalsT>` blocks into individual intervals. A repeat of 5 with an On/Off pair will result in 10 separate intervals in the list. This ensures compatibility with the existing `WorkoutScheduler` without needing to change the domain model.
 
 ## Proposed Changes
 
-### Music Engine
+### Workout Parsing
 
-#### [MODIFY] [MusicEngine.kt](file:///C:/Users/novak/Documents/vibe-and-ride/shared/src/commonMain/kotlin/com/novaksimon/vibeandride/music/MusicEngine.kt)
-- Update `sessionStarted` to check if the session is already initialized for the given workout/mode and return early if so.
-- This provides a robust safeguard against redundant initialization.
+#### [MODIFY] [WorkoutParser.kt](file:///C:/Users/novak/Documents/vibe-and-ride/shared/src/commonMain/kotlin/com/novaksimon/vibeandride/workout/WorkoutParser.kt)
+- Add special handling for the `IntervalsT` tag:
+    - Parse `Repeat`, `OnDuration`, `OffDuration`, `OnPower`, `OffPower`, `OnCadence`, `OffCadence`.
+    - Generate `Repeat` number of interval pairs.
+- Refactor attribute reading to distinguish between "missing" and "zero" if necessary, although averaging `PowerLow`/`High` is generally correct for the target cadence/power in this app.
+- Ensure `CadenceLow`/`High` are rounded to the nearest integer when averaged.
 
-### Music ViewModel
+### Tests
 
-#### [MODIFY] [MusicViewModel.kt](file:///C:/Users/novak/Documents/vibe-and-ride/shared/src/commonMain/kotlin/com/novaksimon/vibeandride/music/MusicViewModel.kt)
-- Refine the observation of `workoutViewModel.uiState`.
-- Use `distinctUntilChanged` more effectively to avoid processing the same state repeatedly.
-- Ensure `sessionStarted` is only called when the workout or mode actually changes.
+#### [MODIFY] [WorkoutParserCharacterizationTest.kt](file:///C:/Users/novak/Documents/vibe-and-ride/shared/src/commonTest/kotlin/com/novaksimon/vibeandride/workout/WorkoutParserCharacterizationTest.kt)
+- Add a test case that parses a ZWO string containing `<IntervalsT>`.
+- Verify that the total duration and interval count are correct (e.g., parsing `ZwiftWorkoutAspire2h.zwo` should now yield a ~2h duration).
 
 ## Verification Plan
 
 ### Automated Tests
-- Run existing `MusicEngineTest` and `MusicEngineCharacterizationTest`.
-- Add a test case to `MusicEngineCharacterizationTest` that calls `sessionStarted` twice with the same state and verifies that the buffer is NOT cleared the second time.
+- Run `shared:commonTest` specifically focusing on `WorkoutParserCharacterizationTest`.
+- Create a new test `testParseRepeats` that uses a snippet from the provided `ZwiftWorkoutAspire2h.zwo`.
 
 ### Manual Verification
-- Check Logcat for "Recommending songs..." spam. It should now only appear once per workout selection.
-- Verify that music actually starts playing when "Start" is pressed.
-- Verify that "isMusicAvailable" remains true once the first recommendation is finished.
+- Upload the `ZwiftWorkoutAspire2h.zwo` file in the app and verify that the "Total Time" displayed on the UI is correct (~2 hours).

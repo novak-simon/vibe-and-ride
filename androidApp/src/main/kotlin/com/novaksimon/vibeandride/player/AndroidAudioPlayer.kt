@@ -522,23 +522,22 @@ class AndroidAudioPlayer(
                     return@launch
                 }
 
-                // Wait until the preloaded player is ready.
+                // Wait until the preloaded player is ready (max 10 seconds).
                 waitCount = 0
                 while (
                     newPlayer.playbackState != ExoPlayer.STATE_READY &&
                     newPlayer.playbackState != ExoPlayer.STATE_ENDED &&
-                    waitCount < 100
+                    waitCount < 500
                 ) {
                     delay(20.milliseconds)
                     waitCount++
                 }
 
                 if (newPlayer.playbackState != ExoPlayer.STATE_READY && newPlayer.playbackState != ExoPlayer.STATE_ENDED) {
-                    println("AndroidAudioPlayer: preload failed or timed out (state: ${newPlayer.playbackState})")
-                    return@launch
+                    println("AndroidAudioPlayer: preload timed out (state: ${newPlayer.playbackState}), forcing switch anyway to stop old audio")
+                } else {
+                    println("AndroidAudioPlayer: preloaded player READY, starting crossfade")
                 }
-
-                println("AndroidAudioPlayer: preloaded player READY, starting crossfade")
 
                 newPlayer.volume = 0f
                 newPlayer.play()

@@ -23,7 +23,7 @@ class WorkoutCrossLayerCharacterizationTest {
         val workout = parser.parseZwoString(zwo)
         val intervalFromParser = workout.intervals!![0]
         
-        assertEquals(0.70000005f, intervalFromParser.power)
+        assertEquals(0.7f, intervalFromParser.power, 0.0001f)
         assertEquals(82.0, intervalFromParser.cadence)
 
         // 2. Normalization logic also handles low/high
@@ -37,7 +37,7 @@ class WorkoutCrossLayerCharacterizationTest {
         )
         val intervalFromNormalization = rawToInterval(raw)
         
-        assertEquals(0.70000005f, intervalFromNormalization.power)
+        assertEquals(0.7f, intervalFromNormalization.power, 0.0001f)
         assertEquals(82.0, intervalFromNormalization.cadence)
     }
 
