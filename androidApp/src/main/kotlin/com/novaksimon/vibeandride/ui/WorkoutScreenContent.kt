@@ -76,6 +76,7 @@ fun WorkoutScreenContent(
     onUploadWorkout: () -> Unit,
     onPickerVisibilityChange: (Boolean) -> Unit,
     onStartFreeRide: () -> Unit,
+    onToggleBle: () -> Unit,
 ) {
     var showResyncDialog by remember { mutableStateOf(false) }
     var showDebugDialog by remember { mutableStateOf(false) }
@@ -95,9 +96,29 @@ fun WorkoutScreenContent(
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Button(onClick = { onPickerVisibilityChange(true) }) {
-                Text("Select workout...", style = MaterialTheme.typography.labelLarge)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(onClick = { onPickerVisibilityChange(true) }) {
+                    Text("Select workout...", style = MaterialTheme.typography.labelLarge)
+                }
+                
+                val bleColor = when (workoutUiState.bleStatus) {
+                    com.novaksimon.vibeandride.workout.CadenceSourceStatus.CONNECTED -> Color.Green
+                    com.novaksimon.vibeandride.workout.CadenceSourceStatus.SCANNING, 
+                    com.novaksimon.vibeandride.workout.CadenceSourceStatus.CONNECTING -> Color.Yellow
+                    com.novaksimon.vibeandride.workout.CadenceSourceStatus.ERROR -> Color.Red
+                    else -> Color.Gray
+                }
+                
+                IconButton(onClick = onToggleBle) {
+                    Icon(
+                        imageVector = if (workoutUiState.bleStatus == com.novaksimon.vibeandride.workout.CadenceSourceStatus.CONNECTED) 
+                            Icons.Default.Sync else Icons.Default.Refresh,
+                        contentDescription = "Bluetooth",
+                        tint = bleColor
+                    )
+                }
             }
             OutlinedButton(onClick = { showDebugDialog = true }) {
                 Text("Debug", style = MaterialTheme.typography.labelLarge)
@@ -553,6 +574,7 @@ private fun WorkoutScreenPreview() {
             onUploadWorkout = {},
             onPickerVisibilityChange = {},
             onStartFreeRide = {},
+            onToggleBle = {},
         )
     }
 }

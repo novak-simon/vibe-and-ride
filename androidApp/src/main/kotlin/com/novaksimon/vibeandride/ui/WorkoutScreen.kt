@@ -1,6 +1,8 @@
 package com.novaksimon.vibeandride.ui
 
 import androidx.compose.runtime.*
+import androidx.compose.ui.platform.LocalContext
+import com.novaksimon.vibeandride.MainActivity
 import com.novaksimon.vibeandride.music.MusicViewModel
 import com.novaksimon.vibeandride.workout.WorkoutViewModel
 
@@ -13,6 +15,8 @@ fun WorkoutScreen(
     val workoutUiState by workoutViewModel.uiState.collectAsState()
     val musicUiState by musicViewModel.uiState.collectAsState()
     val availableWorkouts by workoutViewModel.availableWorkouts.collectAsState()
+    val context = LocalContext.current
+
     WorkoutScreenContent(
         workoutUiState = workoutUiState,
         musicUiState = musicUiState,
@@ -37,6 +41,14 @@ fun WorkoutScreen(
         onLikeSong = { musicViewModel.songLiked(it) },
         onUploadWorkout = onUploadWorkout,
         onPickerVisibilityChange = { workoutViewModel.setPickerVisible(it) },
-        onStartFreeRide = { workoutViewModel.startFreeRide() }
+        onStartFreeRide = { workoutViewModel.startFreeRide() },
+        onToggleBle = {
+            if (workoutUiState.bleStatus == com.novaksimon.vibeandride.workout.CadenceSourceStatus.IDLE || 
+                workoutUiState.bleStatus == com.novaksimon.vibeandride.workout.CadenceSourceStatus.ERROR) {
+                (context as? MainActivity)?.requestBlePermissions()
+            } else {
+                workoutViewModel.toggleBle()
+            }
+        }
     )
 }

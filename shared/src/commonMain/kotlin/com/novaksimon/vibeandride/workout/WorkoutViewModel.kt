@@ -22,9 +22,11 @@ data class WorkoutUiState(
     val workoutState: WorkoutSessionState? = null,
     val isPickerVisible: Boolean = false,
     val isLoading: Boolean = false,
+    val bleStatus: CadenceSourceStatus = CadenceSourceStatus.IDLE
 )
 
 class WorkoutViewModel(
+    private val cadenceSource: CadenceSource? = null,
     private val tickInterval: Duration = 200.milliseconds,
 ) : ViewModel() {
 
@@ -39,6 +41,26 @@ class WorkoutViewModel(
     init {
         viewModelScope.launch {
             loadAvailableWorkouts()
+        }
+        
+        // Observe Cadence Source
+        cadenceSource?.let { source ->
+            viewModelScope.launch {
+                source.cadence.collect { cadence ->
+                    cadence?.let { 
+                        scheduler.updateLiveCadence(it)
+                        // If we are not ticking (workout not started), we still want to see live cadence
+                        if (tickJob == null || !tickJob!!.isActive) {
+                            tick()
+                        }
+                    }
+                }
+            }
+            viewModelScope.launch {
+                source.status.collect { status ->
+                    _uiState.value = _uiState.value.copy(bleStatus = status)
+                }
+            }
         }
     }
 
@@ -70,7 +92,7 @@ class WorkoutViewModel(
     fun reset() {
         scheduler.reset()
         stopTicking()
-        _uiState.value = WorkoutUiState()
+        _uiState.value = WorkoutUiState(bleStatus = cadenceSource?.status?.value ?: CadenceSourceStatus.IDLE)
     }
 
     fun resync(time: Duration) {
@@ -124,6 +146,7 @@ class WorkoutViewModel(
 
     fun startFreeRide() {
         scheduler.startFreeRide()
+        startWorkout()
         tick()
     }
 
@@ -132,7 +155,13 @@ class WorkoutViewModel(
         tick()
     }
 
-
+    fun toggleBle() {
+        val source = cadenceSource ?: return
+        when (source.status.value) {
+            CadenceSourceStatus.IDLE, CadenceSourceStatus.ERROR -> source.startScanning()
+            CadenceSourceStatus.SCANNING, CadenceSourceStatus.CONNECTING, CadenceSourceStatus.CONNECTED -> source.disconnect()
+        }
+    }
 
     private fun startTicking() {
         if (tickJob?.isActive == true) return
@@ -141,8 +170,6 @@ class WorkoutViewModel(
                 try {
                     tick()
                 } catch (e: Exception) {
-                    // TODO: proper logging once a KMP logging library is chosen.
-                    // Defensive: one bad tick shouldn't kill the whole workout loop.
                     println(e)
                 }
                 delay(tickInterval)
@@ -156,7 +183,7 @@ class WorkoutViewModel(
     }
     private fun tick() {
         val state = scheduler.getState()
-        _uiState.value = WorkoutUiState(
+        _uiState.value = _uiState.value.copy(
             workoutState = state,
         )
     }
@@ -164,6 +191,7 @@ class WorkoutViewModel(
     @Suppress("EmptySuperCall")
     override fun onCleared() {
         stopTicking()
+        cadenceSource?.disconnect()
         super.onCleared()
     }
 }

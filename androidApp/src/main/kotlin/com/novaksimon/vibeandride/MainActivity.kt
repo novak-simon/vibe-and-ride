@@ -22,10 +22,10 @@ import com.novaksimon.vibeandride.music.MusicViewModel
 import com.novaksimon.vibeandride.player.AndroidPlaybackController
 import com.novaksimon.vibeandride.player.PlaybackService
 import com.novaksimon.vibeandride.ui.WorkoutScreen
+import com.novaksimon.vibeandride.workout.AndroidBluetoothCadenceSource
 import com.novaksimon.vibeandride.workout.WorkoutViewModel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
 import java.io.BufferedReader
 import java.io.InputStreamReader
@@ -36,6 +36,7 @@ class MainActivity : ComponentActivity() {
 
     private lateinit var workoutViewModel: WorkoutViewModel
     private lateinit var musicViewModel: MusicViewModel
+    private val cadenceSource by lazy { AndroidBluetoothCadenceSource(applicationContext) }
 
     private val pickWorkoutLauncher = registerForActivityResult(
         ActivityResultContracts.GetContent()
@@ -43,11 +44,18 @@ class MainActivity : ComponentActivity() {
         uri?.let { handleWorkoutFile(it) }
     }
 
-    private val requestPermissionLauncher = registerForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) { _ ->
-        // Nothing else required here.
+    private val requestBlePermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions ->
+        val allGranted = permissions.entries.all { it.value }
+        if (allGranted) {
+            workoutViewModel.toggleBle()
+        }
     }
+
+    private val requestNotificationPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { _ -> }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
@@ -80,9 +88,7 @@ class MainActivity : ComponentActivity() {
             {
                 try {
                     mediaController = controllerFuture.get()
-
                     initializeUi()
-
                 } catch (e: Exception) {
                     e.printStackTrace()
                 }
@@ -100,7 +106,7 @@ class MainActivity : ComponentActivity() {
             override fun <T : ViewModel> create(
                 modelClass: Class<T>
             ): T {
-                return WorkoutViewModel() as T
+                return WorkoutViewModel(cadenceSource) as T
             }
         }
 
@@ -190,24 +196,34 @@ class MainActivity : ComponentActivity() {
 
     private fun checkNotificationPermission() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-
             if (
                 ContextCompat.checkSelfPermission(
                     this,
                     Manifest.permission.POST_NOTIFICATIONS
                 ) != PackageManager.PERMISSION_GRANTED
             ) {
-                requestPermissionLauncher.launch(
-                    Manifest.permission.POST_NOTIFICATIONS
-                )
+                requestNotificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
             }
         }
+    }
+
+    fun requestBlePermissions() {
+        val permissions = mutableListOf<String>()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            permissions.add(Manifest.permission.BLUETOOTH_SCAN)
+            permissions.add(Manifest.permission.BLUETOOTH_CONNECT)
+        }
+        
+        // Location is almost always required for BLE scanning to work on many devices
+        permissions.add(Manifest.permission.ACCESS_FINE_LOCATION)
+        permissions.add(Manifest.permission.ACCESS_COARSE_LOCATION)
+        
+        requestBlePermissionLauncher.launch(permissions.toTypedArray())
     }
 
     override fun onDestroy() {
         mediaController?.release()
         mediaController = null
-
         super.onDestroy()
     }
 }
