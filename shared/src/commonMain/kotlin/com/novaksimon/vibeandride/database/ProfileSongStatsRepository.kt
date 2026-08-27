@@ -124,3 +124,16 @@ suspend fun changeLikeState(songId: Int, targetState: Boolean, profileId: String
             select()
         }
 }
+
+suspend fun getLikedSongsWithDetails(profileId: String? = null): List<com.novaksimon.vibeandride.model.Song> {
+    val resolvedProfileId = profileId ?: getCurrentProfile()?.id ?: return emptyList()
+    val likedStats = client.postgrest["profile_song_stats"]
+        .select {
+            filter {
+                eq("profile_id", resolvedProfileId)
+                eq("is_liked", true)
+            }
+        }
+        .decodeList<RawProfileSongStats>()
+    return likedStats.mapNotNull { it.songId }.mapNotNull { getSongById(it) }
+}

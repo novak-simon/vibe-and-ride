@@ -11,16 +11,37 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.DirectionsBike
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.material3.darkColorScheme
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import com.novaksimon.vibeandride.database.initializeProfile
+import com.novaksimon.vibeandride.home.HomeViewModel
 import com.novaksimon.vibeandride.music.MusicViewModel
 import com.novaksimon.vibeandride.player.AndroidPlaybackController
 import com.novaksimon.vibeandride.player.PlaybackService
+import com.novaksimon.vibeandride.ui.HomeScreen
+import com.novaksimon.vibeandride.ui.SettingsScreen
 import com.novaksimon.vibeandride.ui.WorkoutScreen
 import com.novaksimon.vibeandride.workout.AndroidBluetoothCadenceSource
 import com.novaksimon.vibeandride.workout.WorkoutViewModel
@@ -36,6 +57,7 @@ class MainActivity : ComponentActivity() {
 
     private lateinit var workoutViewModel: WorkoutViewModel
     private lateinit var musicViewModel: MusicViewModel
+    private lateinit var homeViewModel: HomeViewModel
     private val cadenceSource by lazy { AndroidBluetoothCadenceSource(applicationContext) }
 
     private val pickWorkoutLauncher = registerForActivityResult(
@@ -121,23 +143,63 @@ class MainActivity : ComponentActivity() {
             }
         }
 
+        val homeFactory = object : ViewModelProvider.Factory {
+            @Suppress("UNCHECKED_CAST")
+            override fun <T : ViewModel> create(
+                modelClass: Class<T>
+            ): T {
+                return HomeViewModel() as T
+            }
+        }
+
         workoutViewModel = ViewModelProvider(this, workoutFactory)[WorkoutViewModel::class.java]
         musicViewModel = ViewModelProvider(this, musicFactory)[MusicViewModel::class.java]
+        homeViewModel = ViewModelProvider(this, homeFactory)[HomeViewModel::class.java]
 
         workoutViewModel.initMusicViewModel(musicViewModel)
         musicViewModel.initWorkoutViewModel(workoutViewModel)
 
         setContent {
-            MaterialTheme {
-                WorkoutScreen(
-                    workoutViewModel = workoutViewModel,
-                    musicViewModel = musicViewModel,
-                    onUploadWorkout = {
-                        pickWorkoutLauncher.launch("*/*")
+            var currentScreen by remember { mutableStateOf<Screen>(Screen.Home) }
+
+            MaterialTheme(colorScheme = darkColorScheme()) {
+                Scaffold(
+                    bottomBar = {
+                        NavigationBar {
+                            val screens = listOf(Screen.Home, Screen.Ride, Screen.Settings)
+                            screens.forEach { screen ->
+                                NavigationBarItem(
+                                    icon = { Icon(screen.icon, contentDescription = screen.label) },
+                                    label = { Text(screen.label) },
+                                    selected = currentScreen == screen,
+                                    onClick = { currentScreen = screen }
+                                )
+                            }
+                        }
                     }
-                )
+                ) { innerPadding ->
+                    Box(modifier = Modifier.padding(innerPadding)) {
+                        when (currentScreen) {
+                            Screen.Home -> HomeScreen(homeViewModel)
+                            Screen.Ride -> WorkoutScreen(
+                                workoutViewModel = workoutViewModel,
+                                musicViewModel = musicViewModel,
+                                onUploadWorkout = {
+                                    pickWorkoutLauncher.launch("*/*")
+                                }
+                            )
+                            Screen.Settings -> SettingsScreen()
+                        }
+                    }
+                }
             }
         }
+    }
+
+    private sealed class Screen(val route: String, val label: String, val icon: ImageVector) {
+        object Home : Screen("home", "Home", Icons.Default.Home)
+        object Ride : Screen("ride", "Ride", Icons.Default.DirectionsBike)
+        object Settings : Screen("settings", "Settings", Icons.Default.Settings)
     }
 
     private fun handleWorkoutFile(uri: Uri) {
