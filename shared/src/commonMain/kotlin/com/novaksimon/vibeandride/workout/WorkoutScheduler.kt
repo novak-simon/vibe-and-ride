@@ -125,11 +125,11 @@ class WorkoutScheduler {
         status = WorkoutStatus.READY
     }
     
-    fun updateLiveCadence(cadence: Double) {
+    fun updateLiveCadence(cadence: Double?) {
         liveCadence = cadence
     }
     
-    fun updateLivePower(power: Double) {
+    fun updateLivePower(power: Double?) {
         livePower = power
     }
 
@@ -180,6 +180,10 @@ class WorkoutScheduler {
             totalElapsed = totalElapsed,
             currentCadence = liveCadence ?: (structuredState?.currentInterval?.cadence),
             currentPower = livePower ?: (structuredState?.currentInterval?.power?.toDouble()),
+            isPowerFromTarget = livePower == null && structuredState?.currentInterval != null,
+            isCadenceFromTarget = liveCadence == null && structuredState?.currentInterval != null,
+            hasLivePower = livePower != null,
+            hasLiveCadence = liveCadence != null,
             structuredState = structuredState
         )
     }

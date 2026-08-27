@@ -21,5 +21,9 @@ data class WorkoutSessionState(
     val totalElapsed: Duration,
     val currentCadence: Double? = null,
     val currentPower: Double? = null,
+    val isPowerFromTarget: Boolean = false,
+    val isCadenceFromTarget: Boolean = false,
+    val hasLivePower: Boolean = false,
+    val hasLiveCadence: Boolean = false,
     val structuredState: StructuredState? = null
 )

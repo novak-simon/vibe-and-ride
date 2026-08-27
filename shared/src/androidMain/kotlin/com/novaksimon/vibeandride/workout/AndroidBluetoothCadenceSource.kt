@@ -33,6 +33,9 @@ class AndroidBluetoothCadenceSource(
     private val _cadence = MutableStateFlow<Double?>(null)
     override val cadence: StateFlow<Double?> = _cadence.asStateFlow()
 
+    private val _power = MutableStateFlow<Double?>(null)
+    override val power: StateFlow<Double?> = _power.asStateFlow()
+
     private val _status = MutableStateFlow(CadenceSourceStatus.IDLE)
     override val status: StateFlow<CadenceSourceStatus> = _status.asStateFlow()
 
@@ -93,6 +96,7 @@ class AndroidBluetoothCadenceSource(
                 _status.value = CadenceSourceStatus.IDLE
                 activeGatt = null
                 _cadence.value = null
+                _power.value = null
                 descriptorWriteQueue.clear()
             }
         }
@@ -162,6 +166,7 @@ class AndroidBluetoothCadenceSource(
         activeGatt = null
         _status.value = CadenceSourceStatus.IDLE
         _cadence.value = null
+        _power.value = null
         descriptorWriteQueue.clear()
     }
 
@@ -241,6 +246,13 @@ class AndroidBluetoothCadenceSource(
             cpMeasurementCharUuid -> {
                 val flags = unsignedShortToInt(data[0], data[1])
                 
+                // Instantaneous Power is always present in bytes 2-3
+                if (data.size >= 4) {
+                    val instantaneousPower = unsignedShortToInt(data[2], data[3]) // Actually sint16, but usually positive
+                    _power.value = instantaneousPower.toDouble()
+                    println("GATT CP Power Data: $instantaneousPower W")
+                }
+
                 // Bit 5 (0x20): Crank Revolution Data
                 val hasCrankData = (flags and 0x20) != 0
                 if (hasCrankData) {

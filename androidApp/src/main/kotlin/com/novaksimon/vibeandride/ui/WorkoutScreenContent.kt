@@ -51,6 +51,7 @@ import androidx.compose.material.icons.filled.Sync
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -142,11 +143,15 @@ fun WorkoutScreenContent(
         ) {
             ValueReadout(
                 label = "POWER",
-                value = state?.currentPower?.let { "${it.toInt()}W" } ?: "---"
+                value = state?.currentPower?.let { 
+                    if (state.isPowerFromTarget) "${(it * 100).toInt()}%" else "${it.toInt()}W"
+                } ?: "---",
+                isLive = state?.hasLivePower == true
             )
             ValueReadout(
                 label = "CADENCE",
-                value = state?.currentCadence?.let { "${it.toInt()} RPM" } ?: "---"
+                value = state?.currentCadence?.let { "${it.toInt()} RPM" } ?: "---",
+                isLive = state?.hasLiveCadence == true
             )
             
             val bleColor = when (workoutUiState.bleStatus) {
@@ -350,8 +355,12 @@ fun WorkoutScreenContent(
 }
 
 @Composable
-fun ValueReadout(label: String, value: String) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+fun ValueReadout(label: String, value: String, isLive: Boolean = true) {
+    val alpha = if (isLive) 1f else 0.6f
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier.alpha(alpha)
+    ) {
         Text(text = label, style = MaterialTheme.typography.labelSmall, color = Color.Gray)
         Text(text = value, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
     }
@@ -872,7 +881,11 @@ private fun previewWorkoutState(): WorkoutUiState {
             status = WorkoutStatus.RUNNING,
             totalElapsed = 180.seconds,
             currentCadence = 90.0,
-            currentPower = 200.0,
+            currentPower = 0.8,
+            isPowerFromTarget = true,
+            isCadenceFromTarget = true,
+            hasLivePower = false,
+            hasLiveCadence = false,
             structuredState = StructuredState(
                 intervalIndex = 3,
                 currentInterval = Interval(type = "SteadyState", power = 0.8f, cadence = 90.toDouble(), duration = 60.0),

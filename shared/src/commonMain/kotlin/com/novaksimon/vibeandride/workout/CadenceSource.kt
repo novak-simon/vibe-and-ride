@@ -8,6 +8,7 @@ enum class CadenceSourceStatus {
 
 interface CadenceSource {
     val cadence: StateFlow<Double?>
+    val power: StateFlow<Double?>
     val status: StateFlow<CadenceSourceStatus>
     
     fun startScanning()

@@ -8,11 +8,18 @@ class FakeCadenceSource : CadenceSource {
     private val _cadence = MutableStateFlow<Double?>(null)
     override val cadence: StateFlow<Double?> = _cadence.asStateFlow()
 
+    private val _power = MutableStateFlow<Double?>(null)
+    override val power: StateFlow<Double?> = _power.asStateFlow()
+
     private val _status = MutableStateFlow(CadenceSourceStatus.IDLE)
     override val status: StateFlow<CadenceSourceStatus> = _status.asStateFlow()
 
     fun emitCadence(value: Double?) {
         _cadence.value = value
+    }
+
+    fun emitPower(value: Double?) {
+        _power.value = value
     }
 
     fun emitStatus(value: CadenceSourceStatus) {

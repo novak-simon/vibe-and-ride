@@ -44,6 +44,8 @@ class WorkoutSchedulerCharacterizationTest {
         assertEquals(Duration.ZERO, state.totalElapsed)
         assertNull(state.currentCadence)
         assertNull(state.currentPower)
+        assertFalse(state.isPowerFromTarget)
+        assertFalse(state.isCadenceFromTarget)
     }
 
     @Test
@@ -202,5 +204,23 @@ class WorkoutSchedulerCharacterizationTest {
         checkConsistency(25.seconds)
         checkConsistency(39.seconds)
         checkConsistency(40.seconds)
+    }
+
+    @Test
+    fun testPowerFallbackToTarget() {
+        val workout = createSimpleWorkout(listOf(
+            Interval(10.0, 0.75f, 90.0, "work")
+        ))
+        setWorkout(scheduler, workout)
+        scheduler.resync(5.seconds)
+        
+        val state = scheduler.getState()
+        assertEquals(0.75, state.currentPower)
+        assertTrue(state.isPowerFromTarget)
+        
+        scheduler.updateLivePower(250.0)
+        val stateWithLive = scheduler.getState()
+        assertEquals(250.0, stateWithLive.currentPower)
+        assertFalse(stateWithLive.isPowerFromTarget)
     }
 }

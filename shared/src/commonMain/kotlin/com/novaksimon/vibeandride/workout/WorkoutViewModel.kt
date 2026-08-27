@@ -49,18 +49,30 @@ class WorkoutViewModel(
         cadenceSource?.let { source ->
             viewModelScope.launch {
                 source.cadence.collect { cadence ->
-                    cadence?.let { 
-                        scheduler.updateLiveCadence(it)
-                        // If we are not ticking (workout not started), we still want to see live cadence
-                        if (tickJob == null || !tickJob!!.isActive) {
-                            tick()
-                        }
+                    scheduler.updateLiveCadence(cadence)
+                    // If we are not ticking (workout not started), we still want to see live cadence
+                    if (tickJob == null || !tickJob!!.isActive) {
+                        tick()
+                    }
+                }
+            }
+            viewModelScope.launch {
+                source.power.collect { power ->
+                    scheduler.updateLivePower(power)
+                    // If we are not ticking (workout not started), we still want to see live power
+                    if (tickJob == null || !tickJob!!.isActive) {
+                        tick()
                     }
                 }
             }
             viewModelScope.launch {
                 source.status.collect { status ->
                     _uiState.value = _uiState.value.copy(bleStatus = status)
+                    if (status != CadenceSourceStatus.CONNECTED) {
+                        scheduler.updateLiveCadence(null)
+                        scheduler.updateLivePower(null)
+                        tick()
+                    }
                 }
             }
         }
