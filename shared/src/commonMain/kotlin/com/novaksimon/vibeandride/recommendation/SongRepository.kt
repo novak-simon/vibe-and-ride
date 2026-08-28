@@ -7,9 +7,9 @@ interface SongRepository {
         targetAlgorithmCadence: Int,
         algorithmCadenceToleration: Int,
         limit: Int
-    ): List<Song>
+    ): Result<List<Song>>
 
-    suspend fun fetchSongs(limit: Int): List<Song>
+    suspend fun fetchSongs(limit: Int): Result<List<Song>>
 
-    suspend fun getAudioUrl(song: Song): String?
+    suspend fun getAudioUrl(song: Song): Result<String>
 }

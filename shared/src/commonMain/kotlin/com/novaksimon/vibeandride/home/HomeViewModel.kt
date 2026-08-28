@@ -6,6 +6,7 @@ import com.novaksimon.vibeandride.database.getLikedSongsWithDetails
 import com.novaksimon.vibeandride.database.getSuggestedWorkouts
 import com.novaksimon.vibeandride.model.Song
 import com.novaksimon.vibeandride.model.Workout
+import com.novaksimon.vibeandride.util.VibeLog
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -21,6 +22,7 @@ data class WorkoutPlaceholder(
 )
 
 class HomeViewModel : ViewModel() {
+    private val TAG = "HomeViewModel"
     private val _likedSongs = MutableStateFlow<List<Song>>(emptyList())
     val likedSongs: StateFlow<List<Song>> = _likedSongs.asStateFlow()
 
@@ -60,7 +62,7 @@ class HomeViewModel : ViewModel() {
             try {
                 _suggestedWorkouts.value = getSuggestedWorkouts()
             } catch (e: Exception) {
-                println("Error loading suggested workouts: ${e.message}")
+                VibeLog.e(TAG, "Error loading suggested workouts", e)
             }
         }
     }
@@ -71,7 +73,7 @@ class HomeViewModel : ViewModel() {
             try {
                 _likedSongs.value = getLikedSongsWithDetails()
             } catch (e: Exception) {
-                println("Error loading liked songs: ${e.message}")
+                VibeLog.e(TAG, "Error loading liked songs", e)
             } finally {
                 _isLoadingLikedSongs.value = false
             }

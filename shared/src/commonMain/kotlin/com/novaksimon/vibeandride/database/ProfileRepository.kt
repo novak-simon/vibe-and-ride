@@ -3,8 +3,11 @@ package com.novaksimon.vibeandride.database
 import com.novaksimon.vibeandride.database.SupabaseClientProvider.client
 import com.novaksimon.vibeandride.model.RawProfile
 import com.novaksimon.vibeandride.model.Profile
+import com.novaksimon.vibeandride.util.VibeLog
 import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.postgrest.postgrest
+
+private const val TAG = "ProfileRepository"
 
 suspend fun getProfileById(id: String?): Profile? {
     if (id.isNullOrEmpty()) return null
@@ -21,7 +24,7 @@ suspend fun getProfileById(id: String?): Profile? {
 
 internal suspend fun getCurrentProfile(): Profile? {
     val id = client.auth.currentUserOrNull()?.id
-    println("PROFILE ID: $id")
+    VibeLog.d(TAG, "PROFILE ID: $id")
     return getProfileById(id)
 }
 

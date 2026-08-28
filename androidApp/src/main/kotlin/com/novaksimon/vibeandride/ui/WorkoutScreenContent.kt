@@ -67,6 +67,7 @@ import com.novaksimon.vibeandride.model.Interval
 import com.novaksimon.vibeandride.model.Song
 import com.novaksimon.vibeandride.model.Workout
 import com.novaksimon.vibeandride.recommendation.SongRecommendation
+import com.novaksimon.vibeandride.util.VibeLog
 import com.novaksimon.vibeandride.util.formatSeconds
 import com.novaksimon.vibeandride.workout.StructuredState
 import com.novaksimon.vibeandride.workout.WorkoutMode
@@ -104,6 +105,7 @@ fun WorkoutScreenContent(
     onPickerVisibilityChange: (Boolean) -> Unit,
     onStartFreeRide: () -> Unit,
     onToggleBle: () -> Unit,
+    onClearError: () -> Unit,
 ) {
     var showResyncDialog by remember { mutableStateOf(false) }
     var showDebugDialog by remember { mutableStateOf(false) }
@@ -126,6 +128,26 @@ fun WorkoutScreenContent(
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
+        // Error Display
+        val errorToDisplay = workoutUiState.errorMessage ?: musicUiState.errorMessage
+        if (errorToDisplay != null) {
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onClearError() },
+                color = MaterialTheme.colorScheme.errorContainer,
+                shape = RoundedCornerShape(8.dp)
+            ) {
+                Text(
+                    text = errorToDisplay,
+                    color = MaterialTheme.colorScheme.onErrorContainer,
+                    modifier = Modifier.padding(8.dp),
+                    style = MaterialTheme.typography.bodySmall,
+                    textAlign = TextAlign.Center
+                )
+            }
+        }
+
         // 1. Workout Name Header
         Text(
             text = workout?.name?.uppercase() ?: "NO WORKOUT SELECTED",
@@ -620,7 +642,7 @@ fun SongDetailContent(song: Song) {
 
         if (song.shareUrl.isNotEmpty()) {
             TextButton(
-                onClick = { try { uriHandler.openUri(song.shareUrl) } catch (e: Exception) {println("Exception when clicking share url: $e")} },
+                onClick = { try { uriHandler.openUri(song.shareUrl) } catch (e: Exception) { VibeLog.e("WorkoutScreen", "Exception when clicking share url", e) } },
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Text(
@@ -848,6 +870,7 @@ private fun WorkoutScreenPreview() {
             onPickerVisibilityChange = {},
             onStartFreeRide = {},
             onToggleBle = {},
+            onClearError = {},
         )
     }
 }

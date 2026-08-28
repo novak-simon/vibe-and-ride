@@ -48,6 +48,9 @@ fun WorkoutScreen(
             } else {
                 workoutViewModel.toggleBle()
             }
+        },
+        onClearError = {
+            workoutViewModel.clearError()
         }
     )
 }

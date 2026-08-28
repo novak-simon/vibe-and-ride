@@ -78,28 +78,30 @@ class FakeSongRepository : SongRepository {
         targetAlgorithmCadence: Int,
         algorithmCadenceToleration: Int,
         limit: Int
-    ): List<Song> = mutex.withLock {
+    ): Result<List<Song>> = mutex.withLock {
         calls.add("getSongsAroundTargetCadence")
         arguments.add(listOf(targetAlgorithmCadence, algorithmCadenceToleration, limit))
-        if (songsAroundTargetCadenceResults.isNotEmpty()) {
+        val result = if (songsAroundTargetCadenceResults.isNotEmpty()) {
             songsAroundTargetCadenceResults.removeAt(0)
         } else {
             emptyList()
         }
+        Result.success(result)
     }
 
-    override suspend fun fetchSongs(limit: Int): List<Song> = mutex.withLock {
+    override suspend fun fetchSongs(limit: Int): Result<List<Song>> = mutex.withLock {
         calls.add("fetchSongs")
         arguments.add(limit)
-        if (fetchSongsResults.isNotEmpty()) {
+        val result = if (fetchSongsResults.isNotEmpty()) {
             fetchSongsResults.removeAt(0)
         } else {
             emptyList()
         }
+        Result.success(result)
     }
 
-    override suspend fun getAudioUrl(song: Song): String? = mutex.withLock {
+    override suspend fun getAudioUrl(song: Song): Result<String> = mutex.withLock {
         calls.add("getAudioUrl")
-        "https://fake.url/${song.id}"
+        Result.success("https://fake.url/${song.id}")
     }
 }

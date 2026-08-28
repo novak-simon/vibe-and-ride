@@ -3,6 +3,7 @@ package com.novaksimon.vibeandride.server.analysis
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.postgrest.from
 import com.novaksimon.vibeandride.model.RawSong
+import com.novaksimon.vibeandride.util.VibeLog
 import kotlinx.coroutines.*
 import java.io.File
 import java.util.concurrent.TimeUnit
@@ -14,9 +15,10 @@ class AnalysisOrchestrator(
     private val pythonProjectPath: String = "C:/Users/novak/Documents/vibe-and-ride-utils",
     private val pythonExecutable: String = "python"
 ) {
+    private val TAG = "AnalysisOrchestrator"
 
     suspend fun runAnalysis(limit: Int = 10) {
-        println("AnalysisOrchestrator: Fetching unanalyzed songs...")
+        VibeLog.i(TAG, "AnalysisOrchestrator: Fetching unanalyzed songs...")
         
         // Complex OR filter in supabase-kt
         val unanalyzedSongs = supabase.from("songs")
@@ -44,20 +46,20 @@ class AnalysisOrchestrator(
             }
             .decodeList<RawSong>()
 
-        println("AnalysisOrchestrator: Found ${unanalyzedSongs.size} songs to analyze.")
+        VibeLog.i(TAG, "AnalysisOrchestrator: Found ${unanalyzedSongs.size} songs to analyze.")
 
         unanalyzedSongs.forEach { song ->
             try {
                 analyzeSong(song)
             } catch (e: Exception) {
-                println("AnalysisOrchestrator: Error analyzing song ${song.id}: ${e.message}")
+                VibeLog.e(TAG, "AnalysisOrchestrator: Error analyzing song ${song.id}", e)
             }
         }
     }
 
     private suspend fun analyzeSong(song: RawSong) = withContext(Dispatchers.IO) {
         val songId = song.id
-        println("AnalysisOrchestrator: Triggering Python analysis for song $songId (using $pythonExecutable)")
+        VibeLog.i(TAG, "AnalysisOrchestrator: Triggering Python analysis for song $songId (using $pythonExecutable)")
 
         // Use the configured python executable
         val pb = ProcessBuilder(pythonExecutable, "main.py", "analyze", "--id", songId.toString())
@@ -70,7 +72,7 @@ class AnalysisOrchestrator(
         val outputJob = launch {
             process.inputStream.bufferedReader().useLines { lines ->
                 lines.forEach { line ->
-                    println("[Python Analysis $songId]: $line")
+                    VibeLog.d(TAG, "[Python Analysis $songId]: $line")
                 }
             }
         }
@@ -80,14 +82,14 @@ class AnalysisOrchestrator(
 
         if (!exited) {
             process.destroyForcibly()
-            println("AnalysisOrchestrator: Python analysis timed out for song $songId")
+            VibeLog.e(TAG, "AnalysisOrchestrator: Python analysis timed out for song $songId")
             return@withContext
         }
 
         if (process.exitValue() == 0) {
-            println("AnalysisOrchestrator: Successfully analyzed song $songId")
+            VibeLog.i(TAG, "AnalysisOrchestrator: Successfully analyzed song $songId")
         } else {
-            println("AnalysisOrchestrator: Python analysis failed for song $songId (exit code ${process.exitValue()})")
+            VibeLog.e(TAG, "AnalysisOrchestrator: Python analysis failed for song $songId (exit code ${process.exitValue()})")
         }
     }
 }

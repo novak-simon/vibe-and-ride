@@ -14,6 +14,7 @@ import android.bluetooth.le.ScanFilter
 import android.bluetooth.le.ScanResult
 import android.bluetooth.le.ScanSettings
 import android.content.Context
+import com.novaksimon.vibeandride.util.VibeLog
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -26,6 +27,7 @@ import java.util.UUID
 class AndroidBluetoothCadenceSource(
     private val context: Context,
 ) : CadenceSource {
+    private val TAG = "BleCadenceSource"
 
     private val bluetoothManager = context.getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
     private val bluetoothAdapter: BluetoothAdapter? = bluetoothManager.adapter
@@ -59,7 +61,7 @@ class AndroidBluetoothCadenceSource(
             val device = result.device
             val name = device.name ?: "Unknown"
             
-            println("Discovered BLE: $name (${device.address})")
+            VibeLog.d(TAG, "Discovered BLE: $name (${device.address})")
             
             var hasTargetUuid = false
             val recordStr = result.scanRecord?.toString() ?: ""
@@ -73,14 +75,14 @@ class AndroidBluetoothCadenceSource(
                              name.contains("CORE", ignoreCase = true)
             
             if (hasTargetUuid || matchesName) {
-                println("Found matching BLE trainer: $name (${device.address}). Connecting...")
+                VibeLog.i(TAG, "Found matching BLE trainer: $name (${device.address}). Connecting...")
                 stopScanning()
                 connectToDevice(device)
             }
         }
 
         override fun onScanFailed(errorCode: Int) {
-            println("Scan failed with error: $errorCode")
+            VibeLog.e(TAG, "Scan failed with error: $errorCode")
             _status.value = CadenceSourceStatus.ERROR
         }
     }
@@ -88,11 +90,11 @@ class AndroidBluetoothCadenceSource(
     private val gattCallback = object : BluetoothGattCallback() {
         override fun onConnectionStateChange(gatt: BluetoothGatt, status: Int, newState: Int) {
             if (newState == BluetoothProfile.STATE_CONNECTED) {
-                println("GATT Connected to ${gatt.device.name ?: "Unknown"}. Discovering services...")
+                VibeLog.i(TAG, "GATT Connected to ${gatt.device.name ?: "Unknown"}. Discovering services...")
                 _status.value = CadenceSourceStatus.CONNECTING
                 gatt.discoverServices()
             } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
-                println("GATT Disconnected from ${gatt.device.name ?: "Unknown"}. Status: $status")
+                VibeLog.i(TAG, "GATT Disconnected from ${gatt.device.name ?: "Unknown"}. Status: $status")
                 _status.value = CadenceSourceStatus.IDLE
                 activeGatt = null
                 _cadence.value = null
@@ -103,16 +105,16 @@ class AndroidBluetoothCadenceSource(
 
         override fun onServicesDiscovered(gatt: BluetoothGatt, status: Int) {
             if (status == BluetoothGatt.GATT_SUCCESS) {
-                println("GATT Services discovered for ${gatt.device.name ?: "Unknown"}")
+                VibeLog.i(TAG, "GATT Services discovered for ${gatt.device.name ?: "Unknown"}")
                 setupNotifications(gatt)
             } else {
-                println("GATT Service discovery failed for ${gatt.device.name ?: "Unknown"}: $status")
+                VibeLog.e(TAG, "GATT Service discovery failed for ${gatt.device.name ?: "Unknown"}: $status")
                 _status.value = CadenceSourceStatus.ERROR
             }
         }
 
         override fun onDescriptorWrite(gatt: BluetoothGatt, descriptor: BluetoothGattDescriptor, status: Int) {
-            println("GATT onDescriptorWrite: status=$status characteristic=${descriptor.characteristic.uuid}")
+            VibeLog.d(TAG, "GATT onDescriptorWrite: status=$status characteristic=${descriptor.characteristic.uuid}")
             processDescriptorQueue(gatt)
         }
 
@@ -128,14 +130,14 @@ class AndroidBluetoothCadenceSource(
 
     override fun startScanning() {
         if (bluetoothAdapter == null || !bluetoothAdapter.isEnabled) {
-            println("Bluetooth adapter not available or disabled")
+            VibeLog.e(TAG, "Bluetooth adapter not available or disabled")
             _status.value = CadenceSourceStatus.ERROR
             return
         }
 
         val scanner = bluetoothAdapter.bluetoothLeScanner
         if (scanner == null) {
-            println("Bluetooth LE Scanner not available")
+            VibeLog.e(TAG, "Bluetooth LE Scanner not available")
             _status.value = CadenceSourceStatus.ERROR
             return
         }
@@ -147,12 +149,12 @@ class AndroidBluetoothCadenceSource(
             .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
             .build()
 
-        println("Starting BLE scan (Internal filtering)...")
+        VibeLog.i(TAG, "Starting BLE scan (Internal filtering)...")
         scanner.startScan(filters, settings, scanCallback)
     }
 
     override fun stopScanning() {
-        println("Stopping BLE scan")
+        VibeLog.i(TAG, "Stopping BLE scan")
         bluetoothAdapter?.bluetoothLeScanner?.stopScan(scanCallback)
         if (_status.value == CadenceSourceStatus.SCANNING) {
             _status.value = CadenceSourceStatus.IDLE
@@ -160,7 +162,7 @@ class AndroidBluetoothCadenceSource(
     }
 
     override fun disconnect() {
-        println("Disconnecting from BLE device")
+        VibeLog.i(TAG, "Disconnecting from BLE device")
         activeGatt?.disconnect()
         activeGatt?.close()
         activeGatt = null
@@ -171,7 +173,7 @@ class AndroidBluetoothCadenceSource(
     }
 
     private fun connectToDevice(device: BluetoothDevice) {
-        println("Initiating connection to ${device.name ?: "Unknown"} (${device.address})")
+        VibeLog.i(TAG, "Initiating connection to ${device.name ?: "Unknown"} (${device.address})")
         _status.value = CadenceSourceStatus.CONNECTING
         @Suppress("DEPRECATION")
         activeGatt = device.connectGatt(context, false, gattCallback)
@@ -183,7 +185,7 @@ class AndroidBluetoothCadenceSource(
         // 1. Try to find CSC service
         val cscService = gatt.getService(cscServiceUuid)
         cscService?.getCharacteristic(cscMeasurementCharUuid)?.let { char ->
-            println("GATT: Found CSC characteristic. Adding to subscription queue.")
+            VibeLog.d(TAG, "GATT: Found CSC characteristic. Adding to subscription queue.")
             gatt.setCharacteristicNotification(char, true)
             char.getDescriptor(clientCharacteristicConfigUuid)?.let { desc ->
                 descriptorWriteQueue.add(desc)
@@ -193,7 +195,7 @@ class AndroidBluetoothCadenceSource(
         // 2. Try to find CP service
         val cpService = gatt.getService(cpServiceUuid)
         cpService?.getCharacteristic(cpMeasurementCharUuid)?.let { char ->
-            println("GATT: Found CP characteristic. Adding to subscription queue.")
+            VibeLog.d(TAG, "GATT: Found CP characteristic. Adding to subscription queue.")
             gatt.setCharacteristicNotification(char, true)
             char.getDescriptor(clientCharacteristicConfigUuid)?.let { desc ->
                 descriptorWriteQueue.add(desc)
@@ -204,21 +206,21 @@ class AndroidBluetoothCadenceSource(
             processDescriptorQueue(gatt)
             _status.value = CadenceSourceStatus.CONNECTED
         } else {
-            println("Neither CSC nor CP measurement characteristic found on ${gatt.device.name ?: "Unknown"}")
+            VibeLog.e(TAG, "Neither CSC nor CP measurement characteristic found on ${gatt.device.name ?: "Unknown"}")
             _status.value = CadenceSourceStatus.ERROR
         }
     }
 
     private fun processDescriptorQueue(gatt: BluetoothGatt) {
         if (descriptorWriteQueue.isEmpty()) {
-            println("GATT: All descriptor writes complete.")
+            VibeLog.d(TAG, "GATT: All descriptor writes complete.")
             return
         }
 
         val descriptor = descriptorWriteQueue.removeAt(0)
         @Suppress("DEPRECATION")
         descriptor.value = BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
-        println("GATT: Writing descriptor for ${descriptor.characteristic.uuid}")
+        VibeLog.d(TAG, "GATT: Writing descriptor for ${descriptor.characteristic.uuid}")
         @Suppress("DEPRECATION")
         gatt.writeDescriptor(descriptor)
     }
@@ -226,7 +228,7 @@ class AndroidBluetoothCadenceSource(
     private fun parseCharacteristic(characteristic: BluetoothGattCharacteristic, value: ByteArray? = null) {
         @Suppress("DEPRECATION")
         val data = value ?: characteristic.value ?: return
-        println("GATT parseCharacteristic: UUID=${characteristic.uuid} DataSize=${data.size} Data=${data.joinToString(",") { it.toString() }}")
+        VibeLog.d(TAG, "GATT parseCharacteristic: UUID=${characteristic.uuid} DataSize=${data.size}")
         
         when (characteristic.uuid) {
             cscMeasurementCharUuid -> {
@@ -250,7 +252,7 @@ class AndroidBluetoothCadenceSource(
                 if (data.size >= 4) {
                     val instantaneousPower = unsignedShortToInt(data[2], data[3]) // Actually sint16, but usually positive
                     _power.value = instantaneousPower.toDouble()
-                    println("GATT CP Power Data: $instantaneousPower W")
+                    VibeLog.d(TAG, "GATT CP Power Data: $instantaneousPower W")
                 }
 
                 // Bit 5 (0x20): Crank Revolution Data
@@ -264,7 +266,7 @@ class AndroidBluetoothCadenceSource(
                     if (data.size >= offset + 4) {
                         val cumulativeCrankRevs = unsignedShortToInt(data[offset], data[offset + 1])
                         val lastCrankEventTime = unsignedShortToInt(data[offset + 2], data[offset + 3])
-                        println("GATT CP Crank Data: Revs=$cumulativeCrankRevs Time=$lastCrankEventTime")
+                        VibeLog.d(TAG, "GATT CP Crank Data: Revs=$cumulativeCrankRevs Time=$lastCrankEventTime")
                         calculateCscCadence(cumulativeCrankRevs, lastCrankEventTime)
                     }
                 }
@@ -288,7 +290,7 @@ class AndroidBluetoothCadenceSource(
             
             if (deltaTime > 0 && deltaRevs > 0) {
                 val rpm = (deltaRevs.toDouble() * 1024.0 * 60.0) / deltaTime.toDouble()
-                println("GATT Calculated RPM: $rpm (DeltaRevs=$deltaRevs DeltaTime=$deltaTime)")
+                VibeLog.d(TAG, "GATT Calculated RPM: $rpm (DeltaRevs=$deltaRevs DeltaTime=$deltaTime)")
                 if (rpm < 200) { 
                     _cadence.value = rpm
                 }

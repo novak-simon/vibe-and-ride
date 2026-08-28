@@ -9,6 +9,7 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.Serializable
 import com.novaksimon.vibeandride.model.*
 import com.novaksimon.vibeandride.server.IdRow
+import com.novaksimon.vibeandride.util.VibeLog
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.postgrest.from
 import io.github.jan.supabase.postgrest.query.Columns
@@ -56,6 +57,7 @@ class JamendoImporter(
     private val supabase: SupabaseClient,
     private val jamendoClientId: String
 ) {
+    private val TAG = "JamendoImporter"
     private val httpClient = HttpClient {
         install(ContentNegotiation) {
             json(Json { ignoreUnknownKeys = true })
@@ -67,11 +69,11 @@ class JamendoImporter(
         var remaining = limit
         var currentOffset = offset
 
-        println("JamendoImporter: Starting bulk import of $limit tracks (starting offset: $offset)...")
+        VibeLog.i(TAG, "JamendoImporter: Starting bulk import of $limit tracks (starting offset: $offset)...")
 
         while (remaining > 0) {
             val pageSize = minOf(remaining, maxPageSize)
-            println("JamendoImporter: Fetching batch (limit: $pageSize, offset: $currentOffset)...")
+            VibeLog.i(TAG, "JamendoImporter: Fetching batch (limit: $pageSize, offset: $currentOffset)...")
 
             val response: JamendoResponse = try {
                 httpClient.get("https://api.jamendo.com/v3.0/tracks/") {
@@ -84,12 +86,12 @@ class JamendoImporter(
                     parameter("groupby", "artist_id")
                 }.body()
             } catch (e: Exception) {
-                println("JamendoImporter: API request failed: ${e.message}")
+                VibeLog.e(TAG, "JamendoImporter: API request failed", e)
                 break
             }
 
             if (response.results.isEmpty()) {
-                println("JamendoImporter: No more tracks returned by API.")
+                VibeLog.i(TAG, "JamendoImporter: No more tracks returned by API.")
                 break
             }
 
@@ -97,7 +99,7 @@ class JamendoImporter(
                 try {
                     processTrack(track)
                 } catch (e: Exception) {
-                    println("JamendoImporter: Error processing track ${track.id}: ${e.message}")
+                    VibeLog.e(TAG, "JamendoImporter: Error processing track ${track.id}", e)
                 }
             }
 
@@ -109,7 +111,7 @@ class JamendoImporter(
                 break
             }
         }
-        println("JamendoImporter: Bulk import complete.")
+        VibeLog.i(TAG, "JamendoImporter: Bulk import complete.")
     }
 
     private suspend fun processTrack(track: JamendoTrack) {
@@ -123,7 +125,7 @@ class JamendoImporter(
             .decodeSingleOrNull<RawJamendoSongData>()
 
         if (existing != null) {
-            println("JamendoImporter: Song ${track.name} already exists, skipping.")
+            VibeLog.d(TAG, "JamendoImporter: Song ${track.name} already exists, skipping.")
             return
         }
 
@@ -176,7 +178,7 @@ class JamendoImporter(
         }
 
         supabase.from("jamendo_song_data").insert(jamendoData)
-        println("JamendoImporter: Inserted ${track.name}")
+        VibeLog.i(TAG, "JamendoImporter: Inserted ${track.name}")
     }
 
     private suspend fun findOrCreate(table: String, name: String?): Int? {

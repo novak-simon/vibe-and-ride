@@ -3,6 +3,7 @@ package com.novaksimon.vibeandride.database
 import com.novaksimon.vibeandride.api.getAudiusStreamUrl
 import com.novaksimon.vibeandride.database.SupabaseClientProvider.client
 import com.novaksimon.vibeandride.model.RawAudiusSongData
+import com.novaksimon.vibeandride.util.VibeLog
 import io.github.jan.supabase.postgrest.postgrest
 
 suspend fun getAudiusAudioUrlBySongId(songId: Int): String? {
@@ -18,7 +19,7 @@ suspend fun getAudiusAudioUrlBySongId(songId: Int): String? {
 
         getAudiusStreamUrl(audiusId)
     } catch (e: Exception) {
-        println(e)
+        VibeLog.e("AudiusSongDataRepo", "getAudiusAudioUrlBySongId failed for song $songId", e)
         null
     }
 }

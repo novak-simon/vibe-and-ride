@@ -4,6 +4,7 @@ import com.novaksimon.vibeandride.model.Interval
 import com.novaksimon.vibeandride.model.Song
 import com.novaksimon.vibeandride.model.Profile
 import com.novaksimon.vibeandride.model.ProfileSongStats
+import com.novaksimon.vibeandride.util.VibeLog
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -90,7 +91,7 @@ class RecommendationEngine(
                 targetCadence,
                 algorithmCadenceToleration = 2,
                 limit = FIRST_CANDIDATE_POOL_LIMIT
-            )
+            ).getOrDefault(emptyList())
         }
         if (pool.size < FIRST_CANDIDATE_POOL_LIMIT) {
             pool = pool.union(
@@ -99,7 +100,7 @@ class RecommendationEngine(
                         targetCadence,
                         algorithmCadenceToleration = 5,
                         limit = FIRST_CANDIDATE_POOL_LIMIT - pool.size
-                    )
+                    ).getOrDefault(emptyList())
                 }
             ).toList()
             if (pool.size < FIRST_CANDIDATE_POOL_LIMIT) {
@@ -109,18 +110,18 @@ class RecommendationEngine(
                             targetCadence,
                             algorithmCadenceToleration = 10,
                             limit = FIRST_CANDIDATE_POOL_LIMIT
-                        )
+                        ).getOrDefault(emptyList())
                     }
                 ).toList()
                 if (pool.isEmpty()) {
-                    println("No songs found around cadence, fetching generic songs...")
+                    VibeLog.w("RecommendationEngine", "No songs found around cadence, fetching generic songs...")
                     withContext(ioDispatcher) {
-                        pool = songRepository.fetchSongs(50)
+                        pool = songRepository.fetchSongs(50).getOrDefault(emptyList())
                     }
                 }
             }
         }
-        println("approximateFilterByInterval: found ${pool.size} candidates")
+        VibeLog.d("RecommendationEngine", "approximateFilterByInterval: found ${pool.size} candidates")
         return pool
     }
 
@@ -294,13 +295,13 @@ class RecommendationEngine(
             firstCandidatePool = approximateFilterByInterval(interval)
         }
         if (firstCandidatePool.isNullOrEmpty()) {
-            println("RecommendationEngine: firstCandidatePool is empty for interval $interval")
+            VibeLog.w("RecommendationEngine", "RecommendationEngine: firstCandidatePool is empty for interval $interval")
             return RecommendationResult(emptyList(), emptyList())
         }
         val algorithmSemaphore = Semaphore(4)
         val profile: Profile = profileRepository.getProfileForRecommendation()
         val candidates = coroutineScope {
-            firstCandidatePool.map { candidate ->
+            firstCandidatePool!!.map { candidate ->
                 async(defaultDispatcher) {
                     algorithmSemaphore.withPermit {
                         getSongRecommendationScore(candidate, interval, profile)
@@ -318,7 +319,7 @@ class RecommendationEngine(
         )
 
         val topSongs = sorted.mapNotNull { it.song }.take(10)
-        println("RecommendationEngine: recommended ${topSongs.size} songs")
+        VibeLog.i("RecommendationEngine", "RecommendationEngine: recommended ${topSongs.size} songs")
         return RecommendationResult(topSongs, sorted)
     }
 }

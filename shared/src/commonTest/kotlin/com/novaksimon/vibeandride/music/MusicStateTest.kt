@@ -24,8 +24,7 @@ class MusicStateTest {
         assertNull(state.futureIntervalSong)
         assertEquals(-1, state.currentIntervalIndex)
         assertNull(state.preloadedSongId)
-        assertFalse(state.hasPreloadedSong)
-        assertFalse(state.isTransitioning)
+        assertEquals(PlaybackState.IDLE, state.playbackState)
         assertTrue(state.currentDebug.isEmpty())
         assertTrue(state.futureDebug.isEmpty())
     }
@@ -44,7 +43,7 @@ class MusicStateTest {
             currentIntervalIndex = 0,
             songIndex = 1,
             currentSong = song,
-            isTransitioning = true
+            playbackState = PlaybackState.TRANSITIONING
         )
 
         assertEquals(workout, updatedState.workout)
@@ -54,11 +53,11 @@ class MusicStateTest {
         assertEquals(0, updatedState.currentIntervalIndex)
         assertEquals(1, updatedState.songIndex)
         assertEquals(song, updatedState.currentSong)
-        assertTrue(updatedState.isTransitioning)
+        assertEquals(PlaybackState.TRANSITIONING, updatedState.playbackState)
 
         // Verify original state is unchanged
         assertNull(initialState.workout)
-        assertFalse(initialState.isTransitioning)
+        assertEquals(PlaybackState.IDLE, initialState.playbackState)
     }
 
     @Test

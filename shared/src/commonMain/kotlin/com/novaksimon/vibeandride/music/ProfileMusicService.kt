@@ -2,11 +2,13 @@ package com.novaksimon.vibeandride.music
 
 import com.novaksimon.vibeandride.model.Song
 import com.novaksimon.vibeandride.recommendation.SongRepository
+import com.novaksimon.vibeandride.util.VibeLog
 
 class ProfileMusicService(
     private val playbackController: PlaybackController,
     private val songRepository: SongRepository
 ) {
+    private val TAG = "ProfileMusicService"
 
     private var informedAboutTrackEnd = false
     private var currentSong: Song? = null
@@ -45,6 +47,7 @@ class ProfileMusicService(
             playbackController.preloadSource(song, audioUrl)
             return true
         } else {
+            VibeLog.w(TAG, "Failed to preload song ${song.id}: audio URL is null or empty")
             return false
         }
     }
@@ -90,7 +93,10 @@ class ProfileMusicService(
         preloadedAudioUrl = null
         preloadedSongId = null
 
-        if (audioUrl == null) return false
+        if (audioUrl == null) {
+            VibeLog.e(TAG, "Failed to crossfade to song ${song.id}: audio URL is null")
+            return false
+        }
 
         playbackController.preloadSource(song, audioUrl)
 
@@ -103,6 +109,6 @@ class ProfileMusicService(
     }
 
     suspend fun getAudioUrl(song: Song): String? {
-        return songRepository.getAudioUrl(song)
+        return songRepository.getAudioUrl(song).getOrNull()
     }
 }

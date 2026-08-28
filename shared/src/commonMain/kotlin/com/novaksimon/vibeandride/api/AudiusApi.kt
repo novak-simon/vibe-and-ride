@@ -1,5 +1,6 @@
 package com.novaksimon.vibeandride.api
 
+import com.novaksimon.vibeandride.util.VibeLog
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
@@ -8,6 +9,8 @@ import kotlinx.serialization.json.Json
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import kotlin.time.Duration.Companion.milliseconds
+
+private const val TAG = "AudiusApi"
 
 private val httpClient = OkHttpClient.Builder()
     .followRedirects(true)
@@ -60,12 +63,12 @@ object AudiusNodeRegistry {
                     if (providersResponse.success) {
                         nodes = providersResponse.data.shuffled()
                         lastFetchTime = System.currentTimeMillis()
-                        println("AudiusNodeRegistry: Refreshed ${nodes.size} nodes")
+                        VibeLog.d(TAG, "AudiusNodeRegistry: Refreshed ${nodes.size} nodes")
                     }
                 }
             }
         } catch (e: Exception) {
-            println("AudiusNodeRegistry: Failed to refresh nodes: ${e.message}")
+            VibeLog.e(TAG, "AudiusNodeRegistry: Failed to refresh nodes", e)
         }
     }
 }
@@ -93,7 +96,7 @@ suspend fun getAudiusStreamUrl(
                     val trackResponse = try {
                         json.decodeFromString<AudiusTrackResponse>(body)
                     } catch (e: Exception) {
-                        println("AudiusApi: Failed to decode track response from $host: ${e.message}")
+                        VibeLog.e(TAG, "AudiusApi: Failed to decode track response from $host", e)
                         null
                     }
                     
@@ -108,7 +111,7 @@ suspend fun getAudiusStreamUrl(
             if (streamUrl != null) return@withContext streamUrl
             
         } catch (e: Exception) {
-            println("Audius request failed on $host (attempt ${attempt + 1}): ${e.message}")
+            VibeLog.w(TAG, "Audius request failed on $host (attempt ${attempt + 1}): ${e.message}")
         }
         
         if (attempt < 2) {

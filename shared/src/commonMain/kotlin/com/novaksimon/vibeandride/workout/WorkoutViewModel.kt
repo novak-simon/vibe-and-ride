@@ -6,6 +6,7 @@ import com.novaksimon.vibeandride.model.Workout
 import com.novaksimon.vibeandride.database.incrementWorkoutChosenCount
 import com.novaksimon.vibeandride.database.listWorkouts
 import com.novaksimon.vibeandride.music.MusicViewModel
+import com.novaksimon.vibeandride.util.VibeLog
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -23,13 +24,16 @@ data class WorkoutUiState(
     val workoutState: WorkoutSessionState? = null,
     val isPickerVisible: Boolean = false,
     val isLoading: Boolean = false,
-    val bleStatus: CadenceSourceStatus = CadenceSourceStatus.IDLE
+    val bleStatus: CadenceSourceStatus = CadenceSourceStatus.IDLE,
+    val errorMessage: String? = null
 )
 
 class WorkoutViewModel(
     private val cadenceSource: CadenceSource? = null,
     private val tickInterval: Duration = 200.milliseconds,
 ) : ViewModel() {
+
+    private val TAG = "WorkoutViewModel"
 
     private lateinit var musicViewModel: MusicViewModel
     private val _uiState = MutableStateFlow(WorkoutUiState())
@@ -86,7 +90,7 @@ class WorkoutViewModel(
                 .distinctUntilChanged()
                 .collect { isMusicAvailable ->
                     if (isMusicAvailable) {
-                        println("Music is available, notifying scheduler")
+                        VibeLog.d(TAG, "Music is available, notifying scheduler")
                         scheduler.musicPrepared()
                         tick()
                     }
@@ -110,26 +114,32 @@ class WorkoutViewModel(
 
     fun loadAvailableWorkouts() {
         viewModelScope.launch(Dispatchers.IO) {
-            _availableWorkouts.value = try {
-                listWorkouts()
+            _uiState.value = _uiState.value.copy(isLoading = true, errorMessage = null)
+            try {
+                _availableWorkouts.value = listWorkouts()
             } catch (e: Exception) {
-                println("Failed to load workouts: ${e.message}")
-                e.printStackTrace()
-                emptyList()
+                VibeLog.e(TAG, "Failed to load workouts", e)
+                _uiState.value = _uiState.value.copy(errorMessage = "Failed to load workouts from server")
+                _availableWorkouts.value = emptyList()
+            } finally {
+                _uiState.value = _uiState.value.copy(isLoading = false)
             }
         }
     }
 
     fun uploadWorkoutFromFile(content: String, fileName: String) {
         viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isLoading = true, errorMessage = null)
             try {
                 val newWorkout = WorkoutParser().parseAndUpload(content, fileName)
                 loadAvailableWorkouts()
                 selectWorkout(newWorkout.id)
                 setPickerVisible(false)
             } catch (e: Exception) {
-                println("Failed to upload workout: ${e.message}")
-                e.printStackTrace()
+                VibeLog.e(TAG, "Failed to upload workout: $fileName", e)
+                _uiState.value = _uiState.value.copy(errorMessage = "Failed to upload workout: ${e.message}")
+            } finally {
+                _uiState.value = _uiState.value.copy(isLoading = false)
             }
         }
     }
@@ -165,6 +175,10 @@ class WorkoutViewModel(
         }
     }
 
+    fun clearError() {
+        _uiState.value = _uiState.value.copy(errorMessage = null)
+    }
+
     private fun startTicking() {
         if (tickJob?.isActive == true) return
         tickJob = viewModelScope.launch {
@@ -172,7 +186,7 @@ class WorkoutViewModel(
                 try {
                     tick()
                 } catch (e: Exception) {
-                    println(e)
+                    VibeLog.e(TAG, "Error during tick", e)
                 }
                 delay(tickInterval)
             }
@@ -201,7 +215,7 @@ class WorkoutViewModel(
                         try {
                             incrementWorkoutChosenCount(workout.id)
                         } catch (e: Exception) {
-                            println("Failed to increment chosen count: ${e.message}")
+                            VibeLog.e(TAG, "Failed to increment chosen count for workout ${workout.id}", e)
                         }
                     }
                 }

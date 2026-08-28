@@ -99,7 +99,7 @@ class MusicEngineTest {
 
     @Test
     fun testDecidePreload_NoPreloadNeeded() {
-        val state = MusicState(hasPreloadedSong = false)
+        val state = MusicState(playbackState = PlaybackState.PLAYING)
         val session = createSessionState()
         val decision = engine.decidePreload(state, 40f, 40f, session)
         assertIs<PreloadDecision.None>(decision)
@@ -115,7 +115,8 @@ class MusicEngineTest {
             songIndex = 1,
             currentSong = song1,
             recommendationBuffer = listOf(rec0),
-            mode = WorkoutMode.Structured(createWorkout())
+            mode = WorkoutMode.Structured(createWorkout()),
+            playbackState = PlaybackState.PLAYING
         )
         val session = createSessionState()
 
@@ -137,7 +138,8 @@ class MusicEngineTest {
             songIndex = 0,
             currentSong = song1,
             recommendationBuffer = listOf(rec0, rec1),
-            mode = WorkoutMode.Structured(workout)
+            mode = WorkoutMode.Structured(workout),
+            playbackState = PlaybackState.PLAYING
         )
         val session = createSessionState(mode = WorkoutMode.Structured(workout))
 
@@ -149,7 +151,7 @@ class MusicEngineTest {
 
     @Test
     fun testDecideTransition_NoTransition() {
-        val state = MusicState(currentIntervalIndex = 0, isTransitioning = false)
+        val state = MusicState(currentIntervalIndex = 0, playbackState = PlaybackState.PLAYING)
         val session = createSessionState()
         val decision = engine.decideTransition(state, session, 10f, 10f, true)
         assertIs<TransitionDecision.None>(decision)
@@ -222,11 +224,12 @@ class MusicEngineTest {
     @Test
     fun testFinalizeTrackTransition() {
         val song = createSong(2)
-        val state = MusicState(songIndex = 1)
+        val state = MusicState(songIndex = 1, playbackState = PlaybackState.TRANSITIONING)
         val nextState = engine.finalizeTrackTransition(state, song)
         
         assertEquals(song, nextState.currentSong)
         assertEquals(2, nextState.songIndex)
+        assertEquals(PlaybackState.PLAYING, nextState.playbackState)
     }
 
     @Test

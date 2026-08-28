@@ -6,6 +6,7 @@ import com.novaksimon.vibeandride.database.SupabaseProfileRepository
 import com.novaksimon.vibeandride.database.SupabaseSongRepository
 import com.novaksimon.vibeandride.model.Song
 import com.novaksimon.vibeandride.recommendation.SongRecommendation
+import com.novaksimon.vibeandride.util.VibeLog
 import com.novaksimon.vibeandride.workout.WorkoutStatus
 import com.novaksimon.vibeandride.workout.WorkoutViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -23,6 +24,8 @@ data class MusicUiState(
     val isPlaying: Boolean = false,
     val debugInfo: List<SongRecommendation>? = null,
     val isLiked: Boolean = false,
+    val playbackState: PlaybackState = PlaybackState.IDLE,
+    val errorMessage: String? = null
 )
 
 
@@ -30,6 +33,7 @@ class MusicViewModel(
     playbackController: PlaybackController,
 ) : ViewModel() {
 
+    private val TAG = "MusicViewModel"
     private lateinit var workoutViewModel: WorkoutViewModel
     private val musicEngine: MusicEngine = MusicEngine(
         playbackController,
@@ -53,7 +57,9 @@ class MusicViewModel(
                     isMusicAvailable = musicState.recommendationIndex.getOrNull(targetIndex) ?: false,
                     isPlaying = isPlaying,
                     debugInfo = musicState.currentDebug,
-                    isLiked = musicState.isLiked
+                    isLiked = musicState.isLiked,
+                    playbackState = musicState.playbackState,
+                    errorMessage = if (musicState.playbackState == PlaybackState.ERROR) "Playback Error" else null
                 )
             }.collect { 
                 _uiState.value = it 
@@ -77,6 +83,7 @@ class MusicViewModel(
                 }
                 .collect { sessionState ->
                     if (sessionState == null) return@collect
+                    VibeLog.d(TAG, "Updating MusicEngine with session status: ${sessionState.status}")
                     
                     if (sessionState.status == WorkoutStatus.NOT_STARTED || sessionState.status == WorkoutStatus.READY) {
                         musicEngine.sessionStarted(sessionState)
@@ -103,7 +110,7 @@ class MusicViewModel(
     }
 
     fun songLiked(liked: Boolean) {
-        println("SONG LIKED!!!")
+        VibeLog.d(TAG, "Song liked: $liked")
         _uiState.value = _uiState.value.copy(isLiked = liked)
         musicEngine.songLiked(liked)
     }

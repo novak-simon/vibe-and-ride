@@ -2,6 +2,7 @@ package com.novaksimon.vibeandride.database
 
 import com.novaksimon.vibeandride.database.SupabaseClientProvider.client
 import com.novaksimon.vibeandride.model.RawProfile
+import com.novaksimon.vibeandride.util.VibeLog
 import io.github.jan.supabase.auth.Auth
 import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.createSupabaseClient
@@ -19,29 +20,28 @@ object SupabaseClientProvider {
 }
 
 suspend fun initializeProfile() {
-    println("Supabase: initializing profile...")
+    VibeLog.i("Supabase", "Supabase: initializing profile...")
 
     try {
         client.auth.awaitInitialization()
 
         if (client.auth.currentUserOrNull() == null) {
-            println("Supabase: no existing session, signing in anonymously...")
+            VibeLog.i("Supabase", "Supabase: no existing session, signing in anonymously...")
             client.auth.signInAnonymously()
         }
 
         val user = client.auth.currentUserOrNull()
             ?: error("No authenticated user")
 
-        println("Supabase: User ID: ${user.id}")
+        VibeLog.i("Supabase", "Supabase: User ID: ${user.id}")
 
         client
             .from("profiles")
             .upsert(RawProfile(user.id))
 
-        println("Supabase: Profile initialized")
+        VibeLog.i("Supabase", "Supabase: Profile initialized")
 
     } catch (e: Exception) {
-        println("Supabase initialization error: ${e.message}")
-        e.printStackTrace()
+        VibeLog.e("Supabase", "Supabase initialization error", e)
     }
 }

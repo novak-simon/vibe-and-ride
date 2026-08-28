@@ -8,6 +8,17 @@ import com.novaksimon.vibeandride.recommendation.SongRecommendation
 import com.novaksimon.vibeandride.workout.WorkoutMode
 
 /**
+ * Represents the high-level playback state of the music system.
+ */
+enum class PlaybackState {
+    IDLE,
+    PLAYING,
+    PRELOADING,
+    TRANSITIONING,
+    ERROR
+}
+
+/**
  * Represents the pure application/domain state for the music system.
  *
  * This type is intentionally separate from [MusicUiState] and represents the core
@@ -27,8 +38,7 @@ data class MusicState(
     val futureIntervalSong: Song? = null,
     val currentIntervalIndex: Int = -1,
     val preloadedSongId: Int? = null,
-    val hasPreloadedSong: Boolean = false,
-    val isTransitioning: Boolean = false,
+    val playbackState: PlaybackState = PlaybackState.IDLE,
     val songStartPosition: Float = 0f,
     val currentDebug: List<SongRecommendation> = emptyList(),
     val futureDebug: List<SongRecommendation> = emptyList(),

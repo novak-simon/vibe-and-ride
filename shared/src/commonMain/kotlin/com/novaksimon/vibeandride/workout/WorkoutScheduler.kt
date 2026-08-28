@@ -3,6 +3,7 @@ package com.novaksimon.vibeandride.workout
 import com.novaksimon.vibeandride.database.getWorkoutById
 import com.novaksimon.vibeandride.model.Interval
 import com.novaksimon.vibeandride.model.Workout
+import com.novaksimon.vibeandride.util.VibeLog
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlin.time.Duration
@@ -17,6 +18,7 @@ private data class IntervalLookup(
 )
 
 class WorkoutScheduler {
+    private val TAG = "WorkoutScheduler"
     private val timeSource: TimeSource.WithComparableMarks = TimeSource.Monotonic
     
     var mode: WorkoutMode? = null
@@ -136,7 +138,7 @@ class WorkoutScheduler {
     fun musicPrepared() {
         if (status == WorkoutStatus.NOT_STARTED) {
             status = WorkoutStatus.READY
-            println("Status of workout: $status")
+            VibeLog.d(TAG, "Status of workout: $status")
         }
     }
 

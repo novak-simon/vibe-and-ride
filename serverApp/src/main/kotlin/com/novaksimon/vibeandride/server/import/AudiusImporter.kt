@@ -10,6 +10,7 @@ import kotlinx.serialization.Serializable
 import com.novaksimon.vibeandride.model.*
 import com.novaksimon.vibeandride.server.IdRow
 import com.novaksimon.vibeandride.api.AudiusNodeRegistry
+import com.novaksimon.vibeandride.util.VibeLog
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.postgrest.from
 import io.github.jan.supabase.postgrest.query.Columns
@@ -52,6 +53,7 @@ class AudiusImporter(
     private val supabase: SupabaseClient,
     private val appName: String = "VIBE_AND_RIDE"
 ) {
+    private val TAG = "AudiusImporter"
     private val json = Json { ignoreUnknownKeys = true }
     private val httpClient = HttpClient {
         install(ContentNegotiation) {
@@ -71,11 +73,11 @@ class AudiusImporter(
         var currentOffset = offset
         var endpointIndex = 0
 
-        println("AudiusImporter: Starting general import of $limit tracks (global starting offset: $offset)...")
+        VibeLog.i(TAG, "AudiusImporter: Starting general import of $limit tracks (global starting offset: $offset)...")
 
         val nodes = AudiusNodeRegistry.getNodes()
         if (nodes.isEmpty()) {
-            println("AudiusImporter: No Audius nodes found!")
+            VibeLog.e(TAG, "AudiusImporter: No Audius nodes found!")
             return
         }
 
@@ -87,7 +89,7 @@ class AudiusImporter(
             val pageSize = if (isTrending) minOf(remaining, 100) else minOf(remaining, maxPageSize)
             val apiOffset = if (isTrending) 0 else currentOffset
 
-            println("AudiusImporter: Fetching batch from '$endpoint' (limit: $pageSize, offset: $apiOffset)...")
+            VibeLog.i(TAG, "AudiusImporter: Fetching batch from '$endpoint' (limit: $pageSize, offset: $apiOffset)...")
 
             var tracksFetched = false
             // Try nodes sequentially until one works
@@ -102,7 +104,7 @@ class AudiusImporter(
                         if (apiOffset > 0) parameter("offset", apiOffset)
                     }.body()
                 } catch (e: Exception) {
-                    println("AudiusImporter: Node $host failed for '$endpoint': ${e.message}")
+                    VibeLog.w(TAG, "AudiusImporter: Node $host failed for '$endpoint': ${e.message}")
                     continue
                 }
 
@@ -115,9 +117,9 @@ class AudiusImporter(
                                 json.decodeFromJsonElement<List<AudiusTrack>>(dataField)
                             } else {
                                 // Log keys to debug missing 'data'
-                                println("AudiusImporter: No 'data' array in $host response for '$endpoint'. Keys: ${responseBody.keys}")
+                                VibeLog.w(TAG, "AudiusImporter: No 'data' array in $host response for '$endpoint'. Keys: ${responseBody.keys}")
                                 if (responseBody.containsKey("error")) {
-                                    println("AudiusImporter: API Error from $host: ${responseBody["error"]}")
+                                    VibeLog.e(TAG, "AudiusImporter: API Error from $host: ${responseBody["error"]}")
                                 }
                                 emptyList()
                             }
@@ -125,7 +127,7 @@ class AudiusImporter(
                         else -> emptyList()
                     }
                 } catch (e: Exception) {
-                    println("AudiusImporter: Failed to decode from node $host: ${e.message}")
+                    VibeLog.e(TAG, "AudiusImporter: Failed to decode from node $host", e)
                     emptyList()
                 }
 
@@ -134,7 +136,7 @@ class AudiusImporter(
                         try {
                             processTrack(track)
                         } catch (e: Exception) {
-                            println("AudiusImporter: Error processing track ${track.id}: ${e.message}")
+                            VibeLog.e(TAG, "AudiusImporter: Error processing track ${track.id}", e)
                         }
                     }
 
@@ -148,7 +150,7 @@ class AudiusImporter(
 
                     // If we got some tracks but less than requested, or if it's a trending endpoint (fixed 100), move to next
                     if (tracks.size < pageSize || isTrending) {
-                        println("AudiusImporter: Endpoint '$endpoint' finished. Moving to next category...")
+                        VibeLog.i(TAG, "AudiusImporter: Endpoint '$endpoint' finished. Moving to next category...")
                         endpointIndex++
                         // Reset currentOffset for the next category if it's a new starting point
                         if (isTrending) {
@@ -159,17 +161,17 @@ class AudiusImporter(
                     }
                     break // Successfully processed a batch from this node
                 } else {
-                    println("AudiusImporter: Node $host returned empty tracks for '$endpoint'.")
+                    VibeLog.w(TAG, "AudiusImporter: Node $host returned empty tracks for '$endpoint'.")
                 }
             }
 
             if (!tracksFetched) {
-                println("AudiusImporter: Moving to next category due to fetch failure or empty results for '$endpoint'.")
+                VibeLog.i(TAG, "AudiusImporter: Moving to next category due to fetch failure or empty results for '$endpoint'.")
                 endpointIndex++
                 currentOffset = 0
             }
         }
-        println("AudiusImporter: General import complete. Remaining: $remaining")
+        VibeLog.i(TAG, "AudiusImporter: General import complete. Remaining: $remaining")
     }
 
     private suspend fun processTrack(track: AudiusTrack) {
@@ -181,7 +183,7 @@ class AudiusImporter(
             .decodeSingleOrNull<RawAudiusSongData>()
 
         if (existing != null) {
-            println("AudiusImporter: Song ${track.title} already exists, skipping.")
+            VibeLog.d(TAG, "AudiusImporter: Song ${track.title} already exists, skipping.")
             return
         }
 
@@ -228,7 +230,7 @@ class AudiusImporter(
         }
 
         supabase.from("audius_song_data").insert(audiusData)
-        println("AudiusImporter: Inserted ${track.title}")
+        VibeLog.i(TAG, "AudiusImporter: Inserted ${track.title}")
     }
 
     private suspend fun findOrCreateArtist(name: String): Int? {
@@ -258,7 +260,7 @@ class AudiusImporter(
                 ?: obj["480x480"]?.jsonPrimitive?.content
                 ?: obj["150x150"]?.jsonPrimitive?.content
         } catch (e: Exception) {
-            println(e)
+            VibeLog.e(TAG, "Error extracting artwork URL", e)
             artwork.jsonPrimitive.contentOrNull
         }
     }

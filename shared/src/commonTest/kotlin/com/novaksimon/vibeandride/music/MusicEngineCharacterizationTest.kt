@@ -156,7 +156,7 @@ class MusicEngineCharacterizationTest {
 
         assertNull(state.currentSong)
         assertEquals(0, state.recommendationIndex.size)
-        assertFalse(state.isTransitioning)
+        assertEquals(PlaybackState.IDLE, state.playbackState)
     }
 
     @Test
@@ -323,6 +323,7 @@ class MusicEngineCharacterizationTest {
         
         assertEquals(song.id, engine.state.value.currentSong?.id)
         assertFalse(engine.state.value.isLiked)
+        assertEquals(PlaybackState.PLAYING, engine.state.value.playbackState)
         
         engine.songLiked(true)
         assertTrue(engine.state.value.isLiked)

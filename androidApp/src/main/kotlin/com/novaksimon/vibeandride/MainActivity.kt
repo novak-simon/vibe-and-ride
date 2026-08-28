@@ -45,6 +45,7 @@ import com.novaksimon.vibeandride.player.PlaybackService
 import com.novaksimon.vibeandride.ui.HomeScreen
 import com.novaksimon.vibeandride.ui.SettingsScreen
 import com.novaksimon.vibeandride.ui.WorkoutScreen
+import com.novaksimon.vibeandride.util.VibeLog
 import com.novaksimon.vibeandride.workout.AndroidBluetoothCadenceSource
 import com.novaksimon.vibeandride.workout.WorkoutViewModel
 import kotlinx.coroutines.CoroutineScope
@@ -61,6 +62,7 @@ private val COLOR_TERTIARY = Color(0xFF990FB5)   // Purple
 
 class MainActivity : ComponentActivity() {
 
+    private val TAG = "MainActivity"
     private var mediaController: MediaController? = null
 
     private lateinit var workoutViewModel: WorkoutViewModel
@@ -246,8 +248,7 @@ class MainActivity : ComponentActivity() {
             }
 
         } catch (e: Exception) {
-            println("Error reading workout file: ${e.message}")
-            e.printStackTrace()
+            VibeLog.e(TAG, "Error reading workout file", e)
         }
     }
 
