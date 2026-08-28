@@ -160,26 +160,30 @@ Examples:
 The roadmap should be executed in this order unless the project manager
 explicitly changes priorities.
 
-## Phase 0 --- Project safety and baseline
+## Phase 0 --- Project safety and baseline [COMPLETED]
 
 Goal: Create enough test coverage and understanding that subsequent
 architectural changes are safe.
 
-Tasks: 1. Establish a reliable test structure. 2. Add baseline tests
-around recommendation behavior. 3. Add baseline tests around workout
-scheduling. 4. Add tests for cadence normalization/parsing. 5. Establish
-a known-good build/test baseline. 6. Do not intentionally change product
-behavior during this phase.
+*Status (August 2026):* This phase is considered complete. A robust testing baseline has been established across core modules (recommendation, music, workout, database). Characterization tests exist for RecommendationEngine, WorkoutParser, and MusicEngine.
+
+Tasks: 1. Establish a reliable test structure. [DONE] 2. Add baseline tests
+around recommendation behavior. [DONE] 3. Add baseline tests around workout
+scheduling. [DONE] 4. Add tests for cadence normalization/parsing. [DONE] 5. Establish
+a known-good build/test baseline. [DONE] 6. Do not intentionally change product
+behavior during this phase. [DONE]
 
 Manual app testing should happen after the baseline is established.
 
 ------------------------------------------------------------------------
 
-# 6. Phase 1 --- Separate Music Domain Logic
+# 6. Phase 1 --- Separate Music Domain Logic [COMPLETED]
 
 Goal:
 
 Make the music system understandable independently of Android/Media3.
+
+*Status (August 2026):* The Music system has been successfully refactored. `MusicEngine` now orchestrates high-level behavior using `MusicState`, and is isolated from the platform-specific playback through the `AudioPlayer` interface and `PlaybackController`.
 
 Current problem: Music orchestration contains multiple responsibilities
 and shares mutable state across coroutine scopes. Playback-specific
@@ -215,11 +219,13 @@ verified.
 
 ------------------------------------------------------------------------
 
-# 7. Phase 2 --- Repository Boundaries
+# 7. Phase 2 --- Repository Boundaries [COMPLETED]
 
 Goal:
 
 Prevent domain logic from depending directly on Supabase.
+
+*Status (August 2026):* Repository interfaces (e.g., `SongRepository`, `ProfileRepository`, `WorkoutRepository`) have been introduced in the common module. Domain logic now depends on these interfaces rather than concrete Supabase implementations.
 
 Introduce interfaces such as:
 
@@ -252,9 +258,11 @@ Supabase access from domain code.
 
 ------------------------------------------------------------------------
 
-# 8. Phase 3 --- Playback Architecture
+# 8. Phase 3 --- Playback Architecture [IN PROGRESS]
 
 This is a HIGH-RISK area.
+
+*Status (August 2026):* Significant improvements have been made. The dual-player transition logic in `AndroidAudioPlayer` has moved from polling-based to event-based waiting using `awaitPlayerReady`. Preload commands are exposed via `PlaybackController`. The high-level state machine integration with `MusicEngine` is established.
 
 Current implementation: - two ExoPlayers - one active slot - one
 preloaded slot - crossfade through volume manipulation - MediaSession
@@ -302,12 +310,14 @@ behavior
 
 ------------------------------------------------------------------------
 
-# 9. Phase 4 --- Workout Domain Redesign
+# 9. Phase 4 --- Workout Domain Redesign [COMPLETED]
 
 Goal:
 
 Support both structured workouts and free ride without patching the
 existing scheduler.
+
+*Status (August 2026):* `WorkoutMode` (Structured/FreeRide) and `WorkoutSessionState` have been introduced, allowing the system to handle different types of rides generically.
 
 Current architecture assumes:
 
@@ -354,9 +364,11 @@ into the same session abstraction. 7. Only then integrate BLE.
 
 ------------------------------------------------------------------------
 
-# 10. Phase 5 --- BLE Integration
+# 10. Phase 5 --- BLE Integration [IN PROGRESS]
 
 Goal: Read cadence from compatible smart trainers.
+
+*Status (August 2026):* A platform-independent `CadenceSource` interface has been defined. `AndroidBluetoothCadenceSource` is implemented in the Android layer, and `WorkoutViewModel` is wired to handle cadence updates.
 
 Initial scope: - read-only cadence. - target Wahoo trainers. - no
 trainer control. - no resistance/power control initially unless
@@ -384,9 +396,11 @@ Manually test with real hardware. 8. Integrate FreeRide music behavior.
 
 ------------------------------------------------------------------------
 
-# 11. Phase 6 --- Recommendation System
+# 11. Phase 6 --- Recommendation System [IN PROGRESS]
 
 This is a HIGH-RISK product/algorithm area.
+
+*Status (August 2026):* Scoring logic has been refined and verified with tests. Skip penalties are correctly implemented, and cadence folding is consistently applied across candidate filtering and final scoring.
 
 The project manager wants to design the algorithm logic personally.
 
@@ -419,7 +433,9 @@ accidentally preserved.
 
 ------------------------------------------------------------------------
 
-# 12. Phase 7 --- Workout Parsing
+# 12. Phase 7 --- Workout Parsing [COMPLETED]
+
+*Status (August 2026):* The Kotlin ZWO parser now correctly handles range-based (Low/High) values for both power and cadence, ensuring no segments are lost due to zero-valued defaults.
 
 Known issue: The Kotlin ZWO parser currently loses: - PowerLow -
 PowerHigh - CadenceLow - CadenceHigh
@@ -696,41 +712,41 @@ These are not automatically the next tasks. They are tracked issues.
 
 The immediate sequence should be:
 
-### Step 1
+### Step 1 [DONE]
 
 Establish the testing baseline without changing behavior.
 
-### Step 2
+### Step 2 [DONE]
 
 Add characterization tests for RecommendationEngine.
 
-### Step 3
+### Step 3 [DONE]
 
 Add characterization tests for WorkoutScheduler and relevant
 parsing/normalization.
 
-### Step 4
+### Step 4 [DONE]
 
 Begin extracting repository interfaces.
 
-### Step 5
+### Step 5 [DONE]
 
 Begin separating MusicEngine from RecommendationEngine.
 
-### Step 6
+### Step 6 [DONE]
 
 Design and test a music-session state model.
 
-### Step 7
+### Step 7 [DONE]
 
 Gradually isolate Android dual-player playback behind the playback
 abstraction.
 
-### Step 8
+### Step 8 [DONE]
 
 Redesign WorkoutSession to support both structured and free-ride modes.
 
-### Step 9
+### Step 9 [DONE]
 
 Implement BLE cadence as a data source.
 
