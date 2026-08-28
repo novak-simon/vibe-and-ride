@@ -32,6 +32,7 @@ fun main() {
     val supabaseUrl = "https://ehosthiruiasknnnbvcc.supabase.co"
     val supabaseKey = System.getProperty("SUPABASE_SERVICE_KEY") ?: System.getenv("SUPABASE_SERVICE_KEY") ?: ""
     val jamendoClientId = System.getProperty("JAMENDO_CLIENT_ID") ?: System.getenv("JAMENDO_CLIENT_ID") ?: ""
+    val pythonExecutable = System.getProperty("PYTHON_EXECUTABLE") ?: System.getenv("PYTHON_EXECUTABLE") ?: "python"
 
     val supabase = createSupabaseClient(supabaseUrl, supabaseKey) {
         install(Postgrest)
@@ -39,7 +40,7 @@ fun main() {
 
     val jamendoImporter = JamendoImporter(supabase, jamendoClientId)
     val audiusImporter = AudiusImporter(supabase)
-    val analysisOrchestrator = AnalysisOrchestrator(supabase)
+    val analysisOrchestrator = AnalysisOrchestrator(supabase, pythonExecutable = pythonExecutable)
 
     embeddedServer(Netty, port = 8080, host = "0.0.0.0") {
         install(ContentNegotiation) {

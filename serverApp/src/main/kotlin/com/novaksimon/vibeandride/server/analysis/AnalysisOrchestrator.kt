@@ -11,7 +11,8 @@ import io.github.jan.supabase.postgrest.query.filter.FilterOperation
 
 class AnalysisOrchestrator(
     private val supabase: SupabaseClient,
-    private val pythonProjectPath: String = "C:/Users/novak/Documents/vibe-and-ride-utils"
+    private val pythonProjectPath: String = "C:/Users/novak/Documents/vibe-and-ride-utils",
+    private val pythonExecutable: String = "python"
 ) {
 
     suspend fun runAnalysis(limit: Int = 10) {
@@ -24,8 +25,17 @@ class AnalysisOrchestrator(
                     or {
                         // Assuming eq with null might work if passed as a specific type or if we use the operator
                         filter("bpm", FilterOperator.IS, "null")
-                        filter("start_time", FilterOperator.IS, "null")
-                        eq("start_time", 0)
+                        and {
+                            or {
+                                filter("start_time", FilterOperator.IS, "null")
+                                eq("start_time", 0)
+                            }
+                            or {
+                                filter("end_time", FilterOperator.IS, "null")
+                                eq("end_time", 0)
+                            }
+                        }
+
                         filter("end_time", FilterOperator.IS, "null")
                         eq("end_time", 0)
                     }
@@ -47,10 +57,10 @@ class AnalysisOrchestrator(
 
     private suspend fun analyzeSong(song: RawSong) = withContext(Dispatchers.IO) {
         val songId = song.id
-        println("AnalysisOrchestrator: Triggering Python analysis for song $songId")
+        println("AnalysisOrchestrator: Triggering Python analysis for song $songId (using $pythonExecutable)")
 
-        // Use 'python' or 'py' depending on environment. Python project says python=3.11.6
-        val pb = ProcessBuilder("python", "main.py", "analyze", "--id", songId.toString())
+        // Use the configured python executable
+        val pb = ProcessBuilder(pythonExecutable, "main.py", "analyze", "--id", songId.toString())
         pb.directory(File(pythonProjectPath))
         pb.redirectErrorStream(true)
         
