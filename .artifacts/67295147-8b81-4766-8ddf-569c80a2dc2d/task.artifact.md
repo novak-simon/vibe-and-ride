@@ -1,0 +1,7 @@
+- [x] Modify `MusicEngine.kt` to fix premature `songIndex` update
+- [x] Modify `PlaybackController.kt` to make `crossfadeToPreloaded` suspend
+- [/] Modify `ProfileMusicService.kt` to await crossfade
+- [x] Modify `AndroidPlaybackController.kt` to make `crossfadeToPreloaded` suspend and await `SessionResult`
+- [/] Modify `AndroidAudioPlayer.kt` to make `crossfadeToPreloaded` suspend and fix race conditions
+- [x] Modify `PlaybackService.kt` to handle `COMMAND_CROSSFADE` asynchronously
+- [x] Verify changes with automated tests

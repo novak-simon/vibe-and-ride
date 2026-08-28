@@ -12,6 +12,7 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.guava.await
 import kotlinx.serialization.json.Json
 
 
@@ -49,7 +50,7 @@ class AndroidPlaybackController(
         return controller.isPlaying
     }
 
-    override fun setSource(
+    override suspend fun setSource(
         song: Song,
         audioUrl: String,
         startTimeSeconds: Float
@@ -64,7 +65,7 @@ class AndroidPlaybackController(
         )
     }
 
-    override fun preloadSource(
+    override suspend fun preloadSource(
         song: Song,
         audioUrl: String,
     ) {
@@ -78,7 +79,7 @@ class AndroidPlaybackController(
             }
         )
     }
-    override fun crossfadeToPreloaded(
+    override suspend fun crossfadeToPreloaded(
         song: Song,
         audioUrl: String,
         durationMs: Long
@@ -93,7 +94,7 @@ class AndroidPlaybackController(
             }
         )
     }
-    override fun clearPreloaded() {
+    override suspend fun clearPreloaded() {
         sendCommand(
             PlaybackService.COMMAND_CLEAR_PRELOADED
         )
@@ -119,7 +120,7 @@ class AndroidPlaybackController(
         }
     }
 
-    private fun sendCommand(
+    private suspend fun sendCommand(
         action: String,
         args: Bundle = Bundle()
     ) {
@@ -129,6 +130,6 @@ class AndroidPlaybackController(
                 Bundle.EMPTY
             ),
             args
-        )
+        ).await()
     }
 }

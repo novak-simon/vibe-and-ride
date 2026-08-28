@@ -83,7 +83,6 @@ class MusicViewModel(
                 }
                 .collect { sessionState ->
                     if (sessionState == null) return@collect
-                    VibeLog.d(TAG, "Updating MusicEngine with session status: ${sessionState.status}")
                     
                     if (sessionState.status == WorkoutStatus.NOT_STARTED || sessionState.status == WorkoutStatus.READY) {
                         musicEngine.sessionStarted(sessionState)

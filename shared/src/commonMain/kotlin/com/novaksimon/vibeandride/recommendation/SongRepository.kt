@@ -12,4 +12,7 @@ interface SongRepository {
     suspend fun fetchSongs(limit: Int): Result<List<Song>>
 
     suspend fun getAudioUrl(song: Song): Result<String>
+
+    suspend fun getArtistNamesByIds(ids: List<Int>): Result<Map<Int, String>>
 }
+

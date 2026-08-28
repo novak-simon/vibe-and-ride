@@ -24,12 +24,27 @@ class FakePlaybackController : PlaybackController {
     override fun play() {}
     override fun pause() {}
     override fun isPlaying(): Boolean = false
-    override fun setSource(song: Song, audioUrl: String, startTimeSeconds: Float) {}
-    override fun preloadSource(song: Song, audioUrl: String) {}
-    override fun crossfadeToPreloaded(song: Song, audioUrl: String, durationMs: Long) {}
-    override fun clearPreloaded() {}
-    override fun positionSeconds(): Float? = null
-    override fun durationSeconds(): Float? = null
+    
+    val calls = mutableListOf<String>()
+
+    override suspend fun setSource(song: Song, audioUrl: String, startTimeSeconds: Float) {
+        calls.add("setSource(${song.id})")
+    }
+    override suspend fun preloadSource(song: Song, audioUrl: String) {
+        calls.add("preloadSource(${song.id})")
+    }
+    override suspend fun crossfadeToPreloaded(song: Song, audioUrl: String, durationMs: Long) {
+        calls.add("crossfadeToPreloaded(${song.id})")
+    }
+    override suspend fun clearPreloaded() {
+        calls.add("clearPreloaded")
+    }
+    
+    var currentPos: Float? = null
+    var currentDur: Float? = null
+    
+    override fun positionSeconds(): Float? = currentPos
+    override fun durationSeconds(): Float? = currentDur
 }
 
 class FakeProfileRepository(
@@ -104,4 +119,10 @@ class FakeSongRepository : SongRepository {
         calls.add("getAudioUrl")
         Result.success("https://fake.url/${song.id}")
     }
+
+    override suspend fun getArtistNamesByIds(ids: List<Int>): Result<Map<Int, String>> = mutex.withLock {
+        calls.add("getArtistNamesByIds")
+        Result.success(emptyMap())
+    }
 }
+

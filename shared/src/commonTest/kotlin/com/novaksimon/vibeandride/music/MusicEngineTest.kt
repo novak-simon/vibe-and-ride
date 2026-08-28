@@ -13,9 +13,12 @@ import com.novaksimon.vibeandride.workout.WorkoutStatus
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.delay
 import kotlin.test.AfterTest
+import kotlin.time.Duration.Companion.milliseconds
 import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -48,7 +51,7 @@ class MusicEngineTest {
         Dispatchers.resetMain()
     }
 
-    private fun createSong(id: Int) = Song(
+    private fun createSong(id: Int, bpm: Int = 120) = Song(
         id = id,
         title = "Song $id",
         artist = "Artist",
@@ -56,7 +59,7 @@ class MusicEngineTest {
         genre = emptyList(),
         tags = emptyList(),
         duration = 180,
-        bpm = 120,
+        bpm = bpm,
         startTime = 0f,
         endTime = 0f,
         image = "",
@@ -269,5 +272,93 @@ class MusicEngineTest {
         )
         val index = engine.decidePrecompute(state, 0, emptySet())
         assertNull(index)
+    }
+
+    @Test
+    fun testUpdate_NoPrematureSongIndexUpdateOnNextIntervalPreload() = runTest {
+        val song1 = createSong(1, 180)
+        val song2 = createSong(2, 180)
+        val songRepository = FakeSongRepository()
+        
+        // Interval 0 recommendations
+        songRepository.songsAroundTargetCadenceResults.add(listOf(song1))
+        songRepository.songsAroundTargetCadenceResults.add(emptyList())
+        songRepository.songsAroundTargetCadenceResults.add(emptyList())
+        
+        // Interval 1 recommendations
+        songRepository.songsAroundTargetCadenceResults.add(listOf(song2))
+        songRepository.songsAroundTargetCadenceResults.add(emptyList())
+        songRepository.songsAroundTargetCadenceResults.add(emptyList())
+        
+        songRepository.fetchSongsResults.add(listOf(song1))
+        songRepository.fetchSongsResults.add(listOf(song2))
+        
+        val playbackController = FakePlaybackController()
+        
+        val engine = MusicEngine(
+            playbackController = playbackController,
+            songRepository = songRepository,
+            profileRepository = FakeProfileRepository(),
+            mainDispatcher = testDispatcher,
+            ioDispatcher = testDispatcher,
+            defaultDispatcher = testDispatcher
+        )
+        
+        val intervals = listOf(
+            com.novaksimon.vibeandride.model.Interval(60.0, 0.5f, 90.0, "s"),
+            com.novaksimon.vibeandride.model.Interval(60.0, 0.5f, 90.0, "s")
+        )
+        val workout = createWorkout(intervals)
+        
+        val sessionState = createSessionState(
+            mode = WorkoutMode.Structured(workout),
+            structuredState = StructuredState(0, workout.intervals[0], 0.seconds, 60.seconds, 120.seconds)
+        )
+        engine.sessionStarted(sessionState)
+        
+        // Wait for all recommendations to be ready
+        while (engine.state.value.recommendationIndex.size < 2 || !engine.state.value.recommendationIndex.all { it }) {
+            engine.precomputeNextRecommendation(engine.state.value.mode?.let { createSessionState(mode = it, structuredState = StructuredState(0, intervals[0], 0.seconds, 60.seconds, 120.seconds)) } ?: sessionState)
+            delay(1.milliseconds)
+        }
+        
+        // Start first track
+        engine.nextTrack(newInterval = true, intervalIndex = 0, firstSong = true)
+        assertEquals(1, engine.state.value.songIndex)
+        assertEquals(0, engine.state.value.currentIntervalIndex)
+
+        // Trigger preload for next interval. 
+        // We need remainingInInterval < 30s AND remainingInInterval <= timeUntilTrackEnd + 5s
+        val nearEndSessionState = createSessionState(
+            mode = WorkoutMode.Structured(workout),
+            structuredState = StructuredState(0, workout.intervals[0], 55.seconds, 5.seconds, 65.seconds)
+        )
+        
+        // Mock playback controller to return position near end of song 1 (180s duration)
+        playbackController.currentPos = 175f
+        
+        // Call update. It should decide to preload from interval 1.
+        engine.update(nearEndSessionState)
+        
+        println("PlaybackController calls: ${playbackController.calls}")
+        assertEquals(PlaybackState.PRELOADING, engine.state.value.playbackState)
+        assertEquals(2, engine.state.value.preloadedSongId)
+        
+        // CRITICAL CHECK: songIndex should still be 1 (pointing to next song in current interval if any, 
+        // but here it's just the index that should NOT have been reset to 0 yet)
+        assertEquals(1, engine.state.value.songIndex, "Song index should not be prematurely reset to 0")
+        
+        // Now trigger the transition to the next interval by reaching the end of interval 0
+        val transitionSessionState = createSessionState(
+            mode = WorkoutMode.Structured(workout),
+            structuredState = StructuredState(0, workout.intervals[0], 60.seconds, 0.seconds, 60.seconds)
+        )
+        engine.update(transitionSessionState)
+        
+        // After transition, songIndex should be 1 (it was set to 0 in prepareForNextTrack then incremented in finalizeTrackTransition)
+        assertEquals(PlaybackState.PLAYING, engine.state.value.playbackState)
+        assertEquals(1, engine.state.value.songIndex)
+        assertEquals(1, engine.state.value.currentIntervalIndex)
+        assertEquals(2, engine.state.value.currentSong?.id)
     }
 }

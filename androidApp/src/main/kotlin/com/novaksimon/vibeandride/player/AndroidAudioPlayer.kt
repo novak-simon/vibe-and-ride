@@ -56,7 +56,6 @@ class AndroidAudioPlayer(
         CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
     private var fadeJob: Job? = null
-    private var currentCrossfadeSongUrl: String? = null
 
     override var onEndOfMedia: (() -> Unit)? = null
     override var onError: ((message: String) -> Unit)? = null
@@ -494,94 +493,74 @@ class AndroidAudioPlayer(
             null
         }
     }
-    fun crossfadeToPreloaded(song: Song, audioUrl: String, durationMs: Long) {
+    suspend fun crossfadeToPreloaded(song: Song, durationMs: Long) {
         if (isReleased) return
         val oldPlayer = activePlayer() ?: return
         val newPlayer = preloadedPlayer() ?: return
-
-        if (currentCrossfadeSongUrl == audioUrl) {
-            println("AndroidAudioPlayer: Already crossfading to ${song.title}, skipping duplicate request")
-            return
-        }
 
         println(
             "AndroidAudioPlayer: crossfade requested for ${song.title} (duration: ${durationMs}ms), " +
                     "new player state=${newPlayer.playbackState}"
         )
 
-        fadeJob?.cancel()
-        currentCrossfadeSongUrl = audioUrl
-
-        fadeJob = scope.launch {
-            try {
-                // Wait until the preloaded player is ready.
-                withTimeout(10000L) {
-                    awaitPlayerReady(newPlayer)
-                }
-                println("AndroidAudioPlayer: preloaded player READY, starting crossfade")
-
-                newPlayer.volume = 0f
-                newPlayer.play()
-
-                val duration = durationMs.coerceAtLeast(0L)
-
-                if (duration == 0L) {
-                    oldPlayer.stop()
-                    oldPlayer.clearMediaItems()
-
-                    newPlayer.volume = 1f
-                    activeSlot = preloadedSlot()
-                    onActivePlayerChanged?.invoke(newPlayer)
-
-                    println("AndroidAudioPlayer: instant switch complete")
-                    return@launch
-                }
-
-                val steps = maxOf(
-                    1,
-                    (duration / 20L).toInt()
-                )
-
-                repeat(steps) { step ->
-                    val progress =
-                        (step + 1).toFloat() / steps.toFloat()
-
-                    oldPlayer.volume = 1f - progress
-                    newPlayer.volume = progress
-
-                    delay((duration / steps).milliseconds)
-                }
-
-                oldPlayer.volume = 0f
-                newPlayer.volume = 1f
-
-                oldPlayer.stop()
-                oldPlayer.clearMediaItems()
-
-                activeSlot = preloadedSlot()
-                onActivePlayerChanged?.invoke(newPlayer)
-
-                println(
-                    "AndroidAudioPlayer: crossfade complete, " +
-                            "activeSlot=$activeSlot"
-                )
-            } catch (e: Exception) {
-                println("AndroidAudioPlayer: crossfade failed or timed out: ${e.message}")
-                // Fallback: force switch if it was a timeout but player has media
-                if (newPlayer.currentMediaItem != null) {
-                    println("AndroidAudioPlayer: forcing switch after failure/timeout")
-                    activeSlot = preloadedSlot()
-                    onActivePlayerChanged?.invoke(newPlayer)
-                    newPlayer.volume = 1f
-                    newPlayer.play()
-                    oldPlayer.stop()
-                }
-            } finally {
-                if (currentCrossfadeSongUrl == audioUrl) {
-                    currentCrossfadeSongUrl = null
-                }
+        // Wait until the preloaded player is ready.
+        try {
+            withTimeout(10000L) {
+                awaitPlayerReady(newPlayer)
             }
+        } catch (e: Exception) {
+            println("AndroidAudioPlayer: preload wait failed: ${e.message}")
+            // If it failed but has a media item, we might still want to try switching
+            if (newPlayer.currentMediaItem == null) return
         }
+        
+        println("AndroidAudioPlayer: preloaded player READY, starting crossfade")
+
+        newPlayer.volume = 0f
+        newPlayer.play()
+
+        val duration = durationMs.coerceAtLeast(0L)
+
+        if (duration == 0L) {
+            oldPlayer.stop()
+            oldPlayer.clearMediaItems()
+
+            newPlayer.volume = 1f
+            activeSlot = preloadedSlot()
+            onActivePlayerChanged?.invoke(newPlayer)
+
+            println("AndroidAudioPlayer: instant switch complete")
+            return
+        }
+
+        val steps = maxOf(
+            1,
+            (duration / 20L).toInt()
+        )
+
+        repeat(steps) { step ->
+            val progress =
+                (step + 1).toFloat() / steps.toFloat()
+
+            oldPlayer.volume = 1f - progress
+            newPlayer.volume = progress
+
+            delay((duration / steps).milliseconds)
+        }
+
+        oldPlayer.volume = 0f
+        newPlayer.volume = 1f
+
+        oldPlayer.stop()
+        oldPlayer.clearMediaItems()
+
+        activeSlot = preloadedSlot()
+        onActivePlayerChanged?.invoke(newPlayer)
+
+        println(
+            "AndroidAudioPlayer: crossfade complete, " +
+                    "activeSlot=$activeSlot"
+        )
     }
 
     private suspend fun awaitPlayerReady(player: ExoPlayer) {

@@ -9,21 +9,21 @@ interface PlaybackController {
     fun play()
     fun pause()
     fun isPlaying(): Boolean
-    fun setSource(
+    suspend fun setSource(
         song: Song,
         audioUrl: String,
         startTimeSeconds: Float = 0f
     )
-    fun preloadSource(
+    suspend fun preloadSource(
         song: Song,
         audioUrl: String,
     )
-    fun crossfadeToPreloaded(
+    suspend fun crossfadeToPreloaded(
         song: Song,
         audioUrl: String,
         durationMs: Long
     )
-    fun clearPreloaded()
+    suspend fun clearPreloaded()
     fun positionSeconds(): Float?
     fun durationSeconds(): Float?
 }

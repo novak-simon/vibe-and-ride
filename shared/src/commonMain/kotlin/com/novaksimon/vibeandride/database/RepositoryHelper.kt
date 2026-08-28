@@ -68,11 +68,12 @@ fun rawToWorkout(rawWorkout: RawWorkout): Workout {
     )
 }
 
-suspend fun rawToSong(rawSong: RawSong): Song {
+fun rawToSong(rawSong: RawSong): Song {
     return Song(
         id = rawSong.id,
         title = rawSong.title ?: "Unknown Title",
-        artist = getArtistNameById(rawSong.artistId ?: 0) ?: "Unknown Artist",
+        artist = "Unknown Artist", // Optimisation: Skips fetching artist name for every candidate
+        artistId = rawSong.artistId,
         releaseDate = rawSong.releaseDate ?: "Unknown Date",
         genre = rawSong.genre?.split(",", "&", "/")?.map { it.trim().lowercase() }?.filter { it.isNotEmpty() } ?: emptyList(),
         tags = rawSong.tags ?: emptyList(),
@@ -84,6 +85,8 @@ suspend fun rawToSong(rawSong: RawSong): Song {
         shareUrl = rawSong.shareUrl ?: "Unknown Share URL",
     )
 }
+
+
 
 fun rawToStat(rawProfileSongStats: RawProfileSongStats): ProfileSongStats {
     return ProfileSongStats(

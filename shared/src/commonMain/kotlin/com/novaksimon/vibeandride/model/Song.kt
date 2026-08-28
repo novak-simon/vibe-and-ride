@@ -8,6 +8,7 @@ data class Song(
     val id: Int,
     val title: String,
     val artist: String,
+    @SerialName("artist_id") val artistId: Int? = null,
     @SerialName("release_date") val releaseDate: String,
     val genre: List<String>,
     val tags: List<String>,

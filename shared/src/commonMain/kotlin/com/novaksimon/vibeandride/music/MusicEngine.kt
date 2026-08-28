@@ -98,10 +98,7 @@ class MusicEngine(
         val preloadDecision = decidePreload(_state.value, remainingInInterval, timeUntilTrackEnd, sessionState)
         if (preloadDecision is PreloadDecision.Preload) {
             val songToPreload = preloadDecision.song
-            if (preloadDecision.newSongIndex != null) {
-                _state.value = _state.value.copy(songIndex = preloadDecision.newSongIndex)
-            }
-
+            
             VibeLog.d(TAG, "MusicEngine: preloading song ${songToPreload.title}")
             if (!service.preloadSong(songToPreload)) {
                 VibeLog.w(TAG, "MusicEngine: Preload failed for ${songToPreload.title}, skipping index")

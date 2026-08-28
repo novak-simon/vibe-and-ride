@@ -57,3 +57,16 @@ suspend fun getSongsAroundTargetCadence(
     VibeLog.d(TAG, "getSongsAroundTargetCadence: found ${rawSongs.size} matching songs")
     return rawSongs.map { rawToSong(it) }
 }
+
+suspend fun getSongsByIds(ids: List<Int>): List<Song> {
+    if (ids.isEmpty()) return emptyList()
+    val rawSongs = client.postgrest["songs"]
+        .select {
+            filter {
+                isIn("id", ids)
+            }
+        }
+        .decodeList<RawSong>()
+    return rawSongs.map { rawToSong(it) }
+}
+

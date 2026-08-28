@@ -146,9 +146,21 @@ suspend fun getLikedSongsWithDetails(profileId: String? = null): List<com.novaks
                 }
             }
             .decodeList<RawProfileSongStats>()
-        likedStats.mapNotNull { it.songId }.mapNotNull { getSongById(it) }
+            
+        val songIds = likedStats.mapNotNull { it.songId }.distinct()
+        val songsWithoutArtists = getSongsByIds(songIds)
+        
+        val artistIds = songsWithoutArtists.mapNotNull { it.artistId }.distinct()
+        val artistNames = getArtistNamesByIds(artistIds)
+        
+        songsWithoutArtists.map { song ->
+            if (song.artistId != null && artistNames.containsKey(song.artistId)) {
+                song.copy(artist = artistNames[song.artistId]!!)
+            } else song
+        }
     } catch (e: Exception) {
         VibeLog.e(TAG, "getLikedSongsWithDetails failed", e)
         emptyList()
     }
 }
+

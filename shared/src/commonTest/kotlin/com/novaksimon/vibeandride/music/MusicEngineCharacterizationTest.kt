@@ -54,16 +54,16 @@ class EngineCharacterizationFakePlaybackController : PlaybackController {
 
     val calls = mutableListOf<String>()
 
-    override fun setSource(song: Song, audioUrl: String, startTimeSeconds: Float) {
+    override suspend fun setSource(song: Song, audioUrl: String, startTimeSeconds: Float) {
         calls.add("setSource(${song.id})")
     }
-    override fun preloadSource(song: Song, audioUrl: String) {
+    override suspend fun preloadSource(song: Song, audioUrl: String) {
         calls.add("preloadSource(${song.id})")
     }
-    override fun crossfadeToPreloaded(song: Song, audioUrl: String, durationMs: Long) {
+    override suspend fun crossfadeToPreloaded(song: Song, audioUrl: String, durationMs: Long) {
         calls.add("crossfadeToPreloaded(${song.id})")
     }
-    override fun clearPreloaded() {
+    override suspend fun clearPreloaded() {
         calls.add("clearPreloaded")
     }
 }

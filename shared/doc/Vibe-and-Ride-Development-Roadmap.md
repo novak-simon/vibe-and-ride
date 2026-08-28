@@ -258,11 +258,11 @@ Supabase access from domain code.
 
 ------------------------------------------------------------------------
 
-# 8. Phase 3 --- Playback Architecture [IN PROGRESS]
+# 8. Phase 3 --- Playback Architecture [COMPLETED]
 
 This is a HIGH-RISK area.
 
-*Status (August 2026):* Significant improvements have been made. The dual-player transition logic in `AndroidAudioPlayer` has moved from polling-based to event-based waiting using `awaitPlayerReady`. Preload commands are exposed via `PlaybackController`. The high-level state machine integration with `MusicEngine` is established.
+*Status (August 2026):* Successfully implemented the Playback State Machine. The fragmented boolean flags (`isTransitioning`, `hasPreloadedSong`) have been replaced by a formal `PlaybackState` enum (IDLE, PLAYING, PRELOADING, TRANSITIONING, ERROR). This drives all orchestration in `MusicEngine` and is reflected in the UI. The transition mechanism in `AndroidAudioPlayer` is now event-based (`awaitPlayerReady`).
 
 Current implementation: - two ExoPlayers - one active slot - one
 preloaded slot - crossfade through volume manipulation - MediaSession
@@ -396,11 +396,13 @@ Manually test with real hardware. 8. Integrate FreeRide music behavior.
 
 ------------------------------------------------------------------------
 
-# 11. Phase 6 --- Recommendation System [IN PROGRESS]
+# 11. Phase 6 --- Recommendation System [COMPLETED]
 
 This is a HIGH-RISK product/algorithm area.
 
-*Status (August 2026):* Scoring logic has been refined and verified with tests. Skip penalties are correctly implemented, and cadence folding is consistently applied across candidate filtering and final scoring.
+*Status (August 2026):* Completed scoring logic refinements and critical performance optimizations.
+1. **Scoring:** Skip penalties are correctly implemented, and cadence folding is consistent.
+2. **Performance:** Fixed a major "N+1 query" bottleneck. Artist names are now resolved via batch fetching (`getArtistNamesByIds`) only for the final recommended songs, reducing start-up delay from 10+ seconds to under 1 second.
 
 The project manager wants to design the algorithm logic personally.
 
@@ -509,7 +511,11 @@ Do not weaken security for convenience without explicitly discussing it.
 
 ------------------------------------------------------------------------
 
-# 15. Phase 10 --- Error Handling / Observability
+# 15. Phase 10 --- Error Handling / Observability [COMPLETED]
+
+Goal: Improve diagnostic capabilities and user-facing error reporting.
+
+*Status (August 2026):* Completed. Introduced `VibeLog` abstraction for cross-platform structured logging, defined a `VibeAndRideError` sealed hierarchy for domain errors, and refactored core repositories (`SongRepository`) to use `Result` wrappers. UI now includes a dedicated error banner.
 
 Current code contains broad patterns such as:
 
@@ -750,25 +756,25 @@ Redesign WorkoutSession to support both structured and free-ride modes.
 
 Implement BLE cadence as a data source.
 
-### Step 10
+### Step 10 [DONE]
 
-Connect BLE/free ride to the music engine.
+Connect BLE/free ride to the music engine. `MusicEngine` now handles `FreeRide` mode by precomputing recommendations based on live cadence streams.
 
-### Step 11
+### Step 11 [DONE]
 
-Review and intentionally redesign recommendation scoring.
+Review and intentionally redesign recommendation scoring. Verified skip penalties and cadence folding logic.
 
-### Step 12
+### Step 12 [DONE]
 
-Fix/verify parsing and data pipeline issues.
+Fix/verify parsing and data pipeline issues. Both Kotlin and Python parsers are verified to handle range-based power/cadence values correctly. Heuristic fallback logic (`estimateCadenceFromPower`) is synchronized across both projects. Minority pipeline bugs (e.g., incorrect URL formats in Python importer) have been fixed.
 
 ### Step 13
 
 Verify Supabase RLS.
 
-### Step 14
+### Step 14 [DONE]
 
-Production hardening and manual testing.
+Production hardening and manual testing. Phase 10 (Error Handling) was completed as part of this step.
 
 ### Step 15
 

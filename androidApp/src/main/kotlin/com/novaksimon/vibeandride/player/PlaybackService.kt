@@ -11,6 +11,7 @@ import androidx.media3.session.SessionCommand
 import androidx.media3.session.SessionResult
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
+import com.google.common.util.concurrent.SettableFuture
 import com.novaksimon.vibeandride.model.Song
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -171,12 +172,17 @@ class PlaybackService : MediaSessionService() {
                                 "durationMs",
                                 3000L
                             )
-                            val audioUrl = args.getString("audioUrl", "")
-                            val song = Json.decodeFromString<Song>(args.getString("song", ""))
+                            val songJson = args.getString("song", "")
 
-                            println("Crossfade duration=$duration")
-
-                            audioPlayer.crossfadeToPreloaded(song, audioUrl, duration)
+                            if (!songJson.isNullOrEmpty()) {
+                                val song = Json.decodeFromString<Song>(songJson)
+                                val resultFuture = SettableFuture.create<SessionResult>()
+                                serviceScope.launch {
+                                    audioPlayer.crossfadeToPreloaded(song, duration)
+                                    resultFuture.set(SessionResult(SessionResult.RESULT_SUCCESS))
+                                }
+                                return resultFuture
+                            }
                         }
                     }
 

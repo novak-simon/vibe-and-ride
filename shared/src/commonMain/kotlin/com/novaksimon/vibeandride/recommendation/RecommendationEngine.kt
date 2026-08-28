@@ -318,8 +318,20 @@ class RecommendationEngine(
                 .thenBy { it.song?.id ?: Int.MAX_VALUE }
         )
 
-        val topSongs = sorted.mapNotNull { it.song }.take(10)
-        VibeLog.i("RecommendationEngine", "RecommendationEngine: recommended ${topSongs.size} songs")
+        val topSongsCandidates = sorted.mapNotNull { it.song }.take(10)
+        val artistIds = topSongsCandidates.mapNotNull { it.artistId }.distinct()
+        val artistNames = songRepository.getArtistNamesByIds(artistIds).getOrDefault(emptyMap())
+
+        val topSongs = topSongsCandidates.map { song ->
+            if (song.artistId != null && artistNames.containsKey(song.artistId)) {
+                song.copy(artist = artistNames[song.artistId]!!)
+            } else {
+                song
+            }
+        }
+
+        VibeLog.i("RecommendationEngine", "RecommendationEngine: recommended ${topSongs.size} songs with resolved artists")
         return RecommendationResult(topSongs, sorted)
     }
 }
+

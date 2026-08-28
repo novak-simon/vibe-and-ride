@@ -818,7 +818,7 @@ fun DebugDialog(info: List<SongRecommendation>?, onDismiss: () -> Unit) {
                 LazyColumn(modifier = Modifier.height(400.dp)) {
                     items(info) { rec ->
                         Column(modifier = Modifier.padding(vertical = 8.dp)) {
-                            Text("${rec.song?.title ?: "-"} by ${rec.song?.artist ?: "-"}", style = MaterialTheme.typography.titleSmall)
+                            Text("${rec.song?.title ?: "-"} (ID: ${rec.song?.id ?: "-"})", style = MaterialTheme.typography.titleSmall)
                             Text("BPM: ${rec.song?.bpm ?: "-"}")
                             Text("Preference score: ${rec.preferenceRecommendation?.score ?: "-"}")
                             Row(modifier = Modifier.padding(start = 4.dp)) {

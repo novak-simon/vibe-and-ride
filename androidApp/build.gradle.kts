@@ -29,6 +29,8 @@ dependencies {
     implementation(libs.androidx.media3.datasource)
     implementation(libs.androidx.media3.session)
 
+    implementation(libs.kotlinx.coroutines.guava)
+
     implementation(libs.ktor.client.okhttp)
     implementation(libs.coil.compose)
     implementation(libs.coil.network.okhttp)
