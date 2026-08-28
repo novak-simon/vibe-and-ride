@@ -1,6 +1,5 @@
 package com.novaksimon.vibeandride.music
 
-import com.novaksimon.vibeandride.model.ProfileSongStats
 import com.novaksimon.vibeandride.model.Song
 import com.novaksimon.vibeandride.recommendation.ProfileRepository
 import com.novaksimon.vibeandride.recommendation.RecommendationEngineV2
@@ -45,6 +44,12 @@ class MusicEngine(
         defaultDispatcher = defaultDispatcher
     )
 
+    private val profileStatsEngine = ProfileStatsEngine(
+        profileRepository = profileRepository,
+        scope = statsScope,
+        ioDispatcher = ioDispatcher
+    )
+
     private val _state = MutableStateFlow(MusicState())
     val state: StateFlow<MusicState> = _state.asStateFlow()
 
@@ -58,6 +63,10 @@ class MusicEngine(
 
         recommenderV2.state.onEach { v2State ->
             _state.update { it.copy(recommendationV2 = v2State) }
+        }.launchIn(engineScope)
+
+        profileStatsEngine.state.onEach { statsState ->
+            _state.update { it.copy(isLiked = statsState.isLiked) }
         }.launchIn(engineScope)
     }
 
@@ -84,6 +93,7 @@ class MusicEngine(
             )
         }
         
+        profileStatsEngine.reset()
         recommenderV2.sessionStarted(sessionState)
     }
 
@@ -94,8 +104,14 @@ class MusicEngine(
         if (now - _state.value.lastTransitionTimeMillis < 2000L) return
 
         val timeUntilTrackEnd = service.timeUntilTrackEnd()
+        val currentPosition = service.currentPosition()
         val remainingInInterval = sessionState.structuredState?.remainingInInterval?.inWholeMilliseconds?.toFloat()?.div(1000f) ?: Float.MAX_VALUE
 
+        profileStatsEngine.update(
+            currentPosition = currentPosition,
+            timeUntilTrackEnd = timeUntilTrackEnd,
+            remainingInInterval = remainingInInterval
+        )
         recommenderV2.update(sessionState, _state.value, timeUntilTrackEnd)
 
         // Preload logic
@@ -145,7 +161,16 @@ class MusicEngine(
         if (_state.value.playbackState == PlaybackState.TRANSITIONING) return
         _state.update { it.copy(playbackState = PlaybackState.TRANSITIONING) }
         try {
-            if (!firstSong && !isRetry) incrementStatsOnTrackLeave(skipped = skipped)
+            if (!firstSong && !isRetry) {
+                _state.value.currentSong?.let { song ->
+                    profileStatsEngine.handleTrackLeft(
+                        song = song,
+                        startPosition = _state.value.songStartPosition,
+                        endPosition = service.currentPosition(),
+                        skipped = skipped
+                    )
+                }
+            }
 
             _state.update { prepareForNextTrack(it, newInterval, intervalIndex) }
             
@@ -170,16 +195,13 @@ class MusicEngine(
 
             _state.update { finalizeTrackTransition(it, song, isRetry) }
 
-            statsScope.launch {
-                val songStats: ProfileSongStats? = profileRepository.getStatByProfileAndSongId(songId = song.id)
-                _state.update { it.copy(isLiked = songStats?.isLiked ?: false) }
-            }
+            val currentPosition = service.currentPosition()
+            profileStatsEngine.handleTrackArrived(song, currentPosition, isRetry)
+            _state.update { it.copy(songStartPosition = currentPosition) }
         } catch (e: Exception) {
             VibeLog.e(TAG, "MusicEngine: Error during nextTrack", e)
             _state.update { it.copy(playbackState = PlaybackState.ERROR) }
         }
-        
-        incrementStatsOnTrackArrive()
     }
 
     fun skip() {
@@ -190,43 +212,12 @@ class MusicEngine(
 
     fun songLiked(liked: Boolean = true) {
         val song = _state.value.currentSong ?: return
-        _state.update { it.copy(isLiked = liked) }
-        statsScope.launch {
-            profileRepository.changeLikeState(songId = song.id, targetState = liked)
-        }
+        profileStatsEngine.handleSongLiked(song, liked)
     }
 
     fun pauseResume() { service.pauseResume() }
     fun play() { service.play() }
     fun pause() { service.pause() }
-
-    private fun incrementStatsOnTrackLeave(skipped: Boolean = false) {
-        val song = _state.value.currentSong ?: return
-        val endPosition = service.currentPosition()
-        val startPosition = _state.value.songStartPosition
-        val playTimeSeconds = (endPosition - startPosition).toInt().coerceAtLeast(0)
-
-        statsScope.launch {
-            if (skipped) {
-                profileRepository.incrementStat("skip_count", song.id)
-                profileRepository.setStatDatetime("last_skipped_at", song.id)
-            }
-            profileRepository.incrementStat("play_count", song.id)
-            if (playTimeSeconds > 0) {
-                profileRepository.incrementStat("total_play_time", song.id, incrementBy = playTimeSeconds)
-            }
-        }
-    }
-
-    private fun incrementStatsOnTrackArrive() {
-        val song = _state.value.currentSong ?: return
-        val currentPosition = service.currentPosition()
-        _state.update { it.copy(songStartPosition = currentPosition) }
-
-        statsScope.launch {
-            profileRepository.setStatDatetime("last_played_at", song.id)
-        }
-    }
 
     fun selectSongFromBuffer(state: MusicState, intervalIndex: Int, songIndex: Int): Song? {
         val actualIndex = if (state.mode is WorkoutMode.FreeRide) 0 else intervalIndex
