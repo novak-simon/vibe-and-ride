@@ -7,6 +7,7 @@ import com.novaksimon.vibeandride.workout.WorkoutStatus
 import com.novaksimon.vibeandride.workout.StructuredState
 import com.novaksimon.vibeandride.music.MusicState
 import com.novaksimon.vibeandride.model.Workout
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
@@ -19,18 +20,39 @@ import kotlin.time.Duration.Companion.seconds
 @OptIn(ExperimentalCoroutinesApi::class)
 class RecommendationEngineV2Test {
     private val testDispatcher = UnconfinedTestDispatcher()
+    private val testScope = CoroutineScope(testDispatcher)
     private val fakeSongRepository = FakeSongRepository()
     private val fakeProfileRepository = FakeProfileRepository()
-    private val recommender = RecommendationEngine(
-        fakeSongRepository, 
-        fakeProfileRepository,
+    
+    private fun createEngine() = RecommendationEngineV2(
+        songRepository = fakeSongRepository,
+        profileRepository = fakeProfileRepository,
+        scope = testScope,
         ioDispatcher = testDispatcher,
         defaultDispatcher = testDispatcher
     )
     
     @Test
     fun testInitialFetch() = runTest(testDispatcher) {
-        val engine = RecommendationEngineV2(recommender, this)
+        val engine = createEngine()
+        val sessionState = WorkoutSessionState(
+            mode = WorkoutMode.FreeRide,
+            status = WorkoutStatus.READY,
+            totalElapsed = 0.seconds,
+            currentCadence = 90.0
+        )
+        
+        // sessionStarted should trigger fetch
+        engine.sessionStarted(sessionState)
+        
+        assertNotNull(engine.state.value.current)
+        assertNull(engine.state.value.future)
+        assertEquals(0, engine.state.value.currentIntervalIndex)
+    }
+
+    @Test
+    fun testFreeRideNoFutureFetch() = runTest(testDispatcher) {
+        val engine = createEngine()
         val sessionState = WorkoutSessionState(
             mode = WorkoutMode.FreeRide,
             status = WorkoutStatus.RUNNING,
@@ -38,10 +60,15 @@ class RecommendationEngineV2Test {
             currentCadence = 90.0
         )
         
-        engine.update(sessionState, MusicState(), 100f)
+        engine.sessionStarted(sessionState)
+        testScheduler.advanceUntilIdle()
         
-        assertNotNull(engine.state.value.current)
-        assertNull(engine.state.value.future)
+        // Even if we are "near end" (though FreeRide has no end in update logic), 
+        // V2 should not fetch future.
+        engine.update(sessionState, MusicState(mode = WorkoutMode.FreeRide), 10f)
+        testScheduler.advanceUntilIdle()
+        
+        assertNull(engine.state.value.future, "FreeRide should never fetch a future interval")
     }
     
     @Test
@@ -52,7 +79,7 @@ class RecommendationEngineV2Test {
         )
         val workout = Workout(id = 1, name = "Test", author = "Author", intervals = intervals)
         
-        val engine = RecommendationEngineV2(recommender, this)
+        val engine = createEngine()
         val sessionState = WorkoutSessionState(
             mode = WorkoutMode.Structured(workout),
             status = WorkoutStatus.RUNNING,
@@ -92,7 +119,7 @@ class RecommendationEngineV2Test {
         )
         val workout = Workout(id = 1, name = "Test", author = "Author", intervals = intervals)
         
-        val engine = RecommendationEngineV2(recommender, this)
+        val engine = createEngine()
         
         // 1. Initial state
         val s1 = WorkoutSessionState(

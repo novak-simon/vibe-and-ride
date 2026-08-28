@@ -1,11 +1,14 @@
 package com.novaksimon.vibeandride.recommendation
 
 import com.novaksimon.vibeandride.model.Interval
+import com.novaksimon.vibeandride.model.Song
 import com.novaksimon.vibeandride.util.VibeLog
 import com.novaksimon.vibeandride.workout.WorkoutMode
 import com.novaksimon.vibeandride.workout.WorkoutSessionState
 import com.novaksimon.vibeandride.music.MusicState
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -19,22 +22,50 @@ import kotlinx.coroutines.sync.withPermit
  * It manages current and future interval recommendations based on the workout session state.
  */
 class RecommendationEngineV2(
-    private val recommender: RecommendationEngine,
-    private val scope: CoroutineScope
+    songRepository: SongRepository,
+    profileRepository: ProfileRepository,
+    private val scope: CoroutineScope,
+    ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
+    defaultDispatcher: CoroutineDispatcher = Dispatchers.Default
 ) {
     private val TAG = "RecommendationEngineV2"
+    private val recommender = RecommendationEngine(
+        songRepository,
+        profileRepository,
+        ioDispatcher = ioDispatcher,
+        defaultDispatcher = defaultDispatcher
+    )
     private val _state = MutableStateFlow(RecommendationV2State())
     val state: StateFlow<RecommendationV2State> = _state.asStateFlow()
     
     private val semaphore = Semaphore(2)
 
     /**
-     * Resets the engine state for a new session.
+     * Resets the engine state for a new session and triggers initial fetch.
      */
     fun sessionStarted(sessionState: WorkoutSessionState) {
-        val currentIntervalIndex = sessionState.structuredState?.intervalIndex ?: -1
-        VibeLog.i(TAG, "Session started. Resetting V2 state. Initial interval index: $currentIntervalIndex")
-        _state.update { RecommendationV2State(currentIntervalIndex = currentIntervalIndex) }
+        val mode = sessionState.mode ?: return
+        val currentIntervalIndex = sessionState.structuredState?.intervalIndex ?: 0
+        
+        VibeLog.i(TAG, "Session started. Initializing V2 state. Interval index: $currentIntervalIndex")
+        _state.update { 
+            RecommendationV2State(currentIntervalIndex = currentIntervalIndex) 
+        }
+
+        // Trigger initial fetch for current interval
+        val interval = when (mode) {
+            is WorkoutMode.Structured -> mode.workout.intervals.getOrNull(currentIntervalIndex)
+            is WorkoutMode.FreeRide -> Interval(
+                duration = 86400.0, 
+                power = 0.5f, 
+                cadence = sessionState.currentCadence ?: 90.0, 
+                type = "FreeRide"
+            )
+        }
+        if (interval != null) {
+            VibeLog.i(TAG, "Session started. Triggering initial fetch for interval $currentIntervalIndex")
+            fetchCurrent(interval)
+        }
     }
 
     /**
@@ -67,7 +98,7 @@ class RecommendationEngineV2(
         if (_state.value.current == null && !_state.value.isLoadingCurrent) {
             val interval = when (mode) {
                 is WorkoutMode.Structured -> mode.workout.intervals.getOrNull(currentIntervalIndex)
-                is WorkoutMode.FreeRide -> Interval(duration = 3600.0, power = 0.5f, cadence = sessionState.currentCadence ?: 90.0, type = "FreeRide")
+                is WorkoutMode.FreeRide -> Interval(duration = 86400.0, power = 0.5f, cadence = sessionState.currentCadence ?: 90.0, type = "FreeRide")
             }
             if (interval != null) {
                 VibeLog.i(TAG, "Fetching current recommendation for interval $currentIntervalIndex")
@@ -114,6 +145,20 @@ class RecommendationEngineV2(
                 VibeLog.e(TAG, "Error fetching future recommendation", e)
                 _state.update { it.copy(isLoadingFuture = false) }
             }
+        }
+    }
+
+    /**
+     * Selects a song from the current or future buffer.
+     */
+    fun selectSong(intervalIndex: Int, songIndex: Int): Song? {
+        val s = _state.value
+        return if (intervalIndex == s.currentIntervalIndex) {
+            s.current?.topSongs?.getOrNull(songIndex)
+        } else if (intervalIndex == s.currentIntervalIndex + 1) {
+            s.future?.topSongs?.getOrNull(songIndex)
+        } else {
+            null
         }
     }
 }

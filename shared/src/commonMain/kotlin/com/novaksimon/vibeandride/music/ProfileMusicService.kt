@@ -60,7 +60,7 @@ class ProfileMusicService(
         val position =
             playbackController.positionSeconds() ?: 0f
 
-        val song = currentSong ?: return 3600f
+        val song = currentSong ?: return 86400f
         val duration = song.duration.toFloat()
         val endTime = song.endTime
 

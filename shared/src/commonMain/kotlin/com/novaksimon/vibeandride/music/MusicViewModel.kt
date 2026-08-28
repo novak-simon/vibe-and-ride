@@ -16,7 +16,6 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
-import kotlin.time.Duration.Companion.seconds
 
 data class MusicUiState(
     val currentSong: Song? = null,
@@ -50,13 +49,13 @@ class MusicViewModel(
                 musicEngine.state,
                 playbackController.isPlayingFlow
             ) { musicState, isPlaying ->
-                val targetIndex = if (musicState.currentIntervalIndex == -1) 0 else musicState.currentIntervalIndex
+                val v2State = musicState.recommendationV2
                 
                 MusicUiState(
                     currentSong = musicState.currentSong,
-                    isMusicAvailable = musicState.recommendationIndex.getOrNull(targetIndex) ?: false,
+                    isMusicAvailable = v2State.current != null,
                     isPlaying = isPlaying,
-                    debugInfo = musicState.currentDebug,
+                    debugInfo = v2State.current?.debugInfo,
                     isLiked = musicState.isLiked,
                     playbackState = musicState.playbackState,
                     errorMessage = if (musicState.playbackState == PlaybackState.ERROR) "Playback Error" else null
@@ -88,10 +87,6 @@ class MusicViewModel(
                         musicEngine.sessionStarted(sessionState)
                     } else if (sessionState.status == WorkoutStatus.RUNNING) {
                         musicEngine.update(sessionState)
-                    }
-                    
-                    if (sessionState.structuredState != null && sessionState.structuredState.remainingInInterval < 40.seconds) {
-                        musicEngine.precomputeNextRecommendation(sessionState)
                     }
                 }
         }

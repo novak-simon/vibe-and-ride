@@ -400,9 +400,11 @@ Manually test with real hardware. 8. Integrate FreeRide music behavior.
 
 This is a HIGH-RISK product/algorithm area.
 
-*Status (August 2026):* Completed scoring logic refinements and critical performance optimizations.
-1. **Scoring:** Skip penalties are correctly implemented, and cadence folding is consistent.
-2. **Performance:** Fixed a major "N+1 query" bottleneck. Artist names are now resolved via batch fetching (`getArtistNamesByIds`) only for the final recommended songs, reducing start-up delay from 10+ seconds to under 1 second.
+*Status (August 2026):* Successfully migrated recommendation logic to the reactive `RecommendationEngineV2`. `MusicEngine` no longer manages recommendation buffers or manual precomputation; it now purely orchestrates playback based on the unified state provided by V2.
+
+1. **Reactive Orchestration:** `RecommendationEngineV2` automatically handles buffer shifting and proactive lookahead pre-fetching.
+2. **Immediate Preparation:** Recommendations are fetched as soon as a workout is selected (`READY` status), ensuring music availability at ride start.
+3. **Thread-Safe State:** `MusicEngine` now uses atomic `update { ... }` blocks for all state modifications.
 
 The project manager wants to design the algorithm logic personally.
 
@@ -762,7 +764,7 @@ Connect BLE/free ride to the music engine. `MusicEngine` now handles `FreeRide` 
 
 ### Step 11 [DONE]
 
-Review and intentionally redesign recommendation scoring. Verified skip penalties and cadence folding logic.
+Review and intentionally redesign recommendation scoring. Verified skip penalties and cadence folding logic. Introduced `RecommendationEngineV2` to provide a reactive, buffer-shifting orchestrator that isolates recommendation lifecycle from the core `MusicEngine`.
 
 ### Step 12 [DONE]
 
@@ -835,7 +837,7 @@ can safely support:
           +
     BLE cadence
           +
-    music recommendation
+    music recommendation (reactive V2)
           +
     reliable background playback
 

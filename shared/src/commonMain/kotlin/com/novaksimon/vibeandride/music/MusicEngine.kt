@@ -1,12 +1,9 @@
 package com.novaksimon.vibeandride.music
 
-import com.novaksimon.vibeandride.model.Interval
 import com.novaksimon.vibeandride.model.ProfileSongStats
 import com.novaksimon.vibeandride.model.Song
 import com.novaksimon.vibeandride.recommendation.ProfileRepository
-import com.novaksimon.vibeandride.recommendation.RecommendationEngine
 import com.novaksimon.vibeandride.recommendation.RecommendationEngineV2
-import com.novaksimon.vibeandride.recommendation.RecommendationResult
 import com.novaksimon.vibeandride.recommendation.SongRepository
 import com.novaksimon.vibeandride.util.VibeLog
 import com.novaksimon.vibeandride.workout.WorkoutMode
@@ -17,8 +14,6 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.sync.Semaphore
-import kotlinx.coroutines.sync.withPermit
 import kotlin.math.min
 import kotlin.time.Clock
 import kotlin.time.Duration.Companion.seconds
@@ -31,24 +26,23 @@ class MusicEngine(
     songRepository: SongRepository,
     private val profileRepository: ProfileRepository,
     mainDispatcher: kotlinx.coroutines.CoroutineDispatcher = Dispatchers.Main,
-    private val ioDispatcher: kotlinx.coroutines.CoroutineDispatcher = Dispatchers.IO,
-    private val defaultDispatcher: kotlinx.coroutines.CoroutineDispatcher = Dispatchers.Default,
+    ioDispatcher: kotlinx.coroutines.CoroutineDispatcher = Dispatchers.IO,
+    defaultDispatcher: kotlinx.coroutines.CoroutineDispatcher = Dispatchers.Default,
 ) {
     private val TAG = "MusicEngine"
     private val service = ProfileMusicService(playbackController, songRepository)
-    private val recommender = RecommendationEngine(
-        songRepository, 
-        profileRepository,
-        ioDispatcher = ioDispatcher,
-        defaultDispatcher = defaultDispatcher
-    )
     
     private val engineScope = CoroutineScope(SupervisorJob() + mainDispatcher)
     private val statsScope = CoroutineScope(SupervisorJob() + ioDispatcher)
     private val recommendScope = CoroutineScope(SupervisorJob() + defaultDispatcher)
-    private val recommenderV2 = RecommendationEngineV2(recommender, recommendScope)
-    private val recommendSemaphore = Semaphore(4)
-    private val activePrecomputations = mutableSetOf<Int>()
+    
+    private val recommenderV2 = RecommendationEngineV2(
+        songRepository = songRepository,
+        profileRepository = profileRepository,
+        scope = recommendScope,
+        ioDispatcher = ioDispatcher,
+        defaultDispatcher = defaultDispatcher
+    )
 
     private val _state = MutableStateFlow(MusicState())
     val state: StateFlow<MusicState> = _state.asStateFlow()
@@ -67,13 +61,10 @@ class MusicEngine(
     }
 
     fun sessionStarted(sessionState: WorkoutSessionState) {
-        val mode = sessionState.mode
-        if (mode == _state.value.mode && _state.value.recommendationBuffer.isNotEmpty()) {
-            return
-        }
-
+        val mode = sessionState.mode ?: return
         val workout = if (mode is WorkoutMode.Structured) mode.workout else null
-        val intervalCount = workout?.intervals?.size ?: 1 // At least 1 for FreeRide
+
+        if (mode == _state.value.mode && workout == _state.value.workout) return
 
         _state.update {
             it.copy(
@@ -81,22 +72,11 @@ class MusicEngine(
                 workout = workout,
                 currentIntervalIndex = -1,
                 preloadedSongId = null,
-                playbackState = PlaybackState.IDLE,
-                recommendationBuffer = List(intervalCount) { null },
-                recommendationIndex = List(intervalCount) { false }
+                playbackState = PlaybackState.IDLE
             )
         }
-        activePrecomputations.clear()
         
         recommenderV2.sessionStarted(sessionState)
-
-        if (mode is WorkoutMode.Structured) {
-            val startIndex = sessionState.structuredState?.intervalIndex ?: 0
-            precompute(mode.workout.intervals[startIndex], startIndex)
-        } else if (mode is WorkoutMode.FreeRide) {
-            // Precompute initial recommendation for FreeRide based on current (or default) cadence
-            precomputeFreeRide(sessionState.currentCadence ?: 90.0)
-        }
     }
 
     suspend fun update(sessionState: WorkoutSessionState) {
@@ -108,7 +88,6 @@ class MusicEngine(
         val timeUntilTrackEnd = service.timeUntilTrackEnd()
         val remainingInInterval = sessionState.structuredState?.remainingInInterval?.inWholeMilliseconds?.toFloat()?.div(1000f) ?: Float.MAX_VALUE
 
-        VibeLog.i(TAG, "MusicEngine.update: calling recommenderV2.update")
         recommenderV2.update(sessionState, _state.value, timeUntilTrackEnd)
 
         // Preload logic
@@ -213,56 +192,6 @@ class MusicEngine(
     fun play() { service.play() }
     fun pause() { service.pause() }
 
-    fun precomputeNextRecommendation(sessionState: WorkoutSessionState) {
-        if (sessionState.mode is WorkoutMode.Structured) {
-            val nextIndex = decidePrecompute(_state.value, sessionState.structuredState?.intervalIndex, activePrecomputations)
-            if (nextIndex != null) {
-                val interval = sessionState.mode.workout.intervals.getOrNull(nextIndex)
-                if (interval != null) precompute(interval, nextIndex)
-            }
-        }
-    }
-
-    fun precompute(interval: Interval, intervalIndex: Int) {
-        activePrecomputations.add(intervalIndex)
-        recommendScope.launch {
-            val recommendation = recommendSemaphore.withPermit {
-                recommender.recommend(interval)
-            }
-            updateBuffer(intervalIndex, recommendation)
-        }
-    }
-
-    fun precomputeFreeRide(cadence: Double) {
-        val interval = Interval(duration = 3600.0, power = 0.5f, cadence = cadence, type = "FreeRide")
-        recommendScope.launch {
-            val recommendation = recommendSemaphore.withPermit {
-                recommender.recommend(interval)
-            }
-            updateBuffer(0, recommendation)
-        }
-    }
-
-    private fun updateBuffer(index: Int, recommendation: RecommendationResult) {
-        if (recommendation.topSongs.isEmpty()) {
-            VibeLog.w(TAG, "Recommendation empty for buffer index $index")
-        }
-        val currentBuffer = _state.value.recommendationBuffer.toMutableList()
-        if (index < currentBuffer.size) currentBuffer[index] = recommendation
-
-        val currentReady = _state.value.recommendationIndex.toMutableList()
-        if (index < currentReady.size) currentReady[index] = true
-
-        _state.update {
-            it.copy(
-                recommendationBuffer = currentBuffer,
-                futureDebug = recommendation.debugInfo,
-                futureIntervalSong = recommendation.topSongs.getOrNull(0),
-                recommendationIndex = currentReady
-            )
-        }
-    }
-
     private fun incrementStatsOnTrackLeave(skipped: Boolean = false) {
         val song = _state.value.currentSong ?: return
         val endPosition = service.currentPosition()
@@ -294,8 +223,7 @@ class MusicEngine(
     fun selectSongFromBuffer(state: MusicState, intervalIndex: Int, songIndex: Int): Song? {
         val actualIndex = if (state.mode is WorkoutMode.FreeRide) 0 else intervalIndex
         if (actualIndex < 0) return null
-        val recommendation = state.recommendationBuffer.getOrNull(actualIndex) ?: return null
-        return recommendation.topSongs.getOrNull(songIndex)
+        return recommenderV2.selectSong(actualIndex, songIndex)
     }
 
     fun decidePreload(
@@ -310,7 +238,7 @@ class MusicEngine(
             val songToPreload = if (state.mode is WorkoutMode.FreeRide) {
                 selectSongFromBuffer(state, 0, state.songIndex)
             } else if (remainingInInterval <= timeUntilTrackEnd + 5f) {
-                selectSongFromBuffer(state, state.currentIntervalIndex + 1, 0) ?: state.futureIntervalSong
+                selectSongFromBuffer(state, state.currentIntervalIndex + 1, 0)
             } else {
                 selectSongFromBuffer(state, state.currentIntervalIndex, state.songIndex)
             }
@@ -359,7 +287,6 @@ class MusicEngine(
     fun prepareForNextTrack(state: MusicState, newInterval: Boolean, intervalIndex: Int): MusicState {
         return if (newInterval || state.mode is WorkoutMode.FreeRide) {
             state.copy(
-                currentDebug = state.futureDebug,
                 currentIntervalIndex = if (state.mode is WorkoutMode.FreeRide) 0 else intervalIndex,
                 songIndex = if (newInterval) 0 else state.songIndex
             )
@@ -403,15 +330,6 @@ class MusicEngine(
                 nextTrack(skipped = true)
             }
         }
-    }
-
-    fun decidePrecompute(state: MusicState, currentIntervalIndex: Int?, activePrecomputations: Set<Int>): Int? {
-        if (currentIntervalIndex == null) return null
-        val nextIndex = currentIntervalIndex + 1
-        if (state.recommendationIndex.getOrNull(nextIndex) == true || activePrecomputations.contains(nextIndex)) return null
-        val intervalCount = state.workout?.intervals?.size ?: 0
-        if (nextIndex in 0..<intervalCount) return nextIndex
-        return null
     }
 }
 
