@@ -3,6 +3,7 @@ package com.novaksimon.vibeandride.music
 import com.novaksimon.vibeandride.model.Song
 import com.novaksimon.vibeandride.model.Workout
 import com.novaksimon.vibeandride.recommendation.RecommendationResult
+import com.novaksimon.vibeandride.recommendation.RecommendationV2State
 import com.novaksimon.vibeandride.recommendation.SongRecommendation
 
 import com.novaksimon.vibeandride.workout.WorkoutMode
@@ -44,4 +45,5 @@ data class MusicState(
     val futureDebug: List<SongRecommendation> = emptyList(),
     val playbackErrorCount: Int = 0,
     val lastTransitionTimeMillis: Long = 0,
+    val recommendationV2: RecommendationV2State = RecommendationV2State(),
 )

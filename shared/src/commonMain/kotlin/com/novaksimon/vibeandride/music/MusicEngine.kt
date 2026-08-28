@@ -5,6 +5,7 @@ import com.novaksimon.vibeandride.model.ProfileSongStats
 import com.novaksimon.vibeandride.model.Song
 import com.novaksimon.vibeandride.recommendation.ProfileRepository
 import com.novaksimon.vibeandride.recommendation.RecommendationEngine
+import com.novaksimon.vibeandride.recommendation.RecommendationEngineV2
 import com.novaksimon.vibeandride.recommendation.RecommendationResult
 import com.novaksimon.vibeandride.recommendation.SongRepository
 import com.novaksimon.vibeandride.util.VibeLog
@@ -45,6 +46,7 @@ class MusicEngine(
     private val engineScope = CoroutineScope(SupervisorJob() + mainDispatcher)
     private val statsScope = CoroutineScope(SupervisorJob() + ioDispatcher)
     private val recommendScope = CoroutineScope(SupervisorJob() + defaultDispatcher)
+    private val recommenderV2 = RecommendationEngineV2(recommender, recommendScope)
     private val recommendSemaphore = Semaphore(4)
     private val activePrecomputations = mutableSetOf<Int>()
 
@@ -58,6 +60,10 @@ class MusicEngine(
                 handlePlaybackError(error)
             }
             .launchIn(engineScope)
+
+        recommenderV2.state.onEach { v2State ->
+            _state.update { it.copy(recommendationV2 = v2State) }
+        }.launchIn(engineScope)
     }
 
     fun sessionStarted(sessionState: WorkoutSessionState) {
@@ -69,17 +75,21 @@ class MusicEngine(
         val workout = if (mode is WorkoutMode.Structured) mode.workout else null
         val intervalCount = workout?.intervals?.size ?: 1 // At least 1 for FreeRide
 
-        _state.value = _state.value.copy(
-            mode = mode,
-            workout = workout,
-            currentIntervalIndex = -1,
-            preloadedSongId = null,
-            playbackState = PlaybackState.IDLE,
-            recommendationBuffer = List(intervalCount) { null },
-            recommendationIndex = List(intervalCount) { false }
-        )
+        _state.update {
+            it.copy(
+                mode = mode,
+                workout = workout,
+                currentIntervalIndex = -1,
+                preloadedSongId = null,
+                playbackState = PlaybackState.IDLE,
+                recommendationBuffer = List(intervalCount) { null },
+                recommendationIndex = List(intervalCount) { false }
+            )
+        }
         activePrecomputations.clear()
         
+        recommenderV2.sessionStarted(sessionState)
+
         if (mode is WorkoutMode.Structured) {
             val startIndex = sessionState.structuredState?.intervalIndex ?: 0
             precompute(mode.workout.intervals[startIndex], startIndex)
@@ -98,6 +108,9 @@ class MusicEngine(
         val timeUntilTrackEnd = service.timeUntilTrackEnd()
         val remainingInInterval = sessionState.structuredState?.remainingInInterval?.inWholeMilliseconds?.toFloat()?.div(1000f) ?: Float.MAX_VALUE
 
+        VibeLog.i(TAG, "MusicEngine.update: calling recommenderV2.update")
+        recommenderV2.update(sessionState, _state.value, timeUntilTrackEnd)
+
         // Preload logic
         val preloadDecision = decidePreload(_state.value, remainingInInterval, timeUntilTrackEnd, sessionState)
         if (preloadDecision is PreloadDecision.Preload) {
@@ -106,13 +119,15 @@ class MusicEngine(
             VibeLog.d(TAG, "MusicEngine: preloading song ${songToPreload.title}")
             if (!service.preloadSong(songToPreload)) {
                 VibeLog.w(TAG, "MusicEngine: Preload failed for ${songToPreload.title}, skipping index")
-                _state.value = _state.value.copy(songIndex = _state.value.songIndex + 1)
+                _state.update { it.copy(songIndex = it.songIndex + 1) }
                 return
             }
-            _state.value = _state.value.copy(
-                playbackState = PlaybackState.PRELOADING,
-                preloadedSongId = songToPreload.id
-            )
+            _state.update {
+                it.copy(
+                    playbackState = PlaybackState.PRELOADING,
+                    preloadedSongId = songToPreload.id
+                )
+            }
         }
 
         // Transition logic
@@ -141,38 +156,40 @@ class MusicEngine(
         isRetry: Boolean = false
     ) {
         if (_state.value.playbackState == PlaybackState.TRANSITIONING) return
-        _state.value = _state.value.copy(playbackState = PlaybackState.TRANSITIONING)
+        _state.update { it.copy(playbackState = PlaybackState.TRANSITIONING) }
         try {
             if (!firstSong && !isRetry) incrementStatsOnTrackLeave(skipped = skipped)
 
-            _state.value = prepareForNextTrack(_state.value, newInterval, intervalIndex)
+            _state.update { prepareForNextTrack(it, newInterval, intervalIndex) }
             
             val song = selectSongFromBuffer(_state.value, _state.value.currentIntervalIndex, _state.value.songIndex) ?: run {
                 VibeLog.w(TAG, "MusicEngine: No recommendation ready for index ${_state.value.currentIntervalIndex}")
-                _state.value = _state.value.copy(playbackState = PlaybackState.IDLE)
+                _state.update { it.copy(playbackState = PlaybackState.IDLE) }
                 return
             }
             
             if (!service.crossfadeTo(song, 1000L)) {
                 VibeLog.e(TAG, "MusicEngine: Crossfade failed for ${song.title}, skipping to next track")
-                _state.value = _state.value.copy(
-                    songIndex = _state.value.songIndex + 1,
-                    playbackState = PlaybackState.PLAYING
-                )
+                _state.update {
+                    it.copy(
+                        songIndex = it.songIndex + 1,
+                        playbackState = PlaybackState.PLAYING
+                    )
+                }
                 delay(1.seconds)
                 nextTrack(newInterval = false, intervalIndex = _state.value.currentIntervalIndex)
                 return
             }
 
-            _state.value = finalizeTrackTransition(_state.value, song, isRetry)
+            _state.update { finalizeTrackTransition(it, song, isRetry) }
 
             statsScope.launch {
                 val songStats: ProfileSongStats? = profileRepository.getStatByProfileAndSongId(songId = song.id)
-                _state.value = _state.value.copy(isLiked = songStats?.isLiked ?: false)
+                _state.update { it.copy(isLiked = songStats?.isLiked ?: false) }
             }
         } catch (e: Exception) {
             VibeLog.e(TAG, "MusicEngine: Error during nextTrack", e)
-            _state.value = _state.value.copy(playbackState = PlaybackState.ERROR)
+            _state.update { it.copy(playbackState = PlaybackState.ERROR) }
         }
         
         incrementStatsOnTrackArrive()
@@ -186,7 +203,7 @@ class MusicEngine(
 
     fun songLiked(liked: Boolean = true) {
         val song = _state.value.currentSong ?: return
-        _state.value = _state.value.copy(isLiked = liked)
+        _state.update { it.copy(isLiked = liked) }
         statsScope.launch {
             profileRepository.changeLikeState(songId = song.id, targetState = liked)
         }
@@ -236,12 +253,14 @@ class MusicEngine(
         val currentReady = _state.value.recommendationIndex.toMutableList()
         if (index < currentReady.size) currentReady[index] = true
 
-        _state.value = _state.value.copy(
-            recommendationBuffer = currentBuffer,
-            futureDebug = recommendation.debugInfo,
-            futureIntervalSong = recommendation.topSongs.getOrNull(0),
-            recommendationIndex = currentReady
-        )
+        _state.update {
+            it.copy(
+                recommendationBuffer = currentBuffer,
+                futureDebug = recommendation.debugInfo,
+                futureIntervalSong = recommendation.topSongs.getOrNull(0),
+                recommendationIndex = currentReady
+            )
+        }
     }
 
     private fun incrementStatsOnTrackLeave(skipped: Boolean = false) {
@@ -265,7 +284,7 @@ class MusicEngine(
     private fun incrementStatsOnTrackArrive() {
         val song = _state.value.currentSong ?: return
         val currentPosition = service.currentPosition()
-        _state.value = _state.value.copy(songStartPosition = currentPosition)
+        _state.update { it.copy(songStartPosition = currentPosition) }
 
         statsScope.launch {
             profileRepository.setStatDatetime("last_played_at", song.id)
@@ -366,13 +385,15 @@ class MusicEngine(
         }
 
         val currentCount = _state.value.playbackErrorCount
-        _state.value = _state.value.copy(playbackState = PlaybackState.ERROR)
+        _state.update { it.copy(playbackState = PlaybackState.ERROR) }
         if (currentCount < 3) {
             VibeLog.i(TAG, "MusicEngine: Retrying current song (attempt ${currentCount + 1})")
-            _state.value = _state.value.copy(
-                playbackErrorCount = currentCount + 1,
-                songIndex = (_state.value.songIndex - 1).coerceAtLeast(0)
-            )
+            _state.update {
+                it.copy(
+                    playbackErrorCount = currentCount + 1,
+                    songIndex = (it.songIndex - 1).coerceAtLeast(0)
+                )
+            }
             engineScope.launch {
                 nextTrack(newInterval = false, isRetry = true)
             }
