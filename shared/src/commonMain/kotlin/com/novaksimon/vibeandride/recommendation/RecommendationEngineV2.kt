@@ -152,6 +152,7 @@ class RecommendationEngineV2(
      * Selects a song from the current or future buffer.
      */
     fun selectSong(intervalIndex: Int, songIndex: Int): Song? {
+        if (intervalIndex < 0) return null
         val s = _state.value
         return if (intervalIndex == s.currentIntervalIndex) {
             s.current?.topSongs?.getOrNull(songIndex)

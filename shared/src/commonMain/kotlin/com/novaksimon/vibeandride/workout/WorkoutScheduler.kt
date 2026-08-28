@@ -123,6 +123,7 @@ class WorkoutScheduler {
     }
     
     fun startFreeRide() {
+        reset()
         mode = WorkoutMode.FreeRide
         status = WorkoutStatus.READY
     }

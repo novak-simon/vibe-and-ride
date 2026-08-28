@@ -39,6 +39,13 @@ class ProfileMusicService(
         return playbackController.positionSeconds() ?: 0f
     }
 
+    fun reset() {
+        informedAboutTrackEnd = false
+        currentSong = null
+        preloadedAudioUrl = null
+        preloadedSongId = null
+    }
+
     suspend fun preloadSong(song: Song): Boolean {
         val audioUrl: String? = getAudioUrl(song)
         if (!audioUrl.isNullOrEmpty()) {

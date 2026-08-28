@@ -4,6 +4,7 @@ import com.novaksimon.vibeandride.model.ProfileSongStats
 import com.novaksimon.vibeandride.model.Song
 import com.novaksimon.vibeandride.recommendation.ProfileRepository
 import com.novaksimon.vibeandride.recommendation.RecommendationEngineV2
+import com.novaksimon.vibeandride.recommendation.RecommendationV2State
 import com.novaksimon.vibeandride.recommendation.SongRepository
 import com.novaksimon.vibeandride.util.VibeLog
 import com.novaksimon.vibeandride.workout.WorkoutMode
@@ -64,15 +65,22 @@ class MusicEngine(
         val mode = sessionState.mode ?: return
         val workout = if (mode is WorkoutMode.Structured) mode.workout else null
 
-        if (mode == _state.value.mode && workout == _state.value.workout) return
+        service.reset()
 
         _state.update {
             it.copy(
                 mode = mode,
                 workout = workout,
                 currentIntervalIndex = -1,
+                currentSong = null,
+                songIndex = 0,
+                isLiked = false,
                 preloadedSongId = null,
-                playbackState = PlaybackState.IDLE
+                playbackState = PlaybackState.IDLE,
+                playbackErrorCount = 0,
+                songStartPosition = 0f,
+                lastTransitionTimeMillis = 0L,
+                recommendationV2 = RecommendationV2State()
             )
         }
         
@@ -232,6 +240,8 @@ class MusicEngine(
         timeUntilTrackEnd: Float,
         sessionState: WorkoutSessionState
     ): PreloadDecision {
+        if (state.currentIntervalIndex < 0) return PreloadDecision.None
+
         val remaining = min(remainingInInterval, timeUntilTrackEnd)
         
         if (remaining < 30f && state.playbackState == PlaybackState.PLAYING) {
@@ -261,20 +271,20 @@ class MusicEngine(
     ): TransitionDecision {
         if (state.playbackState == PlaybackState.TRANSITIONING) return TransitionDecision.None
 
-        if (state.mode is WorkoutMode.Structured && remainingInInterval < 1f) {
-            return TransitionDecision.NextTrack(newInterval = true, intervalIndex = (sessionState.structuredState?.intervalIndex ?: 0) + 1)
-        }
-
-        if (timeUntilTrackEnd < 1f) {
-            return TransitionDecision.NextTrack(newInterval = false)
-        }
-
         if (state.currentIntervalIndex == -1) {
             return TransitionDecision.NextTrack(
                 firstSong = true, 
                 newInterval = true, 
                 intervalIndex = sessionState.structuredState?.intervalIndex ?: 0
             )
+        }
+
+        if (state.mode is WorkoutMode.Structured && remainingInInterval < 1f) {
+            return TransitionDecision.NextTrack(newInterval = true, intervalIndex = (sessionState.structuredState?.intervalIndex ?: 0) + 1)
+        }
+
+        if (timeUntilTrackEnd < 1f) {
+            return TransitionDecision.NextTrack(newInterval = false)
         }
 
         if (!isPlaying && state.currentSong == null) {

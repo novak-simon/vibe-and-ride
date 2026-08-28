@@ -83,7 +83,9 @@ class MusicViewModel(
                 .collect { sessionState ->
                     if (sessionState == null) return@collect
                     
-                    if (sessionState.status == WorkoutStatus.NOT_STARTED || sessionState.status == WorkoutStatus.READY) {
+                    if (sessionState.status == WorkoutStatus.NOT_STARTED) {
+                        musicEngine.sessionStarted(sessionState)
+                    } else if (sessionState.mode != musicEngine.state.value.mode) {
                         musicEngine.sessionStarted(sessionState)
                     } else if (sessionState.status == WorkoutStatus.RUNNING) {
                         musicEngine.update(sessionState)

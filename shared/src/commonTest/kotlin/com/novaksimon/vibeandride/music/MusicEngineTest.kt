@@ -189,4 +189,57 @@ class MusicEngineTest {
         assertEquals(song1.id, engine.state.value.currentSong?.id)
         assertEquals(0, engine.state.value.currentIntervalIndex)
     }
+
+    @Test
+    fun testDecideTransition_FirstSongWhenTrackEnded() {
+        val state = MusicState(currentIntervalIndex = -1)
+        val session = createSessionState(structuredState = StructuredState(0, com.novaksimon.vibeandride.model.Interval(60.0, 0.5f, 90.0, "s"), 0.seconds, 60.seconds, 60.seconds))
+        // Even if previous track ended (timeUntilTrackEnd = 0f), first song transition must take priority
+        val decision = engine.decideTransition(state, session, 60f, 0f, true)
+        assertIs<TransitionDecision.NextTrack>(decision)
+        val next = decision as TransitionDecision.NextTrack
+        assertTrue(next.firstSong)
+        assertTrue(next.newInterval)
+        assertEquals(0, next.intervalIndex)
+    }
+
+    @Test
+    fun testDecidePreload_NegativeIntervalIndexReturnsNone() {
+        val state = MusicState(currentIntervalIndex = -1, playbackState = PlaybackState.PLAYING)
+        val session = createSessionState()
+        val decision = engine.decidePreload(state, 10f, 10f, session)
+        assertIs<PreloadDecision.None>(decision)
+    }
+
+    @Test
+    fun testSessionStarted_ResetsStateCompletely() = runTest(testDispatcher) {
+        val song1 = createSong(1)
+        fakeSongRepository.songsAroundTargetCadenceResults.add(listOf(song1))
+        fakeSongRepository.fetchSongsResults.add(listOf(song1))
+
+        val workout = createWorkout(listOf(com.novaksimon.vibeandride.model.Interval(60.0, 0.5f, 90.0, "s")))
+        val sessionState = createSessionState(
+            mode = WorkoutMode.Structured(workout),
+            structuredState = StructuredState(0, workout.intervals[0], 0.seconds, 60.seconds, 60.seconds)
+        )
+
+        // Run first session
+        engine.sessionStarted(sessionState)
+        engine.update(sessionState)
+        engine.nextTrack(newInterval = true, intervalIndex = 0, firstSong = true)
+
+        assertEquals(0, engine.state.value.currentIntervalIndex)
+        assertNotNull(engine.state.value.currentSong)
+
+        // Select new session (even same workout)
+        fakeSongRepository.songsAroundTargetCadenceResults.add(listOf(song1))
+        fakeSongRepository.fetchSongsResults.add(listOf(song1))
+        engine.sessionStarted(sessionState)
+
+        // Verify state is completely reset
+        assertEquals(-1, engine.state.value.currentIntervalIndex)
+        assertNull(engine.state.value.currentSong)
+        assertEquals(0, engine.state.value.songIndex)
+        assertEquals(PlaybackState.IDLE, engine.state.value.playbackState)
+    }
 }

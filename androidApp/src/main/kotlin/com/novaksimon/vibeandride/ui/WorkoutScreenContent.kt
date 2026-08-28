@@ -1,7 +1,11 @@
 package com.novaksimon.vibeandride.ui
 
 import androidx.compose.animation.*
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -48,6 +52,7 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.Sync
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -56,6 +61,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.platform.LocalUriHandler
@@ -78,6 +84,7 @@ import coil3.compose.AsyncImage
 import com.novaksimon.vibeandride.R
 import com.novaksimon.vibeandride.music.MusicUiState
 import com.novaksimon.vibeandride.workout.WorkoutUiState
+import kotlinx.coroutines.delay
 import kotlin.time.Duration.Companion.seconds
 
 // App Color Palette
@@ -110,6 +117,7 @@ fun WorkoutScreenContent(
     var showResyncDialog by remember { mutableStateOf(false) }
     var showDebugDialog by remember { mutableStateOf(false) }
     var showMusicDetail by remember { mutableStateOf(false) }
+    var showFinishedAnimation by remember { mutableStateOf(false) }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     LaunchedEffect(Unit) {
@@ -118,6 +126,15 @@ fun WorkoutScreenContent(
 
     val state = workoutUiState.workoutState
     val status = state?.status ?: WorkoutStatus.NOT_STARTED
+
+    LaunchedEffect(status) {
+        if (status == WorkoutStatus.FINISHED) {
+            showFinishedAnimation = true
+            delay(20.seconds)
+            showFinishedAnimation = false
+        }
+    }
+
     val workout = (state?.mode as? WorkoutMode.Structured)?.workout
     val structured = state?.structuredState
 
@@ -323,6 +340,14 @@ fun WorkoutScreenContent(
 
         Spacer(modifier = Modifier.weight(1f))
 
+        AnimatedVisibility(
+            visible = showFinishedAnimation,
+            enter = fadeIn() + expandVertically(),
+            exit = fadeOut() + shrinkVertically()
+        ) {
+            WorkoutFinishedAnimation()
+        }
+
         // 5. Music mini-player
         MusicMiniPlayer(
             musicUiState = musicUiState,
@@ -372,6 +397,51 @@ fun WorkoutScreenContent(
         DebugDialog(
             info = musicUiState.debugInfo,
             onDismiss = { showDebugDialog = false },
+        )
+    }
+}
+
+@Composable
+fun WorkoutFinishedAnimation() {
+    val infiniteTransition = rememberInfiniteTransition(label = "pulse")
+    val scale by infiniteTransition.animateFloat(
+        initialValue = 1f,
+        targetValue = 1.15f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1000),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "scale"
+    )
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Icon(
+            imageVector = Icons.Default.Star,
+            contentDescription = null,
+            tint = COLOR_SECONDARY,
+            modifier = Modifier
+                .size(64.dp)
+                .graphicsLayer(scaleX = scale, scaleY = scale)
+        )
+        Spacer(modifier = Modifier.height(12.dp))
+        Text(
+            text = "WORKOUT FINISHED!",
+            style = MaterialTheme.typography.headlineSmall,
+            fontWeight = FontWeight.Bold,
+            color = COLOR_SECONDARY,
+            textAlign = TextAlign.Center
+        )
+        Text(
+            text = "Great job! You've successfully completed your ride.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = Color.Gray,
+            textAlign = TextAlign.Center
         )
     }
 }
