@@ -25,7 +25,8 @@ data class WorkoutUiState(
     val isPickerVisible: Boolean = false,
     val isLoading: Boolean = false,
     val bleStatus: CadenceSourceStatus = CadenceSourceStatus.IDLE,
-    val errorMessage: String? = null
+    val errorMessage: String? = null,
+    val showFinishedAnimation: Boolean = false
 )
 
 class WorkoutViewModel(
@@ -42,6 +43,7 @@ class WorkoutViewModel(
     private val _availableWorkouts = MutableStateFlow<List<Workout>>(emptyList())
     val availableWorkouts: StateFlow<List<Workout>> = _availableWorkouts.asStateFlow()
     private var tickJob: Job? = null
+    private var animationJob: Job? = null
     private var hasIncrementedChosenCount = false
 
     init {
@@ -197,11 +199,26 @@ class WorkoutViewModel(
         tickJob?.cancel()
         tickJob = null
     }
+
+    private fun triggerFinishedAnimation() {
+        if (animationJob?.isActive == true) return
+        animationJob = viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(showFinishedAnimation = true)
+            delay(20.seconds)
+            _uiState.value = _uiState.value.copy(showFinishedAnimation = false)
+        }
+    }
+
     private fun tick() {
         val state = scheduler.getState()
+        val oldStatus = _uiState.value.workoutState?.status
         _uiState.value = _uiState.value.copy(
             workoutState = state,
         )
+
+        if (state.status == WorkoutStatus.FINISHED && oldStatus != WorkoutStatus.FINISHED) {
+            triggerFinishedAnimation()
+        }
 
         // Increment chosen_count if workout is more than half finished
         if (!hasIncrementedChosenCount && state.status == WorkoutStatus.RUNNING) {

@@ -84,7 +84,6 @@ import coil3.compose.AsyncImage
 import com.novaksimon.vibeandride.R
 import com.novaksimon.vibeandride.music.MusicUiState
 import com.novaksimon.vibeandride.workout.WorkoutUiState
-import kotlinx.coroutines.delay
 import kotlin.time.Duration.Companion.seconds
 
 // App Color Palette
@@ -117,7 +116,6 @@ fun WorkoutScreenContent(
     var showResyncDialog by remember { mutableStateOf(false) }
     var showDebugDialog by remember { mutableStateOf(false) }
     var showMusicDetail by remember { mutableStateOf(false) }
-    var showFinishedAnimation by remember { mutableStateOf(false) }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     LaunchedEffect(Unit) {
@@ -126,14 +124,6 @@ fun WorkoutScreenContent(
 
     val state = workoutUiState.workoutState
     val status = state?.status ?: WorkoutStatus.NOT_STARTED
-
-    LaunchedEffect(status) {
-        if (status == WorkoutStatus.FINISHED) {
-            showFinishedAnimation = true
-            delay(20.seconds)
-            showFinishedAnimation = false
-        }
-    }
 
     val workout = (state?.mode as? WorkoutMode.Structured)?.workout
     val structured = state?.structuredState
@@ -341,7 +331,7 @@ fun WorkoutScreenContent(
         Spacer(modifier = Modifier.weight(1f))
 
         AnimatedVisibility(
-            visible = showFinishedAnimation,
+            visible = workoutUiState.showFinishedAnimation,
             enter = fadeIn() + expandVertically(),
             exit = fadeOut() + shrinkVertically()
         ) {
