@@ -62,26 +62,54 @@ class JamendoImporter(
         }
     }
 
-    suspend fun import(limit: Int = 10, boost: String = "popularity_total") {
-        println("JamendoImporter: Fetching songs...")
-        val response: JamendoResponse = httpClient.get("https://api.jamendo.com/v3.0/tracks/") {
-            parameter("client_id", jamendoClientId)
-            parameter("format", "jsonpretty")
-            parameter("limit", limit)
-            parameter("include", "musicinfo")
-            parameter("boost", boost)
-            parameter("groupby", "artist_id")
-        }.body()
+    suspend fun import(limit: Int = 10, offset: Int = 0, boost: String = "popularity_total") {
+        val maxPageSize = 200
+        var remaining = limit
+        var currentOffset = offset
 
-        println("JamendoImporter: Found ${response.results.size} tracks.")
+        println("JamendoImporter: Starting bulk import of $limit tracks (starting offset: $offset)...")
 
-        response.results.forEach { track ->
-            try {
-                processTrack(track)
+        while (remaining > 0) {
+            val pageSize = minOf(remaining, maxPageSize)
+            println("JamendoImporter: Fetching batch (limit: $pageSize, offset: $currentOffset)...")
+
+            val response: JamendoResponse = try {
+                httpClient.get("https://api.jamendo.com/v3.0/tracks/") {
+                    parameter("client_id", jamendoClientId)
+                    parameter("format", "jsonpretty")
+                    parameter("limit", pageSize)
+                    parameter("offset", currentOffset)
+                    parameter("include", "musicinfo")
+                    parameter("boost", boost)
+                    parameter("groupby", "artist_id")
+                }.body()
             } catch (e: Exception) {
-                println("JamendoImporter: Error processing track ${track.id}: ${e.message}")
+                println("JamendoImporter: API request failed: ${e.message}")
+                break
+            }
+
+            if (response.results.isEmpty()) {
+                println("JamendoImporter: No more tracks returned by API.")
+                break
+            }
+
+            response.results.forEach { track ->
+                try {
+                    processTrack(track)
+                } catch (e: Exception) {
+                    println("JamendoImporter: Error processing track ${track.id}: ${e.message}")
+                }
+            }
+
+            remaining -= response.results.size
+            currentOffset += response.results.size
+
+            // If the API returned fewer tracks than requested, we've likely hit the end
+            if (response.results.size < pageSize) {
+                break
             }
         }
+        println("JamendoImporter: Bulk import complete.")
     }
 
     private suspend fun processTrack(track: JamendoTrack) {

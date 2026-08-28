@@ -50,22 +50,24 @@ fun main() {
                 call.respondText("Vibe & Ride Backend is Running")
             }
             get("/status") {
-                call.respond(mapOf("status" to "OK", "version" to "1.0.0"))
+                call.respond(StatusResponse(status = "OK", version = "1.0.0"))
             }
             post("/import/jamendo") {
                 val limit = call.parameters["limit"]?.toIntOrNull() ?: 10
-                launch { jamendoImporter.import(limit) }
-                call.respond(mapOf("status" to "Import started"))
+                val offset = call.parameters["offset"]?.toIntOrNull() ?: 0
+                launch { jamendoImporter.import(limit, offset) }
+                call.respond(StatusResponse(status = "Import started", limit = limit, offset = offset))
             }
             post("/import/audius") {
                 val limit = call.parameters["limit"]?.toIntOrNull() ?: 10
-                launch { audiusImporter.importTrending(limit) }
-                call.respond(mapOf("status" to "Import started"))
+                val offset = call.parameters["offset"]?.toIntOrNull() ?: 0
+                launch { audiusImporter.importTrending(limit, offset) }
+                call.respond(StatusResponse(status = "Import started", limit = limit, offset = offset))
             }
             post("/analyze") {
                 val limit = call.parameters["limit"]?.toIntOrNull() ?: 5
                 launch { analysisOrchestrator.runAnalysis(limit) }
-                call.respond(mapOf("status" to "Analysis started"))
+                call.respond(StatusResponse(status = "Analysis started", limit = limit))
             }
         }
     }.start(wait = true)
