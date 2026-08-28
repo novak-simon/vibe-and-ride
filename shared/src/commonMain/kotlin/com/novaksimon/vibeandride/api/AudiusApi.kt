@@ -93,7 +93,7 @@ suspend fun getAudiusStreamUrl(
                     val trackResponse = try {
                         json.decodeFromString<AudiusTrackResponse>(body)
                     } catch (e: Exception) {
-                        println(e)
+                        println("AudiusApi: Failed to decode track response from $host: ${e.message}")
                         null
                     }
                     

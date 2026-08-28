@@ -52,27 +52,74 @@ class WorkoutParser {
                                 val onDuration = attr("OnDuration")
                                 val offDuration = attr("OffDuration")
                                 
-                                val onPower = parsePower(attr("OnPower"), attr("OnPowerLow"), attr("OnPowerHigh"))
-                                val offPower = parsePower(attr("OffPower"), attr("OffPowerLow"), attr("OffPowerHigh"))
-                                
-                                val onCadence = parseCadence(attr("OnCadence"), attr("OnCadenceLow"), attr("OnCadenceHigh"))
-                                val offCadence = parseCadence(attr("OffCadence"), attr("OffCadenceLow"), attr("OffCadenceHigh"))
+                                val onPowerLow = reader.getAttributeValue("", "OnPowerLow")?.toFloatOrNull()
+                                val onPowerHigh = reader.getAttributeValue("", "OnPowerHigh")?.toFloatOrNull()
+                                val onPower = reader.getAttributeValue("", "OnPower")?.toFloatOrNull() 
+                                    ?: (if (onPowerLow != null && onPowerHigh != null) (onPowerLow + onPowerHigh) / 2f else 0f)
+
+                                val offPowerLow = reader.getAttributeValue("", "OffPowerLow")?.toFloatOrNull()
+                                val offPowerHigh = reader.getAttributeValue("", "OffPowerHigh")?.toFloatOrNull()
+                                val offPower = reader.getAttributeValue("", "OffPower")?.toFloatOrNull()
+                                    ?: (if (offPowerLow != null && offPowerHigh != null) (offPowerLow + offPowerHigh) / 2f else 0f)
+
+                                val onCadenceLow = reader.getAttributeValue("", "OnCadenceLow")?.toDoubleOrNull()
+                                val onCadenceHigh = reader.getAttributeValue("", "OnCadenceHigh")?.toDoubleOrNull()
+                                val onCadence = reader.getAttributeValue("", "OnCadence")?.toDoubleOrNull()
+                                    ?: (if (onCadenceLow != null && onCadenceHigh != null) kotlin.math.round((onCadenceLow + onCadenceHigh) / 2.0) else 0.0)
+
+                                val offCadenceLow = reader.getAttributeValue("", "OffCadenceLow")?.toDoubleOrNull()
+                                val offCadenceHigh = reader.getAttributeValue("", "OffCadenceHigh")?.toDoubleOrNull()
+                                val offCadence = reader.getAttributeValue("", "OffCadence")?.toDoubleOrNull()
+                                    ?: (if (offCadenceLow != null && offCadenceHigh != null) kotlin.math.round((offCadenceLow + offCadenceHigh) / 2.0) else 0.0)
 
                                 repeat(repeat) {
-                                    intervals.add(Interval(duration = onDuration, power = onPower, cadence = onCadence, type = "On"))
-                                    intervals.add(Interval(duration = offDuration, power = offPower, cadence = offCadence, type = "Off"))
+                                    intervals.add(
+                                        Interval(
+                                            duration = onDuration, 
+                                            power = onPower, 
+                                            cadence = onCadence, 
+                                            type = "On",
+                                            powerLow = onPowerLow,
+                                            powerHigh = onPowerHigh,
+                                            cadenceLow = onCadenceLow,
+                                            cadenceHigh = onCadenceHigh
+                                        )
+                                    )
+                                    intervals.add(
+                                        Interval(
+                                            duration = offDuration, 
+                                            power = offPower, 
+                                            cadence = offCadence, 
+                                            type = "Off",
+                                            powerLow = offPowerLow,
+                                            powerHigh = offPowerHigh,
+                                            cadenceLow = offCadenceLow,
+                                            cadenceHigh = offCadenceHigh
+                                        )
+                                    )
                                 }
                             } else {
                                 val duration = attr("Duration")
-                                val power = parsePower(attr("Power"), attr("PowerLow"), attr("PowerHigh"))
-                                val cadence = parseCadence(attr("Cadence"), attr("CadenceLow"), attr("CadenceHigh"))
+                                val pLow = reader.getAttributeValue("", "PowerLow")?.toFloatOrNull()
+                                val pHigh = reader.getAttributeValue("", "PowerHigh")?.toFloatOrNull()
+                                val p = reader.getAttributeValue("", "Power")?.toFloatOrNull()
+                                    ?: (if (pLow != null && pHigh != null) (pLow + pHigh) / 2f else 0f)
+                                    
+                                val cLow = reader.getAttributeValue("", "CadenceLow")?.toDoubleOrNull()
+                                val cHigh = reader.getAttributeValue("", "CadenceHigh")?.toDoubleOrNull()
+                                val c = reader.getAttributeValue("", "Cadence")?.toDoubleOrNull()
+                                    ?: (if (cLow != null && cHigh != null) kotlin.math.round((cLow + cHigh) / 2.0) else 0.0)
 
                                 intervals.add(
                                     Interval(
                                         duration = duration,
-                                        power = power,
-                                        cadence = cadence,
-                                        type = localName
+                                        power = p,
+                                        cadence = c,
+                                        type = localName,
+                                        powerLow = pLow,
+                                        powerHigh = pHigh,
+                                        cadenceLow = cLow,
+                                        cadenceHigh = cHigh
                                     )
                                 )
                             }
@@ -127,29 +174,5 @@ class WorkoutParser {
             parseZwoString(content, fileName)
         }
         return withContext(Dispatchers.IO) { uploadWorkout(workout) }
-    }
-
-    private fun parsePower(power: Double, low: Double, high: Double): Float {
-        return if (power != 0.0) {
-            power.toFloat()
-        } else if (low != 0.0 && high != 0.0) {
-            ((low + high) / 2.0).toFloat()
-        } else if (low != 0.0) {
-            low.toFloat()
-        } else {
-            high.toFloat()
-        }
-    }
-
-    private fun parseCadence(cadence: Double, low: Double, high: Double): Double {
-        return if (cadence != 0.0) {
-            cadence
-        } else if (low != 0.0 && high != 0.0) {
-            kotlin.math.round((low + high) / 2.0)
-        } else if (low != 0.0) {
-            low
-        } else {
-            high
-        }
     }
 }

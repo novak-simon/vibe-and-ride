@@ -18,6 +18,7 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import com.novaksimon.vibeandride.model.Song
 import com.novaksimon.vibeandride.music.AudioPlayer
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -25,6 +26,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeout
 import java.io.File
 import kotlin.time.Duration.Companion.milliseconds
 
@@ -512,35 +514,11 @@ class AndroidAudioPlayer(
 
         fadeJob = scope.launch {
             try {
-                // Wait until a media item is set (preload triggered).
-                var waitCount = 0
-                while (newPlayer.currentMediaItem == null && waitCount < 20) {
-                    println("AndroidAudioPlayer: waiting for media item to be set in preloaded player...")
-                    delay(50.milliseconds)
-                    waitCount++
+                // Wait until the preloaded player is ready.
+                withTimeout(10000L) {
+                    awaitPlayerReady(newPlayer)
                 }
-
-                if (newPlayer.currentMediaItem == null) {
-                    println("AndroidAudioPlayer: timeout waiting for media item")
-                    return@launch
-                }
-
-                // Wait until the preloaded player is ready (max 10 seconds).
-                waitCount = 0
-                while (
-                    newPlayer.playbackState != ExoPlayer.STATE_READY &&
-                    newPlayer.playbackState != ExoPlayer.STATE_ENDED &&
-                    waitCount < 500
-                ) {
-                    delay(20.milliseconds)
-                    waitCount++
-                }
-
-                if (newPlayer.playbackState != ExoPlayer.STATE_READY && newPlayer.playbackState != ExoPlayer.STATE_ENDED) {
-                    println("AndroidAudioPlayer: preload timed out (state: ${newPlayer.playbackState}), forcing switch anyway to stop old audio")
-                } else {
-                    println("AndroidAudioPlayer: preloaded player READY, starting crossfade")
-                }
+                println("AndroidAudioPlayer: preloaded player READY, starting crossfade")
 
                 newPlayer.volume = 0f
                 newPlayer.play()
@@ -588,12 +566,44 @@ class AndroidAudioPlayer(
                             "activeSlot=$activeSlot"
                 )
             } catch (e: Exception) {
-                println("AndroidAudioPlayer: crossfade failed: ${e.message}")
+                println("AndroidAudioPlayer: crossfade failed or timed out: ${e.message}")
+                // Fallback: force switch if it was a timeout but player has media
+                if (newPlayer.currentMediaItem != null) {
+                    println("AndroidAudioPlayer: forcing switch after failure/timeout")
+                    activeSlot = preloadedSlot()
+                    onActivePlayerChanged?.invoke(newPlayer)
+                    newPlayer.volume = 1f
+                    newPlayer.play()
+                    oldPlayer.stop()
+                }
             } finally {
                 if (currentCrossfadeSongUrl == audioUrl) {
                     currentCrossfadeSongUrl = null
                 }
             }
+        }
+    }
+
+    private suspend fun awaitPlayerReady(player: ExoPlayer) {
+        if (player.playbackState == Player.STATE_READY) return
+        
+        val deferred = CompletableDeferred<Unit>()
+        val listener = object : Player.Listener {
+            override fun onPlaybackStateChanged(state: Int) {
+                if (state == Player.STATE_READY) {
+                    deferred.complete(Unit)
+                }
+            }
+            override fun onPlayerError(error: PlaybackException) {
+                deferred.completeExceptionally(error)
+            }
+        }
+        
+        player.addListener(listener)
+        try {
+            deferred.await()
+        } finally {
+            player.removeListener(listener)
         }
     }
 

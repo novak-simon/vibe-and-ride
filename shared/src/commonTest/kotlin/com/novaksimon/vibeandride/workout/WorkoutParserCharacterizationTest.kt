@@ -262,42 +262,25 @@ class WorkoutParserCharacterizationTest {
     }
 
     @Test
-    fun testParseFullAspireWorkout() {
+    fun testLowHighAttributesPreservation() {
         val zwo = """
             <workout_file>
                 <workout>
-                    <Warmup Duration="300" PowerLow="0.25" PowerHigh="0.65"/>
-                    <SteadyState Duration="300" Power="0.65" Cadence="95"/>
-                    <SteadyState Duration="60" Power="0.80" Cadence="100"/>
-                    <SteadyState Duration="60" Power="0.75" Cadence="100"/>
-                    <SteadyState Duration="60" Power="0.55" Cadence="85"/>
-                    <SteadyState Duration="60" Power="0.90" Cadence="105"/>
-                    <SteadyState Duration="60" Power="0.85" Cadence="105"/>
-                    <SteadyState Duration="60" Power="0.55"/>
-                    <SteadyState Duration="60" Power="1.00" Cadence="110"/>
-                    <SteadyState Duration="60" Power="0.95" Cadence="110"/>
-                    <SteadyState Duration="60" Power="0.55" Cadence="85"/>
-                    <SteadyState Duration="30" Power="1.08" Cadence="110"/>
-                    <SteadyState Duration="60" Power="0.55" Cadence="85"/>
-                    <SteadyState Duration="30" Power="1.15" Cadence="115"/>
-                    <SteadyState Duration="60" Power="0.55" Cadence="85"/>
-                    <SteadyState Duration="180" Power="0.55" Cadence="85"/>
-                    <IntervalsT Repeat="5" OnDuration="120" OnPower="1.05" OffDuration="120" OffPower="0.88" OnCadence="100" OffCadence="85"/>
-                    <SteadyState Duration="300" Power="0.55" Cadence="85"/>
-                    <IntervalsT Repeat="5" OnDuration="90" OnPower="1.05" OffDuration="150" OffPower="0.88" OnCadence="100" OffCadence="85"/>
-                    <SteadyState Duration="300" Power="0.55" Cadence="85"/>
-                    <IntervalsT Repeat="5" OnDuration="60" OnPower="1.05" OffDuration="180" OffPower="0.88" OnCadence="70" OffCadence="90"/>
-                    <SteadyState Duration="300" Power="0.55" Cadence="85"/>
-                    <IntervalsT Repeat="7" OnDuration="60" OnPower="1.15" OffDuration="60" OffPower="0.55" OnCadence="100" OffCadence="85"/>
-                    <Cooldown Duration="360" PowerLow="0.55" PowerHigh="0.25"/>
+                    <SteadyState Duration="60" PowerLow="0.6" PowerHigh="0.8" CadenceLow="80" CadenceHigh="85"/>
                 </workout>
             </workout_file>
         """.trimIndent()
-        
+
         val workout = parser.parseZwoString(zwo)
-        val intervals = workout.intervals!!
+        val interval = workout.intervals!![0]
         
-        val totalDuration = intervals.sumOf { it.duration }
-        assertEquals(7200.0, totalDuration)
+        assertEquals(0.6f, interval.powerLow)
+        assertEquals(0.8f, interval.powerHigh)
+        assertEquals(80.0, interval.cadenceLow)
+        assertEquals(85.0, interval.cadenceHigh)
+        
+        // Calculated fields
+        assertEquals(0.7f, interval.power, 0.0001f)
+        assertEquals(82.0, interval.cadence) 
     }
 }

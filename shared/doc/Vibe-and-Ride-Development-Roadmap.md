@@ -676,22 +676,19 @@ recommendation inputs - BLE lifecycle/connection logic
 
 These are not automatically the next tasks. They are tracked issues.
 
-1.  Audius Kotlin streaming endpoint is wrong.
-2.  Audius Python importer does not provide audio/download URLs.
-3.  Recommendation skip penalty is likely inverted.
-4.  Kotlin ZWO parser loses range-based Power/Cadence values.
-5.  Python ZWO parser can crash on missing optional tags.
-6.  Supabase RLS has not been fully verified.
-7.  Kotlin/Python workout and cadence logic is duplicated.
-8.  MusicProvider has potentially unsafe shared mutable state across
-    coroutine scopes.
-9.  Crossfade timing assumptions are inconsistent.
-10. Some preload commands are implemented but not exposed through the
-    controller.
-11. Candidate cadence folding and final scoring cadence handling are
-    inconsistent.
-12. Test coverage is currently near zero.
-13. Broad exception swallowing reduces observability.
+1.  Audius Kotlin streaming endpoint is fixed. [SOLVED]
+2.  Audius Python importer now provides audio/download URLs. [SOLVED]
+3.  Recommendation skip penalty is verified to be correct (higher skips reduce preference). [SOLVED]
+4.  Kotlin ZWO parser now correctly handles range-based (Low/High) values. [SOLVED]
+5.  Python ZWO parser now initializes optional tags to prevent crashes. [SOLVED]
+6.  Supabase RLS has not been fully verified (requires backend access).
+7.  Kotlin/Python workout and cadence logic is duplicated (architectural debt).
+8.  MusicProvider has been replaced by MusicEngine with safer state management using MusicState. [SOLVED]
+9.  Crossfade timing assumptions are improved by replacing polling with event-based waiting in AndroidAudioPlayer. [SOLVED]
+10. Preload commands are now exposed through PlaybackController and AndroidPlaybackController. [SOLVED]
+11. Candidate cadence folding and final scoring cadence are consistent; scoring handles octave matching (0.5x, 1x, 2x) correctly. [SOLVED]
+12. Test coverage has been significantly increased across core components. [SOLVED]
+13. Broad exception swallowing has been reduced by improving log context in key repository and API layers. [SOLVED]
 
 ------------------------------------------------------------------------
 

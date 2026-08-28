@@ -8,4 +8,8 @@ data class Interval(
     var power: Float,
     var cadence: Double,
     val type: String,
+    var powerLow: Float? = null,
+    var powerHigh: Float? = null,
+    var cadenceLow: Double? = null,
+    var cadenceHigh: Double? = null,
 )
