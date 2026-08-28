@@ -19,6 +19,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import kotlin.math.min
+import kotlin.time.Clock
 import kotlin.time.Duration.Companion.seconds
 
 /**
@@ -90,6 +91,9 @@ class MusicEngine(
 
     suspend fun update(sessionState: WorkoutSessionState) {
         if (_state.value.playbackState == PlaybackState.TRANSITIONING) return
+
+        val now = Clock.System.now().toEpochMilliseconds()
+        if (now - _state.value.lastTransitionTimeMillis < 2000L) return
 
         val timeUntilTrackEnd = service.timeUntilTrackEnd()
         val remainingInInterval = sessionState.structuredState?.remainingInInterval?.inWholeMilliseconds?.toFloat()?.div(1000f) ?: Float.MAX_VALUE
@@ -349,7 +353,8 @@ class MusicEngine(
             songIndex = state.songIndex + 1,
             isLiked = false,
             playbackState = PlaybackState.PLAYING,
-            playbackErrorCount = if (isRetry) state.playbackErrorCount else 0
+            playbackErrorCount = if (isRetry) state.playbackErrorCount else 0,
+            lastTransitionTimeMillis = Clock.System.now().toEpochMilliseconds()
         )
     }
 
