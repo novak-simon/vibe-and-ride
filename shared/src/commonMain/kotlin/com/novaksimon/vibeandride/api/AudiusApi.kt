@@ -4,6 +4,7 @@ import com.novaksimon.vibeandride.util.VibeLog
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import okhttp3.OkHttpClient
@@ -28,6 +29,7 @@ data class AudiusTrackResponse(
 @Serializable
 data class AudiusTrack(
     val id: String,
+    @SerialName("is_streamable")
     val isStreamable: Boolean = true
 )
 
@@ -100,9 +102,21 @@ suspend fun getAudiusStreamUrl(
                         null
                     }
                     
-                    if (trackResponse?.data != null) {
-                        // Return the stream URL pointing to the SAME host that confirmed the metadata
-                        return@use "https://$host/v1/tracks/$audiusId/stream?app_name=VIBE_AND_RIDE"
+                    val track = trackResponse?.data
+                    if (track != null) {
+                        if (!track.isStreamable) {
+                            VibeLog.w(TAG, "AudiusApi: Track $audiusId is marked as NOT streamable by metadata")
+                            return@use null
+                        }
+
+                        val potentialUrl = "https://$host/v1/tracks/$audiusId/stream?app_name=VIBE_AND_RIDE"
+                        
+                        // Verify the stream URL actually works
+                        if (verifyStreamUrl(potentialUrl)) {
+                            return@use potentialUrl
+                        } else {
+                            VibeLog.w(TAG, "AudiusApi: Stream URL verification failed for track $audiusId on node $host")
+                        }
                     }
                 }
                 null
@@ -120,4 +134,30 @@ suspend fun getAudiusStreamUrl(
     }
     
     return@withContext null
+}
+
+private suspend fun verifyStreamUrl(url: String): Boolean = withContext(Dispatchers.IO) {
+    try {
+        // We use a GET request but only fetch a tiny range to minimize data usage
+        // Some nodes might not support Range, so we also handle the 403 explicitly
+        val request = Request.Builder()
+            .url(url)
+            .get()
+            .addHeader("Range", "bytes=0-10")
+            .build()
+            
+        httpClient.newCall(request).execute().use { response ->
+            if (response.code == 403) {
+                val body = response.body.string()
+                if (body.contains("track not streamable")) {
+                    return@use false
+                }
+            }
+            // 200 (OK) or 206 (Partial Content) are both good
+            return@use response.isSuccessful
+        }
+    } catch (e: Exception) {
+        VibeLog.w(TAG, "Stream URL verification failed for $url: ${e.message}")
+        false
+    }
 }

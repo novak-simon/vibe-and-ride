@@ -102,6 +102,8 @@ class AndroidAudioPlayer(
 
         val httpDataSourceFactory =
             DefaultHttpDataSource.Factory()
+                .setUserAgent("VibeAndRide/1.0")
+                .setAllowCrossProtocolRedirects(true)
 
         val cacheDataSourceFactory =
             CacheDataSource.Factory()
