@@ -1,7 +1,9 @@
 package com.novaksimon.vibeandride.recommendation
 
 import com.novaksimon.vibeandride.model.Song
+import com.novaksimon.vibeandride.util.VibeLog
 
+private const val TAG = "CandidateProvider"
 class CandidateProvider(
     private val songRepository: SongRepository
 ) {
@@ -22,6 +24,7 @@ class CandidateProvider(
         targetBpm: Int,
         targetVector: List<Float>
     ): List<Song> {
+        VibeLog.d(TAG, "Fetching candidates by embedding and bpm")
         return songRepository.searchSongsByEmbedding(
             targetEmbedding = targetVector,
             targetBpm = targetBpm,

@@ -12,7 +12,7 @@ DECLARE
   found_count int;
 BEGIN
   -- Try increasing BPM ranges: 2, 5, 10, 20
-  FOR bpm_diff IN 2, 5, 10, 20 LOOP
+  FOREACH bpm_diff IN ARRAY ARRAY[2, 5, 10, 20] LOOP
     SELECT COUNT(DISTINCT s.id) INTO found_count
     FROM songs s
     JOIN song_segments ss ON s.id = ss.song_id

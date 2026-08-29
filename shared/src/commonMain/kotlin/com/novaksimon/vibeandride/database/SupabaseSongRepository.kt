@@ -104,5 +104,15 @@ class SupabaseSongRepository : SongRepository {
             Result.failure(VibeAndRideError.DataError.DatabaseError("searchSongsByEmbedding failed", e))
         }
     }
+
+    override suspend fun getSecondSegmentEmbedding(songId: Int): Result<List<Float>?> {
+        return try {
+            val embedding = com.novaksimon.vibeandride.database.getSecondSegmentEmbedding(songId)
+            Result.success(embedding)
+        } catch (e: Exception) {
+            VibeLog.e(TAG, "Failed to get second segment embedding for song $songId", e)
+            Result.failure(VibeAndRideError.DataError.DatabaseError("getSecondSegmentEmbedding failed", e))
+        }
+    }
 }
 

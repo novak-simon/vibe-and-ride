@@ -21,6 +21,7 @@ import kotlinx.coroutines.sync.withPermit
  * RecommendationEngineV2 is a reactive orchestrator for music recommendations.
  * It manages current and future interval recommendations based on the workout session state.
  */
+private const val TAG = "RecommendationEngineV2"
 class RecommendationEngineV2(
     songRepository: SongRepository,
     profileRepository: ProfileRepository,
@@ -28,7 +29,6 @@ class RecommendationEngineV2(
     ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
     defaultDispatcher: CoroutineDispatcher = Dispatchers.Default
 ) {
-    private val TAG = "RecommendationEngineV2"
     private val recommender = RecommendationEngine(
         songRepository,
         profileRepository,
@@ -116,7 +116,7 @@ class RecommendationEngineV2(
                 val nextInterval = mode.workout.intervals.getOrNull(nextIntervalIndex)
                 if (nextInterval != null) {
                     VibeLog.i(TAG, "Fetching future recommendation for interval $nextIntervalIndex (remaining: $remainingInInterval)")
-                    fetchFuture(nextInterval)
+                    fetchFuture(nextInterval, musicState)
                 }
             }
         }
@@ -135,11 +135,11 @@ class RecommendationEngineV2(
         }
     }
 
-    private fun fetchFuture(interval: Interval) {
+    private fun fetchFuture(interval: Interval, musicState: MusicState) {
         _state.update { it.copy(isLoadingFuture = true) }
         scope.launch {
             try {
-                val result = semaphore.withPermit { recommender.recommend(interval) }
+                val result = semaphore.withPermit { recommender.recommend(interval, candidateProvider="v1", musicState=musicState) }
                 _state.update { it.copy(future = result, isLoadingFuture = false) }
             } catch (e: Exception) {
                 VibeLog.e(TAG, "Error fetching future recommendation", e)
@@ -154,12 +154,16 @@ class RecommendationEngineV2(
     fun selectSong(intervalIndex: Int, songIndex: Int): Song? {
         if (intervalIndex < 0) return null
         val s = _state.value
-        return if (intervalIndex == s.currentIntervalIndex) {
-            s.current?.topSongs?.getOrNull(songIndex)
-        } else if (intervalIndex == s.currentIntervalIndex + 1) {
-            s.future?.topSongs?.getOrNull(songIndex)
-        } else {
-            null
+        return when (intervalIndex) {
+            s.currentIntervalIndex -> {
+                s.current?.topSongs?.getOrNull(songIndex)
+            }
+            s.currentIntervalIndex + 1 -> {
+                s.future?.topSongs?.getOrNull(songIndex)
+            }
+            else -> {
+                null
+            }
         }
     }
 }

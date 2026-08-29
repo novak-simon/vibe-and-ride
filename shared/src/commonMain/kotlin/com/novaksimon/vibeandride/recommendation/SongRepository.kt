@@ -24,5 +24,7 @@ interface SongRepository {
         minLimit: Int,
         maxLimit: Int
     ): Result<List<Song>>
+
+    suspend fun getSecondSegmentEmbedding(songId: Int): Result<List<Float>?>
 }
 

@@ -4,6 +4,7 @@ import com.novaksimon.vibeandride.model.Interval
 import com.novaksimon.vibeandride.model.Song
 import com.novaksimon.vibeandride.model.Profile
 import com.novaksimon.vibeandride.model.ProfileSongStats
+import com.novaksimon.vibeandride.music.MusicState
 import com.novaksimon.vibeandride.util.VibeLog
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
@@ -288,11 +289,26 @@ class RecommendationEngine(
     }
 
 
+    private var provider: CandidateProvider = CandidateProvider(songRepository)
 
-    suspend fun recommend(interval: Interval): RecommendationResult {
+    suspend fun recommend(interval: Interval, candidateProvider: String = "v1", musicState: MusicState = MusicState()): RecommendationResult {
         var firstCandidatePool: List<Song>? = null
         withContext(ioDispatcher) {
-            firstCandidatePool = approximateFilterByInterval(interval)
+            firstCandidatePool = if (candidateProvider == "v1") {
+                approximateFilterByInterval(interval)
+            } else {
+                val currentSongId = musicState.currentSong?.id
+                val embedding = if (currentSongId != null) {
+                    songRepository.getSecondSegmentEmbedding(currentSongId).getOrNull()
+                } else null
+
+                if (!embedding.isNullOrEmpty()) {
+                    provider.getCandidates(2, 3, interval.cadence.toInt(), embedding)
+                } else {
+                    VibeLog.d("RecommendationEngine", "No embedding found for song $currentSongId, falling back to v1 candidate provider")
+                    approximateFilterByInterval(interval)
+                }
+            }
         }
         if (firstCandidatePool.isNullOrEmpty()) {
             VibeLog.w("RecommendationEngine", "RecommendationEngine: firstCandidatePool is empty for interval $interval")
@@ -301,7 +317,7 @@ class RecommendationEngine(
         val algorithmSemaphore = Semaphore(4)
         val profile: Profile = profileRepository.getProfileForRecommendation()
         val candidates = coroutineScope {
-            firstCandidatePool!!.map { candidate ->
+            firstCandidatePool.map { candidate ->
                 async(defaultDispatcher) {
                     algorithmSemaphore.withPermit {
                         getSongRecommendationScore(candidate, interval, profile)

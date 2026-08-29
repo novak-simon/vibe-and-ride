@@ -145,5 +145,10 @@ class FakeSongRepository : SongRepository {
         calls.add("searchSongsByEmbedding")
         Result.success(emptyList())
     }
+
+    override suspend fun getSecondSegmentEmbedding(songId: Int): Result<List<Float>?> = mutex.withLock {
+        calls.add("getSecondSegmentEmbedding")
+        Result.success(null)
+    }
 }
 

@@ -12,6 +12,8 @@ import okhttp3.Request
 import kotlin.time.Duration.Companion.milliseconds
 
 private const val TAG = "AudiusApi"
+private const val APP_NAME = "VIBE_AND_RIDE"
+private const val API_KEY = "0xfe22f3410fff4707efd27f66e6277ce84105868c"
 
 private val httpClient = OkHttpClient.Builder()
     .followRedirects(true)
@@ -53,10 +55,13 @@ object AudiusNodeRegistry {
         return nodes.ifEmpty { listOf(DEFAULT_AUDIUS_HOST) }
     }
 
-    private suspend fun refreshNodes() = withContext(Dispatchers.IO) {
+    suspend fun refreshNodes() = withContext(Dispatchers.IO) {
         try {
-            val url = "https://$DEFAULT_AUDIUS_HOST/v1/discovery-providers"
-            val request = Request.Builder().url(url).build()
+            val url = "https://$DEFAULT_AUDIUS_HOST/v1/discovery-providers?app_name=$APP_NAME"
+            val request = Request.Builder()
+                .url(url)
+                .addHeader("x-api-key", API_KEY)
+                .build()
             
             httpClient.newCall(request).execute().use { response ->
                 if (response.isSuccessful) {
@@ -78,18 +83,16 @@ object AudiusNodeRegistry {
 suspend fun getAudiusStreamUrl(
     audiusId: String,
 ): String? = withContext(Dispatchers.IO) {
-    val apiKey = "0xfe22f3410fff4707efd27f66e6277ce84105868c"
-    
     val candidateNodes = AudiusNodeRegistry.getNodes()
     
     // Try up to 3 different nodes
     for (attempt in 0 until minOf(3, candidateNodes.size)) {
         val host = candidateNodes[attempt].replace("https://", "").replace("http://", "")
         try {
-            val url = "https://$host/v1/tracks/$audiusId?app_name=VIBE_AND_RIDE"
+            val url = "https://$host/v1/tracks/$audiusId?app_name=$APP_NAME"
             val request = Request.Builder()
                 .url(url)
-                .addHeader("x-api-key", apiKey)
+                .addHeader("x-api-key", API_KEY)
                 .build()
 
             val streamUrl = httpClient.newCall(request).execute().use { response ->
@@ -109,7 +112,7 @@ suspend fun getAudiusStreamUrl(
                             return@use null
                         }
 
-                        val potentialUrl = "https://$host/v1/tracks/$audiusId/stream?app_name=VIBE_AND_RIDE"
+                        val potentialUrl = "https://$host/v1/tracks/$audiusId/stream?app_name=$APP_NAME"
                         
                         // Verify the stream URL actually works
                         if (verifyStreamUrl(potentialUrl)) {
@@ -117,7 +120,11 @@ suspend fun getAudiusStreamUrl(
                         } else {
                             VibeLog.w(TAG, "AudiusApi: Stream URL verification failed for track $audiusId on node $host")
                         }
+                    } else {
+                        VibeLog.w(TAG, "AudiusApi: Track data not found in response from $host for $audiusId")
                     }
+                } else {
+                    VibeLog.w(TAG, "AudiusApi: Failed to get track metadata from $host: ${response.code} ${response.message}")
                 }
                 null
             }
@@ -144,17 +151,26 @@ private suspend fun verifyStreamUrl(url: String): Boolean = withContext(Dispatch
             .url(url)
             .get()
             .addHeader("Range", "bytes=0-10")
+            .addHeader("x-api-key", API_KEY)
             .build()
             
         httpClient.newCall(request).execute().use { response ->
             if (response.code == 403) {
                 val body = response.body.string()
                 if (body.contains("track not streamable")) {
+                    VibeLog.w(TAG, "verifyStreamUrl: 403 Forbidden - Track not streamable ($url)")
                     return@use false
                 }
+            } else if (response.code == 503) {
+                VibeLog.w(TAG, "verifyStreamUrl: 503 Service Unavailable ($url)")
+                AudiusNodeRegistry.refreshNodes()
             }
             // 200 (OK) or 206 (Partial Content) are both good
-            return@use response.isSuccessful
+            val success = response.isSuccessful
+            if (!success) {
+                VibeLog.w(TAG, "verifyStreamUrl failed for $url: ${response.code} ${response.message}")
+            }
+            return@use success
         }
     } catch (e: Exception) {
         VibeLog.w(TAG, "Stream URL verification failed for $url: ${e.message}")
