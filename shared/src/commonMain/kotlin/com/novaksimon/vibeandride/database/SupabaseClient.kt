@@ -9,6 +9,10 @@ import io.github.jan.supabase.createSupabaseClient
 import io.github.jan.supabase.postgrest.Postgrest
 import io.github.jan.supabase.postgrest.from
 
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+
 object SupabaseClientProvider {
     val client = createSupabaseClient(
         supabaseUrl = "https://ehosthiruiasknnnbvcc.supabase.co", // see note below re: config
@@ -16,6 +20,13 @@ object SupabaseClientProvider {
     ) {
         install(Auth)
         install(Postgrest)
+    }
+    
+    private val _isInitialized = MutableStateFlow(false)
+    val isInitialized: StateFlow<Boolean> = _isInitialized.asStateFlow()
+
+    fun setInitialized() {
+        _isInitialized.value = true
     }
 }
 
@@ -40,6 +51,7 @@ suspend fun initializeProfile() {
             .upsert(RawProfile(user.id))
 
         VibeLog.i("Supabase", "Supabase: Profile initialized")
+        SupabaseClientProvider.setInitialized()
 
     } catch (e: Exception) {
         VibeLog.e("Supabase", "Supabase initialization error", e)

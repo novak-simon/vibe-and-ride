@@ -10,7 +10,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
@@ -37,10 +36,6 @@ fun HomeScreen(viewModel: HomeViewModel) {
     val likedSongs by viewModel.likedSongs.collectAsState()
     val isLoadingLikedSongs by viewModel.isLoadingLikedSongs.collectAsState()
     val suggestedWorkouts by viewModel.suggestedWorkouts.collectAsState()
-
-    LaunchedEffect(Unit) {
-        viewModel.loadData()
-    }
 
     Column(
         modifier = Modifier
@@ -82,7 +77,7 @@ fun HomeScreen(viewModel: HomeViewModel) {
                 )
             } else {
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    items(likedSongs) { song ->
+                    items(likedSongs, key = { it.id }) { song ->
                         SongTile(song)
                     }
                 }

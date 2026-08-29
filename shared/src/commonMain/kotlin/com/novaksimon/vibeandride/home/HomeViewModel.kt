@@ -2,6 +2,7 @@ package com.novaksimon.vibeandride.home
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.novaksimon.vibeandride.database.SupabaseClientProvider
 import com.novaksimon.vibeandride.database.getLikedSongsWithDetails
 import com.novaksimon.vibeandride.database.getSuggestedWorkouts
 import com.novaksimon.vibeandride.model.Song
@@ -11,6 +12,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlin.time.Duration.Companion.seconds
@@ -39,39 +41,55 @@ class HomeViewModel : ViewModel() {
     )
 
     init {
-        loadData()
+        viewModelScope.launch {
+            SupabaseClientProvider.isInitialized.collectLatest { initialized ->
+                if (initialized) {
+                    loadData()
+                }
+            }
+        }
         startPeriodicRefresh()
     }
 
     private fun startPeriodicRefresh() {
         viewModelScope.launch {
             while (isActive) {
-                delay(30.seconds)
-                loadData()
+                delay(60.seconds)
+                if (SupabaseClientProvider.isInitialized.value) {
+                    loadData(silent = true)
+                }
             }
         }
     }
 
-    fun loadData() {
-        loadLikedSongs()
+    fun loadData(silent: Boolean = false) {
+        loadLikedSongs(silent)
         loadSuggestedWorkouts()
     }
 
     fun loadSuggestedWorkouts() {
         viewModelScope.launch {
             try {
-                _suggestedWorkouts.value = getSuggestedWorkouts()
+                val newWorkouts = getSuggestedWorkouts()
+                if (newWorkouts != _suggestedWorkouts.value) {
+                    _suggestedWorkouts.value = newWorkouts
+                }
             } catch (e: Exception) {
                 VibeLog.e(TAG, "Error loading suggested workouts", e)
             }
         }
     }
 
-    fun loadLikedSongs() {
+    fun loadLikedSongs(silent: Boolean = false) {
         viewModelScope.launch {
-            _isLoadingLikedSongs.value = true
+            if (!silent && _likedSongs.value.isEmpty()) {
+                _isLoadingLikedSongs.value = true
+            }
             try {
-                _likedSongs.value = getLikedSongsWithDetails()
+                val newSongs = getLikedSongsWithDetails()
+                if (newSongs != _likedSongs.value) {
+                    _likedSongs.value = newSongs
+                }
             } catch (e: Exception) {
                 VibeLog.e(TAG, "Error loading liked songs", e)
             } finally {
