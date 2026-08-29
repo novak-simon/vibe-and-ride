@@ -17,5 +17,12 @@ interface SongRepository {
     suspend fun getArtistNamesByIds(ids: List<Int>): Result<Map<Int, String>>
 
     suspend fun fetchSongSegments(songId: Int): Result<List<SongSegment>>
+
+    suspend fun searchSongsByEmbedding(
+        targetEmbedding: List<Float>,
+        targetBpm: Int,
+        minLimit: Int,
+        maxLimit: Int
+    ): Result<List<Song>>
 }
 

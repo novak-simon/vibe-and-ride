@@ -84,5 +84,25 @@ class SupabaseSongRepository : SongRepository {
             Result.failure(VibeAndRideError.DataError.DatabaseError("getArtistNamesByIds failed", e))
         }
     }
+
+    override suspend fun searchSongsByEmbedding(
+        targetEmbedding: List<Float>,
+        targetBpm: Int,
+        minLimit: Int,
+        maxLimit: Int
+    ): Result<List<Song>> {
+        return try {
+            val songs = com.novaksimon.vibeandride.database.searchSongsByEmbedding(
+                targetEmbedding,
+                targetBpm,
+                minLimit,
+                maxLimit
+            )
+            Result.success(songs)
+        } catch (e: Exception) {
+            VibeLog.e(TAG, "Failed to search songs by embedding", e)
+            Result.failure(VibeAndRideError.DataError.DatabaseError("searchSongsByEmbedding failed", e))
+        }
+    }
 }
 

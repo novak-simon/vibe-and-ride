@@ -1,6 +1,7 @@
 package com.novaksimon.vibeandride.recommendation
 
 import com.novaksimon.vibeandride.model.Song
+import com.novaksimon.vibeandride.model.SongSegment
 import com.novaksimon.vibeandride.model.Profile
 import com.novaksimon.vibeandride.model.ProfileSongStats
 import com.novaksimon.vibeandride.music.PlaybackController
@@ -65,7 +66,12 @@ class FakeProfileRepository(
         stats[songId to pid]
     }
 
-    override suspend fun changeLikeState(songId: Int, targetState: Boolean, profileId: String?) = mutex.withLock {
+    override suspend fun changeLikeState(
+        songId: Int,
+        targetState: Boolean,
+        segmentIndex: Int?,
+        profileId: String?
+    ) = mutex.withLock {
         calls.add("changeLikeState")
         Unit
     }
@@ -123,6 +129,21 @@ class FakeSongRepository : SongRepository {
     override suspend fun getArtistNamesByIds(ids: List<Int>): Result<Map<Int, String>> = mutex.withLock {
         calls.add("getArtistNamesByIds")
         Result.success(emptyMap())
+    }
+
+    override suspend fun fetchSongSegments(songId: Int): Result<List<SongSegment>> = mutex.withLock {
+        calls.add("fetchSongSegments")
+        Result.success(emptyList())
+    }
+
+    override suspend fun searchSongsByEmbedding(
+        targetEmbedding: List<Float>,
+        targetBpm: Int,
+        minLimit: Int,
+        maxLimit: Int
+    ): Result<List<Song>> = mutex.withLock {
+        calls.add("searchSongsByEmbedding")
+        Result.success(emptyList())
     }
 }
 

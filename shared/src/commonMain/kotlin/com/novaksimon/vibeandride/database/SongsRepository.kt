@@ -8,6 +8,8 @@ import com.novaksimon.vibeandride.model.SongSegment
 import com.novaksimon.vibeandride.util.VibeLog
 import io.github.jan.supabase.postgrest.postgrest
 import io.github.jan.supabase.postgrest.query.Order
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 
 private const val TAG = "SongsRepository"
 
@@ -32,6 +34,25 @@ suspend fun fetchSongs(limit: Int = 10): List<Song> {
     return rawSongs.map { rawToSong(it) }
 }
 
+suspend fun searchSongsByEmbedding(
+    targetEmbedding: List<Float>,
+    targetBpm: Int,
+    minLimit: Int,
+    maxLimit: Int
+): List<Song> {
+    val response = client.postgrest.rpc(
+        function = "search_songs_by_embedding",
+        parameters = buildJsonObject {
+            put("target_embedding", targetEmbedding.toString())
+            put("target_bpm", targetBpm)
+            put("min_limit", minLimit)
+            put("max_limit", maxLimit)
+        }
+    )
+    val rawSongs = response.decodeList<RawSong>()
+    return rawSongs.map { rawToSong(it) }
+}
+
 suspend fun getSongSegments(songId: Int): List<SongSegment> {
     return try {
         val rawSegments = client.postgrest["song_segments"]
@@ -44,7 +65,6 @@ suspend fun getSongSegments(songId: Int): List<SongSegment> {
             .decodeList<RawSongSegment>()
         rawSegments.map { rawToSongSegment(it) }
     } catch (e: Exception) {
-        // Log as debug/info since it's expected that many songs won't have segments yet
         VibeLog.d(TAG, "getSongSegments: No segments found or table missing for song $songId. Skipping segment logic.")
         emptyList()
     }
