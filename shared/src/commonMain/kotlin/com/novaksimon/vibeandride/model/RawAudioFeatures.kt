@@ -25,9 +25,6 @@ data class RawAudioFeatures(
     @SerialName("onset_density")
     val onsetDensity: Double?,
 
-    @SerialName("beat_density")
-    val beatDensity: Double?,
-
     @SerialName("sub_bass_ratio")
     val subBassRatio: Double?,
 

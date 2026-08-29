@@ -42,7 +42,6 @@ ALL_FEATURES = [
     "spectral_flux",
     "bpm",
     "onset_density",
-    "beat_density",
     "sub_bass_ratio",
     "bass_ratio",
     "low_mid_ratio",
@@ -65,7 +64,6 @@ FREQUENCY_FEATURES = [
 RHYTHM_FEATURES = [
     "bpm",
     "onset_density",
-    "beat_density",
 ]
 
 
@@ -216,6 +214,9 @@ def make_umap_plot(
         "umap_1": coordinates[:, 0],
         "umap_2": coordinates[:, 1],
     })
+    for feature in df.columns:
+        if feature != "song_id":
+            plot_df[feature] = df[feature].to_numpy()
 
     # Add the feature used for coloring.
     plot_df[color_label] = df[
@@ -223,18 +224,23 @@ def make_umap_plot(
     ].to_numpy()
 
     fig = px.scatter(
-        plot_df,
-        x="umap_1",
-        y="umap_2",
-        color=color_label,
-        hover_name="song_id",
-        title=title,
-        labels={
-            "umap_1": "UMAP 1",
-            "umap_2": "UMAP 2",
-            color_label: color_label,
-        },
-    )
+    plot_df,
+    x="umap_1",
+    y="umap_2",
+    color=color_label,
+    hover_name="song_id",
+    hover_data=[
+    column
+    for column in df.columns
+    if column != "song_id"
+    ],
+    title=title,
+    labels={
+        "umap_1": "UMAP 1",
+        "umap_2": "UMAP 2",
+        color_label: color_label,
+    },
+)
 
     fig.update_traces(
         marker=dict(

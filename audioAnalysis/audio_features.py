@@ -240,7 +240,7 @@ def calculate_spectral_features(
 # Tempo / beats
 # ---------------------------------------------------------------------------
 
-def calculate_tempo_and_beats(
+def calculate_tempo(
     y: np.ndarray,
     sr: int
 ) -> tuple[float, float]:
@@ -259,15 +259,7 @@ def calculate_tempo_and_beats(
         y=y,
         sr=sr
     )
-
-    if duration <= 0:
-        beat_density = 0.0
-    else:
-        beat_density = (
-            len(beat_frames) / duration
-        )
-
-    return tempo, float(beat_density)
+    return tempo
 
 
 # ---------------------------------------------------------------------------
@@ -438,11 +430,9 @@ def extract_audio_features(
         sr
     )
 
-    bpm, beat_density = (
-        calculate_tempo_and_beats(
-            y,
-            sr
-        )
+    bpm = calculate_tempo(
+        y,
+        sr
     )
 
     onset_density = calculate_onset_density(
@@ -468,7 +458,6 @@ def extract_audio_features(
         "spectral_flux": spectral_flux,
         "bpm": bpm,
         "onset_density": onset_density,
-        "beat_density": beat_density,
         **frequency_ratios,
     }
 
