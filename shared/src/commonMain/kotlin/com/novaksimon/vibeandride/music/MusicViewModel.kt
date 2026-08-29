@@ -70,6 +70,24 @@ class MusicViewModel(
 
     fun initWorkoutViewModel(workoutViewModel: WorkoutViewModel) {
         this.workoutViewModel = workoutViewModel
+        
+        // 1. Reactive trigger for first track preparation.
+        // This ensures we prepare the first song as soon as both session state and recommendation are available.
+        viewModelScope.launch {
+            combine(
+                workoutViewModel.uiState.map { it.workoutState },
+                musicEngine.state.map { it.recommendationV2 }
+            ) { sessionState, recState ->
+                if (sessionState != null && recState.current != null && 
+                    musicEngine.state.value.currentSong == null && 
+                    musicEngine.state.value.playbackState == PlaybackState.IDLE) {
+                    VibeLog.d(TAG, "Recommendation ready, triggering first track preparation")
+                    musicEngine.prepareFirstTrack(sessionState)
+                }
+            }.collect {}
+        }
+
+        // 2. Main workout state observer for session management and runtime updates
         viewModelScope.launch {
             workoutViewModel.uiState
                 .map { it.workoutState }
@@ -86,21 +104,20 @@ class MusicViewModel(
                     if (sessionState == null) return@collect
                     
                     if (sessionState.status == WorkoutStatus.NOT_STARTED) {
-                        musicEngine.sessionStarted(sessionState)
+                        if (musicEngine.state.value.mode != sessionState.mode) {
+                            musicEngine.sessionStarted(sessionState)
+                        }
                     } else if (sessionState.mode != musicEngine.state.value.mode) {
                         musicEngine.sessionStarted(sessionState)
-                    }
-
-                    // Prepare track as soon as we have a mode and recommendation is available
-                    if (musicEngine.state.value.currentSong == null && 
-                        musicEngine.state.value.recommendationV2.current != null) {
-                        musicEngine.prepareFirstTrack(sessionState)
                     }
 
                     if (sessionState.status == WorkoutStatus.RUNNING) {
                         if (musicEngine.state.value.playbackState == PlaybackState.IDLE && musicEngine.state.value.currentSong != null) {
                             musicEngine.play()
                         }
+                    }
+                    
+                    if (sessionState.status == WorkoutStatus.RUNNING || sessionState.status == WorkoutStatus.READY) {
                         musicEngine.update(sessionState)
                     }
                 }
