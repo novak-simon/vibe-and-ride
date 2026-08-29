@@ -87,7 +87,12 @@ class MusicViewModel(
                         musicEngine.sessionStarted(sessionState)
                     } else if (sessionState.mode != musicEngine.state.value.mode) {
                         musicEngine.sessionStarted(sessionState)
+                    } else if (sessionState.status == WorkoutStatus.READY) {
+                        musicEngine.prepareFirstTrack(sessionState)
                     } else if (sessionState.status == WorkoutStatus.RUNNING) {
+                        if (musicEngine.state.value.playbackState == PlaybackState.IDLE && musicEngine.state.value.currentSong != null) {
+                            musicEngine.play()
+                        }
                         musicEngine.update(sessionState)
                     }
                 }

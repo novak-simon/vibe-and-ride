@@ -59,6 +59,15 @@ class ProfileMusicService(
         }
     }
 
+    suspend fun prepareTrack(song: Song): Boolean {
+        informedAboutTrackEnd = false
+        currentSong = song
+        val audioUrl = getAudioUrl(song) ?: return false
+        playbackController.setSource(song, audioUrl, 0f)
+        playbackController.pause()
+        return true
+    }
+
     fun timeUntilTrackEnd(): Float {
         if (informedAboutTrackEnd) {
             return 0f

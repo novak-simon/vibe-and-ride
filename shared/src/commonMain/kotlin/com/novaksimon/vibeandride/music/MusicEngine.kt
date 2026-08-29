@@ -100,6 +100,30 @@ class MusicEngine(
         recommenderV2.sessionStarted(sessionState)
     }
 
+    suspend fun prepareFirstTrack(sessionState: WorkoutSessionState) {
+        if (_state.value.currentSong != null) return
+
+        val intervalIndex = sessionState.structuredState?.intervalIndex ?: 0
+        val song = selectSongFromBuffer(_state.value, intervalIndex, 0) ?: return
+
+        VibeLog.d(TAG, "MusicEngine: preparing first track ${song.title} for interval $intervalIndex")
+        _state.update { it.copy(playbackState = PlaybackState.TRANSITIONING) }
+
+        if (service.prepareTrack(song)) {
+            _state.update {
+                it.copy(
+                    currentSong = song,
+                    songIndex = 1,
+                    playbackState = PlaybackState.IDLE,
+                    currentIntervalIndex = intervalIndex
+                )
+            }
+        } else {
+            VibeLog.e(TAG, "MusicEngine: Failed to prepare first track ${song.title}")
+            _state.update { it.copy(playbackState = PlaybackState.ERROR) }
+        }
+    }
+
     suspend fun update(sessionState: WorkoutSessionState) {
         if (_state.value.playbackState == PlaybackState.TRANSITIONING) return
 
