@@ -7,8 +7,10 @@ import com.novaksimon.vibeandride.model.Profile
 import com.novaksimon.vibeandride.model.ProfileSongStats
 import com.novaksimon.vibeandride.model.RawProfile
 import com.novaksimon.vibeandride.model.RawProfileSongStats
+import com.novaksimon.vibeandride.model.RawSongSegment
 import com.novaksimon.vibeandride.model.RawWorkout
 import com.novaksimon.vibeandride.model.Song
+import com.novaksimon.vibeandride.model.SongSegment
 import com.novaksimon.vibeandride.model.Workout
 import com.novaksimon.vibeandride.model.estimateCadenceFromPower
 import kotlin.math.round
@@ -83,6 +85,21 @@ fun rawToSong(rawSong: RawSong): Song {
         endTime = rawSong.endTime ?: 0.0f,
         image = rawSong.image ?: "Unknown Image",
         shareUrl = rawSong.shareUrl ?: "Unknown Share URL",
+        segments = emptyList(),
+    )
+}
+
+fun rawToSongSegment(raw: RawSongSegment): SongSegment {
+    return SongSegment(
+        id = raw.id,
+        songId = raw.songId,
+        segmentIndex = raw.segmentIndex,
+        startTime = raw.startTime,
+        endTime = raw.endTime,
+        label = raw.label,
+        relativeEnergy = raw.relativeEnergy,
+        loudnessLufs = raw.loudnessLufs,
+        isLiked = raw.isLiked
     )
 }
 

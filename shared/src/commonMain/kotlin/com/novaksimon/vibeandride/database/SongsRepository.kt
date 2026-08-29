@@ -2,9 +2,14 @@ package com.novaksimon.vibeandride.database
 
 import com.novaksimon.vibeandride.database.SupabaseClientProvider.client
 import com.novaksimon.vibeandride.model.RawSong
+import com.novaksimon.vibeandride.model.RawSongSegment
 import com.novaksimon.vibeandride.model.Song
+import com.novaksimon.vibeandride.model.SongSegment
 import com.novaksimon.vibeandride.util.VibeLog
 import io.github.jan.supabase.postgrest.postgrest
+import io.github.jan.supabase.postgrest.query.Order
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 
 private const val TAG = "SongsRepository"
 
@@ -27,6 +32,35 @@ suspend fun fetchSongs(limit: Int = 10): List<Song> {
     val rawSongs = response.decodeList<RawSong>()
     VibeLog.d(TAG, "fetchSongs: successfully decoded ${rawSongs.size} songs")
     return rawSongs.map { rawToSong(it) }
+}
+
+suspend fun getSongSegments(songId: Int): List<SongSegment> {
+    return try {
+        val rawSegments = client.postgrest["song_segments"]
+            .select {
+                filter {
+                    eq("song_id", songId)
+                }
+                order("segment_index", Order.ASCENDING)
+            }
+            .decodeList<RawSongSegment>()
+        rawSegments.map { rawToSongSegment(it) }
+    } catch (e: Exception) {
+        // Log as debug/info since it's expected that many songs won't have segments yet
+        VibeLog.d(TAG, "getSongSegments: No segments found or table missing for song $songId. Skipping segment logic.")
+        emptyList()
+    }
+}
+
+suspend fun updateSegmentLike(segmentId: Long, isLiked: Boolean) {
+    val updateBody = buildJsonObject {
+        put("is_liked", isLiked)
+    }
+    client.postgrest["song_segments"].update(updateBody) {
+        filter {
+            eq("id", segmentId)
+        }
+    }
 }
 
 suspend fun getSongsAroundTargetCadence(
@@ -69,4 +103,3 @@ suspend fun getSongsByIds(ids: List<Int>): List<Song> {
         .decodeList<RawSong>()
     return rawSongs.map { rawToSong(it) }
 }
-

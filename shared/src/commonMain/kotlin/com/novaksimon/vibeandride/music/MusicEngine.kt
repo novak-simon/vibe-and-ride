@@ -46,6 +46,7 @@ class MusicEngine(
 
     private val profileStatsEngine = ProfileStatsEngine(
         profileRepository = profileRepository,
+        songRepository = songRepository,
         scope = statsScope,
         ioDispatcher = ioDispatcher
     )

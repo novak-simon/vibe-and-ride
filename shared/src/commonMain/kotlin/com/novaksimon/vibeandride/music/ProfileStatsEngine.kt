@@ -1,9 +1,12 @@
 package com.novaksimon.vibeandride.music
 
 import com.novaksimon.vibeandride.model.Song
+import com.novaksimon.vibeandride.model.SongSegment
 import com.novaksimon.vibeandride.recommendation.ProfileRepository
+import com.novaksimon.vibeandride.recommendation.SongRepository
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -23,27 +26,33 @@ data class ProfileStatsState(
  */
 class ProfileStatsEngine(
     private val profileRepository: ProfileRepository,
+    private val songRepository: SongRepository,
     private val scope: CoroutineScope,
     private val ioDispatcher: CoroutineDispatcher
 ) {
     private val _state = MutableStateFlow(ProfileStatsState())
     val state: StateFlow<ProfileStatsState> = _state.asStateFlow()
 
-    private var currentSongId: Int? = null
+    private var currentSong: Song? = null
+    private var segments: List<SongSegment> = emptyList()
+    private var currentPosition: Float = 0f
+    
     private var startPosition: Float = 0f
     private var playCountIncremented: Boolean = false
     private var playTimeRecorded: Boolean = false
+    private var segmentFetchJob: Job? = null
 
     /**
      * Called when the engine is updated with the current playback position and timing information.
      */
     fun update(currentPosition: Float, timeUntilTrackEnd: Float, remainingInInterval: Float) {
-        val songId = currentSongId ?: return
+        this.currentPosition = currentPosition
+        val song = currentSong ?: return
         
         if (!playCountIncremented && currentPosition - startPosition >= 10f) {
             playCountIncremented = true
             scope.launch(ioDispatcher) {
-                profileRepository.incrementStat("play_count", songId)
+                profileRepository.incrementStat("play_count", song.id)
             }
         }
 
@@ -52,7 +61,7 @@ class ProfileStatsEngine(
             val playTimeSeconds = (currentPosition - startPosition).toInt().coerceAtLeast(0)
             if (playTimeSeconds > 0) {
                 scope.launch(ioDispatcher) {
-                    profileRepository.incrementStat("total_play_time", songId, incrementBy = playTimeSeconds)
+                    profileRepository.incrementStat("total_play_time", song.id, incrementBy = playTimeSeconds)
                 }
             }
         }
@@ -62,10 +71,21 @@ class ProfileStatsEngine(
      * Called when a new track starts playing.
      */
     fun handleTrackArrived(song: Song, startPos: Float, isRetry: Boolean = false) {
-        if (!isRetry || song.id != currentSongId) {
-            currentSongId = song.id
+        if (!isRetry || song.id != currentSong?.id) {
+            currentSong = song
             playCountIncremented = false
             playTimeRecorded = false
+            
+            segmentFetchJob?.cancel()
+            segments = emptyList()
+            
+            // Fetch segments for the new song
+            segmentFetchJob = scope.launch(ioDispatcher) {
+                val result = songRepository.fetchSongSegments(song.id)
+                if (currentSong?.id == song.id) {
+                    segments = result.getOrDefault(emptyList())
+                }
+            }
         }
         startPosition = startPos
 
@@ -102,8 +122,16 @@ class ProfileStatsEngine(
      */
     fun handleSongLiked(song: Song, liked: Boolean) {
         _state.update { it.copy(isLiked = liked) }
+        
+        // Find current segment
+        val currentSegment = segments.find { currentPosition >= it.startTime && currentPosition <= it.endTime }
+        
         scope.launch(ioDispatcher) {
             profileRepository.changeLikeState(songId = song.id, targetState = liked)
+            
+            if (currentSegment != null && liked) {
+                songRepository.updateSegmentLike(currentSegment.id, true)
+            }
         }
     }
 
@@ -112,7 +140,10 @@ class ProfileStatsEngine(
      */
     fun reset() {
         _state.update { ProfileStatsState() }
-        currentSongId = null
+        segmentFetchJob?.cancel()
+        currentSong = null
+        segments = emptyList()
+        currentPosition = 0f
         startPosition = 0f
         playCountIncremented = false
         playTimeRecorded = false

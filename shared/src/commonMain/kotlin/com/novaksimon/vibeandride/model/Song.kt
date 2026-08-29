@@ -18,4 +18,5 @@ data class Song(
     @SerialName("end_time") val endTime: Float,
     val image: String,
     @SerialName("share_url") val shareUrl: String,
+    val segments: List<SongSegment> = emptyList(),
 )

@@ -1,6 +1,7 @@
 package com.novaksimon.vibeandride.recommendation
 
 import com.novaksimon.vibeandride.model.Song
+import com.novaksimon.vibeandride.model.SongSegment
 
 interface SongRepository {
     suspend fun getSongsAroundTargetCadence(
@@ -14,5 +15,9 @@ interface SongRepository {
     suspend fun getAudioUrl(song: Song): Result<String>
 
     suspend fun getArtistNamesByIds(ids: List<Int>): Result<Map<Int, String>>
+
+    suspend fun fetchSongSegments(songId: Int): Result<List<SongSegment>>
+
+    suspend fun updateSegmentLike(segmentId: Long, isLiked: Boolean): Result<Unit>
 }
 

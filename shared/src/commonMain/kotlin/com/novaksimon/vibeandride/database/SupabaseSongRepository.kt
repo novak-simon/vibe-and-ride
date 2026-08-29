@@ -1,12 +1,33 @@
 package com.novaksimon.vibeandride.database
 
 import com.novaksimon.vibeandride.model.Song
+import com.novaksimon.vibeandride.model.SongSegment
 import com.novaksimon.vibeandride.model.VibeAndRideError
 import com.novaksimon.vibeandride.recommendation.SongRepository
 import com.novaksimon.vibeandride.util.VibeLog
 
 class SupabaseSongRepository : SongRepository {
     private val TAG = "SupabaseSongRepository"
+
+    override suspend fun fetchSongSegments(songId: Int): Result<List<SongSegment>> {
+        return try {
+            val segments = com.novaksimon.vibeandride.database.getSongSegments(songId)
+            Result.success(segments)
+        } catch (e: Exception) {
+            // Already caught and logged as debug in database layer, but wrapping for consistency
+            Result.success(emptyList())
+        }
+    }
+
+    override suspend fun updateSegmentLike(segmentId: Long, isLiked: Boolean): Result<Unit> {
+        return try {
+            com.novaksimon.vibeandride.database.updateSegmentLike(segmentId, isLiked)
+            Result.success(Unit)
+        } catch (e: Exception) {
+            VibeLog.e(TAG, "Failed to update like for segment $segmentId", e)
+            Result.failure(VibeAndRideError.DataError.DatabaseError("updateSegmentLike failed", e))
+        }
+    }
 
     override suspend fun getSongsAroundTargetCadence(
         targetAlgorithmCadence: Int,
