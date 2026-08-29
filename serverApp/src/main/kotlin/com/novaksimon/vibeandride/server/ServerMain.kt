@@ -12,6 +12,7 @@ import io.github.jan.supabase.postgrest.Postgrest
 import com.novaksimon.vibeandride.server.import.JamendoImporter
 import com.novaksimon.vibeandride.server.import.AudiusImporter
 import com.novaksimon.vibeandride.server.analysis.AnalysisOrchestrator
+import com.novaksimon.vibeandride.server.analysis.AudioFeatureExtraction
 import kotlinx.coroutines.launch
 import java.io.File
 
@@ -41,6 +42,7 @@ fun main() {
     val jamendoImporter = JamendoImporter(supabase, jamendoClientId)
     val audiusImporter = AudiusImporter(supabase)
     val analysisOrchestrator = AnalysisOrchestrator(supabase, pythonExecutable = pythonExecutable)
+    val audioFeatureExtraction = AudioFeatureExtraction(supabase)
 
     embeddedServer(Netty, port = 8080, host = "0.0.0.0") {
         install(ContentNegotiation) {
@@ -69,6 +71,10 @@ fun main() {
                 val limit = call.parameters["limit"]?.toIntOrNull() ?: 5
                 launch { analysisOrchestrator.runAnalysis(limit) }
                 call.respond(StatusResponse(status = "Analysis started", limit = limit))
+            }
+            post("/analyze/features") {
+                launch { audioFeatureExtraction.analyzeUnanalyzedSongs() }
+                call.respond(StatusResponse(status = "Audio feature extraction started for unanalyzed songs"))
             }
         }
     }.start(wait = true)
