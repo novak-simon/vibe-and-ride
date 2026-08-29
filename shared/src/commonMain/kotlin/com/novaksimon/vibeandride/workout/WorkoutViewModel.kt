@@ -88,11 +88,11 @@ class WorkoutViewModel(
         this.musicViewModel = musicViewModel
         viewModelScope.launch {
             musicViewModel.uiState
-                .map { it.isMusicAvailable }
+                .map { it.isReady }
                 .distinctUntilChanged()
-                .collect { isMusicAvailable ->
-                    if (isMusicAvailable) {
-                        VibeLog.d(TAG, "Music is available, notifying scheduler")
+                .collect { isReady ->
+                    if (isReady) {
+                        VibeLog.d(TAG, "Music is ready, notifying scheduler")
                         scheduler.musicPrepared()
                         tick()
                     }

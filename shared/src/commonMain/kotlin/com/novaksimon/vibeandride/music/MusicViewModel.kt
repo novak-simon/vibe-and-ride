@@ -24,6 +24,7 @@ data class MusicUiState(
     val debugInfo: List<SongRecommendation>? = null,
     val isLiked: Boolean = false,
     val playbackState: PlaybackState = PlaybackState.IDLE,
+    val isReady: Boolean = false,
     val errorMessage: String? = null
 )
 
@@ -58,6 +59,7 @@ class MusicViewModel(
                     debugInfo = v2State.current?.debugInfo,
                     isLiked = musicState.isLiked,
                     playbackState = musicState.playbackState,
+                    isReady = musicState.currentSong != null && musicState.playbackState == PlaybackState.IDLE,
                     errorMessage = if (musicState.playbackState == PlaybackState.ERROR) "Playback Error" else null
                 )
             }.collect { 
@@ -87,9 +89,15 @@ class MusicViewModel(
                         musicEngine.sessionStarted(sessionState)
                     } else if (sessionState.mode != musicEngine.state.value.mode) {
                         musicEngine.sessionStarted(sessionState)
-                    } else if (sessionState.status == WorkoutStatus.READY) {
+                    }
+
+                    // Prepare track as soon as we have a mode and recommendation is available
+                    if (musicEngine.state.value.currentSong == null && 
+                        musicEngine.state.value.recommendationV2.current != null) {
                         musicEngine.prepareFirstTrack(sessionState)
-                    } else if (sessionState.status == WorkoutStatus.RUNNING) {
+                    }
+
+                    if (sessionState.status == WorkoutStatus.RUNNING) {
                         if (musicEngine.state.value.playbackState == PlaybackState.IDLE && musicEngine.state.value.currentSong != null) {
                             musicEngine.play()
                         }
