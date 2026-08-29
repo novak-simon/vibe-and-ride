@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import sys
 import webbrowser
 
 import numpy as np
@@ -326,13 +327,17 @@ def main():
     # --------------------------------------------------------
     # 1. ALL FEATURES
     # --------------------------------------------------------
-
+    COLOR_FEATURE = (
+    sys.argv[1]
+    if len(sys.argv) > 1
+    else "bpm"
+)
     generate_umap(
         df=df,
         features=ALL_FEATURES,
         title="Audio Features — All Features",
-        color_feature="bpm",
-        color_label="BPM",
+        color_feature=COLOR_FEATURE,
+        color_label=COLOR_FEATURE,
         filename="audio_features_umap_all.html",
     )
 
