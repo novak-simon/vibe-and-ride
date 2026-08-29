@@ -18,8 +18,8 @@ class SupabaseProfileRepository : ProfileRepository {
         return getStatByProfileAndSongIdInternal(songId, profileId)
     }
 
-    override suspend fun changeLikeState(songId: Int, targetState: Boolean, profileId: String?) {
-        changeLikeStateInternal(songId, targetState, profileId)
+    override suspend fun changeLikeState(songId: Int, targetState: Boolean, segmentIndex: Int?, profileId: String?) {
+        changeLikeStateInternal(songId, targetState, segmentIndex, profileId)
     }
 
     override suspend fun incrementStat(statColumn: String, songId: Int, incrementBy: Int, profileId: String?) {

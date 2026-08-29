@@ -127,11 +127,11 @@ class ProfileStatsEngine(
         val currentSegment = segments.find { currentPosition >= it.startTime && currentPosition <= it.endTime }
         
         scope.launch(ioDispatcher) {
-            profileRepository.changeLikeState(songId = song.id, targetState = liked)
-            
-            if (currentSegment != null && liked) {
-                songRepository.updateSegmentLike(currentSegment.id, true)
-            }
+            profileRepository.changeLikeState(
+                songId = song.id,
+                targetState = liked,
+                segmentIndex = currentSegment?.segmentIndex
+            )
         }
     }
 

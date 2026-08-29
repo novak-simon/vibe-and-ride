@@ -19,16 +19,6 @@ class SupabaseSongRepository : SongRepository {
         }
     }
 
-    override suspend fun updateSegmentLike(segmentId: Long, isLiked: Boolean): Result<Unit> {
-        return try {
-            com.novaksimon.vibeandride.database.updateSegmentLike(segmentId, isLiked)
-            Result.success(Unit)
-        } catch (e: Exception) {
-            VibeLog.e(TAG, "Failed to update like for segment $segmentId", e)
-            Result.failure(VibeAndRideError.DataError.DatabaseError("updateSegmentLike failed", e))
-        }
-    }
-
     override suspend fun getSongsAroundTargetCadence(
         targetAlgorithmCadence: Int,
         algorithmCadenceToleration: Int,

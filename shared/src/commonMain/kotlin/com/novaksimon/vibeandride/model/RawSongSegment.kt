@@ -13,5 +13,4 @@ data class RawSongSegment(
     val label: String? = null,
     @SerialName("relative_energy") val relativeEnergy: Float? = null,
     @SerialName("loudness_lufs") val loudnessLufs: Float? = null,
-    @SerialName("is_liked") val isLiked: Boolean = false
 )

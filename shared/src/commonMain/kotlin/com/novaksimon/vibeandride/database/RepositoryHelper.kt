@@ -99,7 +99,6 @@ fun rawToSongSegment(raw: RawSongSegment): SongSegment {
         label = raw.label,
         relativeEnergy = raw.relativeEnergy,
         loudnessLufs = raw.loudnessLufs,
-        isLiked = raw.isLiked
     )
 }
 
@@ -112,6 +111,7 @@ fun rawToStat(rawProfileSongStats: RawProfileSongStats): ProfileSongStats {
         playCount = rawProfileSongStats.playCount ?: 0,
         skipCount = rawProfileSongStats.skipCount ?: 0,
         isLiked = rawProfileSongStats.isLiked ?: false,
+        likedSegment = rawProfileSongStats.likedSegment,
         firstPlayedAt = rawProfileSongStats.firstPlayedAt,
         lastPlayedAt = rawProfileSongStats.lastPlayedAt,
         lastSkippedAt = rawProfileSongStats.lastSkippedAt,

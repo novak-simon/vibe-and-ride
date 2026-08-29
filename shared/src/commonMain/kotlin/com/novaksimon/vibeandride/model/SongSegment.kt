@@ -12,5 +12,4 @@ data class SongSegment(
     val label: String?,
     val relativeEnergy: Float?,
     val loudnessLufs: Float?,
-    val isLiked: Boolean
 )

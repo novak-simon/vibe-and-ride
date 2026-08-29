@@ -109,7 +109,7 @@ suspend fun setStatDatetime(
         null
     }
 }
-suspend fun changeLikeState(songId: Int, targetState: Boolean, profileId: String? = null) {
+suspend fun changeLikeState(songId: Int, targetState: Boolean, segmentIndex: Int? = null, profileId: String? = null) {
     val resolvedProfileId = profileId ?: getCurrentProfile()?.id ?: return
     val existing = getStatByProfileAndSongId(songId, resolvedProfileId)
 
@@ -119,10 +119,22 @@ suspend fun changeLikeState(songId: Int, targetState: Boolean, profileId: String
                 put("profile_id", resolvedProfileId)
                 put("song_id", songId)
                 put("is_liked", targetState)
+                if (targetState) {
+                    put("liked_segment", segmentIndex)
+                } else {
+                    put("liked_segment", null as Int?)
+                }
             }
             client.postgrest["profile_song_stats"].insert(insertBody)
         } else {
-            val updateBody = buildJsonObject { put("is_liked", targetState) }
+            val updateBody = buildJsonObject { 
+                put("is_liked", targetState)
+                if (targetState) {
+                    put("liked_segment", segmentIndex)
+                } else {
+                    put("liked_segment", null as Int?)
+                }
+            }
             client.postgrest["profile_song_stats"].update(updateBody) {
                 filter {
                     eq("song_id", songId)

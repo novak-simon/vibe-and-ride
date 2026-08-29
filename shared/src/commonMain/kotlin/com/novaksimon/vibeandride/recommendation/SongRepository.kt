@@ -17,7 +17,5 @@ interface SongRepository {
     suspend fun getArtistNamesByIds(ids: List<Int>): Result<Map<Int, String>>
 
     suspend fun fetchSongSegments(songId: Int): Result<List<SongSegment>>
-
-    suspend fun updateSegmentLike(segmentId: Long, isLiked: Boolean): Result<Unit>
 }
 

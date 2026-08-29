@@ -8,8 +8,6 @@ import com.novaksimon.vibeandride.model.SongSegment
 import com.novaksimon.vibeandride.util.VibeLog
 import io.github.jan.supabase.postgrest.postgrest
 import io.github.jan.supabase.postgrest.query.Order
-import kotlinx.serialization.json.buildJsonObject
-import kotlinx.serialization.json.put
 
 private const val TAG = "SongsRepository"
 
@@ -49,17 +47,6 @@ suspend fun getSongSegments(songId: Int): List<SongSegment> {
         // Log as debug/info since it's expected that many songs won't have segments yet
         VibeLog.d(TAG, "getSongSegments: No segments found or table missing for song $songId. Skipping segment logic.")
         emptyList()
-    }
-}
-
-suspend fun updateSegmentLike(segmentId: Long, isLiked: Boolean) {
-    val updateBody = buildJsonObject {
-        put("is_liked", isLiked)
-    }
-    client.postgrest["song_segments"].update(updateBody) {
-        filter {
-            eq("id", segmentId)
-        }
     }
 }
 
