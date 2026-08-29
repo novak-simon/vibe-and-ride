@@ -21,6 +21,7 @@ import kotlin.time.Duration.Companion.seconds
 /**
  * MusicEngine is the central orchestrator for music sessions.
  */
+private const val TAG = "MusicEngine"
 class MusicEngine(
     playbackController: PlaybackController,
     songRepository: SongRepository,
@@ -29,7 +30,7 @@ class MusicEngine(
     ioDispatcher: kotlinx.coroutines.CoroutineDispatcher = Dispatchers.IO,
     defaultDispatcher: kotlinx.coroutines.CoroutineDispatcher = Dispatchers.Default,
 ) {
-    private val TAG = "MusicEngine"
+
     private val service = ProfileMusicService(playbackController, songRepository)
     
     private val engineScope = CoroutineScope(SupervisorJob() + mainDispatcher)
@@ -227,8 +228,7 @@ class MusicEngine(
         
         var offset = 0
         while (offset < 20) {
-            val song = recommenderV2.selectSong(actualIndex, songIndex + offset)
-            if (song == null) return null
+            val song = recommenderV2.selectSong(actualIndex, songIndex + offset) ?: return null
             if (!skipFailed || !state.failedSongIds.contains(song.id)) return song
             offset++
         }
