@@ -14,6 +14,7 @@ import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.delay
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
@@ -24,6 +25,7 @@ import kotlin.test.assertIs
 import kotlin.test.assertTrue
 import kotlin.test.assertFalse
 import kotlin.time.Duration.Companion.seconds
+import kotlin.time.Duration.Companion.milliseconds
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class MusicEngineTest {
@@ -241,5 +243,68 @@ class MusicEngineTest {
         assertNull(engine.state.value.currentSong)
         assertEquals(0, engine.state.value.songIndex)
         assertEquals(PlaybackState.IDLE, engine.state.value.playbackState)
+    }
+
+    @Test
+    fun testPrepareFirstTrack_RetriesOnFailure() = runTest(testDispatcher) {
+        val song1 = createSong(1)
+        val song2 = createSong(2)
+        fakeSongRepository.songsAroundTargetCadenceResults.add(listOf(song1, song2))
+        
+        // Simulate failure for song1
+        fakeSongRepository.audioUrlResults[1] = Result.failure(Exception("Failed to get URL"))
+        
+        val workout = createWorkout(listOf(com.novaksimon.vibeandride.model.Interval(60.0, 0.5f, 90.0, "s")))
+        val sessionState = createSessionState(
+            mode = WorkoutMode.Structured(workout),
+            structuredState = StructuredState(0, workout.intervals[0], 0.seconds, 60.seconds, 60.seconds)
+        )
+        
+        engine.sessionStarted(sessionState)
+        // engine.update(sessionState) // Skip update to avoid triggering nextTrack via decideTransition
+        
+        // Manually trigger fetch to have recommendations ready
+        engine.update(sessionState)
+        
+        // If update() already triggered nextTrack because of intervalIndex -1, 
+        // we might already have a song. Let's check.
+        if (engine.state.value.currentSong == null) {
+            engine.prepareFirstTrack(sessionState)
+        }
+        
+        // Should have skipped song1 and prepared song2
+        assertEquals(song2.id, engine.state.value.currentSong?.id)
+        assertTrue(engine.state.value.failedSongIds.contains(1))
+    }
+
+    @Test
+    fun testHandlePlaybackError_SkipsFirstTrackImmediately() = runTest(testDispatcher) {
+        val song1 = createSong(1)
+        val song2 = createSong(2)
+        fakeSongRepository.songsAroundTargetCadenceResults.add(listOf(song1, song2))
+        
+        val workout = createWorkout(listOf(com.novaksimon.vibeandride.model.Interval(60.0, 0.5f, 90.0, "s")))
+        val sessionState = createSessionState(
+            mode = WorkoutMode.Structured(workout),
+            status = WorkoutStatus.RUNNING, // Make sure it's running
+            structuredState = StructuredState(0, workout.intervals[0], 0.seconds, 60.seconds, 60.seconds)
+        )
+        
+        engine.sessionStarted(sessionState)
+        engine.update(sessionState)
+        
+        // Ensure we have song1
+        assertEquals(song1.id, engine.state.value.currentSong?.id)
+        
+        // Trigger error
+        fakePlaybackController.emitError("Fatal loading error")
+        
+        // Yield to let the error handling coroutine run
+        delay(100.milliseconds)
+        
+        // Should have skipped song1 immediately and picked song2
+        assertTrue(engine.state.value.failedSongIds.contains(1), "Song 1 should be in failed list")
+        assertEquals(song2.id, engine.state.value.currentSong?.id, "Should have moved to song 2")
+        assertEquals(PlaybackState.PLAYING, engine.state.value.playbackState)
     }
 }

@@ -262,29 +262,14 @@ class MusicEngineCharacterizationTest {
         assertEquals(0, engine.state.value.playbackErrorCount)
         assertEquals(1, engine.state.value.songIndex)
 
-        // Error 1 -> Retry
-        playbackController.emitError("404")
-        delay(10.milliseconds)
-        assertEquals(1, engine.state.value.playbackErrorCount)
-        assertEquals(1, engine.state.value.currentSong?.id, "Should still be song 1 after retry")
-        assertEquals(1, engine.state.value.songIndex, "Song index should be back to 1")
-
-        // Error 2 -> Retry
-        playbackController.emitError("404")
-        delay(10.milliseconds)
-        assertEquals(2, engine.state.value.playbackErrorCount)
-
-        // Error 3 -> Retry
-        playbackController.emitError("404")
-        delay(10.milliseconds)
-        assertEquals(3, engine.state.value.playbackErrorCount)
-
-        // Error 4 -> Skip
+        // Error 1 -> Skip immediately because it's the first track
         playbackController.emitError("404")
         delay(10.milliseconds)
         
-        // V2 currently only holds 1 song per interval in these fakes if not carefully managed.
-        // But for error skip, it should ideally skip to next song in buffer or next interval.
-        // In this test, songRepository has song2 ready.
+        // Should have skipped song 1 and started song 2
+        assertEquals(0, engine.state.value.playbackErrorCount)
+        assertTrue(engine.state.value.failedSongIds.contains(1))
+        assertEquals(2, engine.state.value.currentSong?.id)
+        assertEquals(PlaybackState.PLAYING, engine.state.value.playbackState)
     }
 }

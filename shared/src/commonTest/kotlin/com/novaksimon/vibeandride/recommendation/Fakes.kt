@@ -15,7 +15,7 @@ import kotlinx.coroutines.sync.withLock
 
 class FakePlaybackController : PlaybackController {
     override val isPlayingFlow: Flow<Boolean> = MutableStateFlow(false)
-    private val _errorFlow = MutableSharedFlow<String>()
+    private val _errorFlow = MutableSharedFlow<String>(extraBufferCapacity = 1)
     override val errorFlow: Flow<String> = _errorFlow.asSharedFlow()
 
     fun emitError(message: String) {
@@ -121,9 +121,11 @@ class FakeSongRepository : SongRepository {
         Result.success(result)
     }
 
+    var audioUrlResults: MutableMap<Int, Result<String>> = mutableMapOf()
+
     override suspend fun getAudioUrl(song: Song): Result<String> = mutex.withLock {
         calls.add("getAudioUrl")
-        Result.success("https://fake.url/${song.id}")
+        audioUrlResults[song.id] ?: Result.success("https://fake.url/${song.id}")
     }
 
     override suspend fun getArtistNamesByIds(ids: List<Int>): Result<Map<Int, String>> = mutex.withLock {

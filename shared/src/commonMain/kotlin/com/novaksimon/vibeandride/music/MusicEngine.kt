@@ -104,24 +104,34 @@ class MusicEngine(
         if (_state.value.currentSong != null) return
 
         val intervalIndex = sessionState.structuredState?.intervalIndex ?: 0
-        val song = selectSongFromBuffer(_state.value, intervalIndex, 0) ?: return
+        
+        var attempts = 0
+        while (attempts < 5) {
+            val song = selectSongFromBuffer(_state.value, intervalIndex, 0) ?: break
+            
+            VibeLog.d(TAG, "MusicEngine: preparing first track ${song.title} for interval $intervalIndex (attempt $attempts)")
+            _state.update { it.copy(playbackState = PlaybackState.TRANSITIONING) }
 
-        VibeLog.d(TAG, "MusicEngine: preparing first track ${song.title} for interval $intervalIndex")
-        _state.update { it.copy(playbackState = PlaybackState.TRANSITIONING) }
-
-        if (service.prepareTrack(song)) {
-            _state.update {
-                it.copy(
-                    currentSong = song,
-                    songIndex = 1,
-                    playbackState = PlaybackState.IDLE,
-                    currentIntervalIndex = intervalIndex
-                )
+            if (service.prepareTrack(song)) {
+                _state.update {
+                    val next = finalizeTrackTransition(it, song)
+                    next.copy(playbackState = PlaybackState.IDLE, currentIntervalIndex = intervalIndex)
+                }
+                return
+            } else {
+                VibeLog.e(TAG, "MusicEngine: Failed to prepare first track ${song.title}, retrying with next song")
+                _state.update { 
+                    it.copy(
+                        failedSongIds = it.failedSongIds + song.id,
+                        playbackState = PlaybackState.IDLE
+                    ) 
+                }
+                attempts++
             }
-        } else {
-            VibeLog.e(TAG, "MusicEngine: Failed to prepare first track ${song.title}")
-            _state.update { it.copy(playbackState = PlaybackState.ERROR) }
         }
+        
+        VibeLog.e(TAG, "MusicEngine: All attempts to prepare first track failed")
+        _state.update { it.copy(playbackState = PlaybackState.ERROR) }
     }
 
     suspend fun update(sessionState: WorkoutSessionState) {
@@ -212,7 +222,8 @@ class MusicEngine(
                 _state.update {
                     it.copy(
                         songIndex = it.songIndex + 1,
-                        playbackState = PlaybackState.PLAYING
+                        playbackState = PlaybackState.PLAYING,
+                        failedSongIds = it.failedSongIds + song.id
                     )
                 }
                 delay(1.seconds)
@@ -369,9 +380,11 @@ class MusicEngine(
         }
 
         val currentCount = state.playbackErrorCount
+        val isFirstTrack = state.currentSong != null && state.songIndex <= 1 && state.songStartPosition == 0f
+
         _state.update { it.copy(playbackState = PlaybackState.ERROR) }
 
-        if (currentCount < 3) {
+        if (currentCount < 3 && !isFirstTrack) {
             VibeLog.i(TAG, "MusicEngine: Retrying current song (attempt ${currentCount + 1})")
             _state.update {
                 it.copy(
@@ -383,7 +396,7 @@ class MusicEngine(
                 nextTrack(newInterval = false, isRetry = true)
             }
         } else {
-            VibeLog.w(TAG, "MusicEngine: Too many retries, skipping current song")
+            VibeLog.w(TAG, "MusicEngine: Skipping current song due to error (count: $currentCount, firstTrack: $isFirstTrack)")
             val currentId = state.currentSong?.id
             _state.update {
                 it.copy(

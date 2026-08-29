@@ -1,0 +1,3 @@
+- [x] Modify `MusicEngine.kt` to retry `prepareFirstTrack`
+- [x] Modify `MusicEngine.kt` to skip immediately on playback error for the first track
+- [x] Verify changes with tests
