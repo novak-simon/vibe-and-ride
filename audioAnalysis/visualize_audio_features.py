@@ -8,21 +8,22 @@ import pandas as pd
 import plotly.express as px
 
 from supabase import create_client
-from sklearn.preprocessing import StandardScaler
-from sklearn.decomposition import PCA
-import umap
-from pathlib import Path
 from dotenv import load_dotenv
-
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
-ENV_FILE = PROJECT_ROOT / ".env"
-
-load_dotenv(ENV_FILE)
+from sklearn.preprocessing import StandardScaler
+import umap
 
 
 # ============================================================
 # Configuration
 # ============================================================
+
+PROJECT_ROOT = os.path.dirname(
+    os.path.dirname(os.path.abspath(__file__))
+)
+
+load_dotenv(
+    os.path.join(PROJECT_ROOT, ".env")
+)
 
 SUPABASE_URL = os.environ["SUPABASE_URL"]
 SUPABASE_KEY = os.environ["SUPABASE_SERVICE_KEY"]
@@ -30,7 +31,11 @@ SUPABASE_KEY = os.environ["SUPABASE_SERVICE_KEY"]
 TABLE_NAME = "audio_features"
 
 
-FEATURE_COLUMNS = [
+# ============================================================
+# Feature groups
+# ============================================================
+
+ALL_FEATURES = [
     "loudness_lufs",
     "rms_db",
     "spectral_centroid_hz",
@@ -47,11 +52,37 @@ FEATURE_COLUMNS = [
 ]
 
 
+FREQUENCY_FEATURES = [
+    "sub_bass_ratio",
+    "bass_ratio",
+    "low_mid_ratio",
+    "mid_ratio",
+    "high_mid_ratio",
+    "high_ratio",
+]
+
+
+RHYTHM_FEATURES = [
+    "bpm",
+    "onset_density",
+    "beat_density",
+]
+
+
+ENERGY_TIMBRE_FEATURES = [
+    "loudness_lufs",
+    "rms_db",
+    "spectral_centroid_hz",
+    "spectral_flux",
+]
+
+
 # ============================================================
 # Supabase
 # ============================================================
 
 def load_features() -> pd.DataFrame:
+
     supabase = create_client(
         SUPABASE_URL,
         SUPABASE_KEY,
@@ -62,7 +93,7 @@ def load_features() -> pd.DataFrame:
         .table(TABLE_NAME)
         .select(
             "song_id,"
-            + ",".join(FEATURE_COLUMNS)
+            + ",".join(ALL_FEATURES)
         )
         .execute()
     )
@@ -76,86 +107,67 @@ def load_features() -> pd.DataFrame:
 
 
 # ============================================================
-# Validation
+# Prepare data
 # ============================================================
 
 def prepare_features(
-    df: pd.DataFrame,
+        df: pd.DataFrame,
+        feature_columns: list[str],
 ) -> tuple[pd.DataFrame, np.ndarray]:
 
-    missing_columns = [
+    required = [
+        "song_id",
+        *feature_columns,
+    ]
+
+    missing = [
         column
-        for column in ["song_id", *FEATURE_COLUMNS]
+        for column in required
         if column not in df.columns
     ]
 
-    if missing_columns:
+    if missing:
         raise RuntimeError(
             "Missing columns: "
-            + ", ".join(missing_columns)
+            + ", ".join(missing)
         )
 
-    # Convert feature columns to numbers.
-    for column in FEATURE_COLUMNS:
-        df[column] = pd.to_numeric(
-            df[column],
+    data = df[
+        required
+    ].copy()
+
+    for column in feature_columns:
+        data[column] = pd.to_numeric(
+            data[column],
             errors="coerce",
         )
 
-    # Remove rows containing invalid/missing values.
-    before = len(df)
+    before = len(data)
 
-    df = df.dropna(
-        subset=FEATURE_COLUMNS
+    data = data.dropna(
+        subset=feature_columns
     ).copy()
 
-    removed = before - len(df)
+    removed = before - len(data)
 
     if removed:
         print(
-            f"Removed {removed} rows containing "
-            f"missing/invalid feature values."
+            f"Removed {removed} rows "
+            f"because of missing values."
         )
 
-    if len(df) < 2:
+    if len(data) < 3:
         raise RuntimeError(
-            "Not enough valid songs for visualization."
+            "Not enough valid songs."
         )
 
-    X = df[FEATURE_COLUMNS].to_numpy(
+    X = data[
+        feature_columns
+    ].to_numpy(
         dtype=np.float64
     )
 
-    return df, X
-
-
-# ============================================================
-# PCA
-# ============================================================
-
-def calculate_pca(
-    X: np.ndarray,
-) -> tuple[np.ndarray, float, float]:
-
-    scaler = StandardScaler()
-
-    X_scaled = scaler.fit_transform(X)
-
-    pca = PCA(
-        n_components=2
-    )
-
-    coordinates = pca.fit_transform(
-        X_scaled
-    )
-
-    explained = pca.explained_variance_ratio_
-
-    return (
-        coordinates,
-        float(explained[0]),
-        float(explained[1]),
-    )
+    return data, X
 
 
 # ============================================================
@@ -163,14 +175,13 @@ def calculate_pca(
 # ============================================================
 
 def calculate_umap(
-    X: np.ndarray,
+        X: np.ndarray,
 ) -> np.ndarray:
 
     scaler = StandardScaler()
 
     X_scaled = scaler.fit_transform(X)
 
-    # UMAP requires at least a few neighbors.
     n_neighbors = min(
         15,
         max(2, len(X) - 1),
@@ -190,81 +201,102 @@ def calculate_umap(
 
 
 # ============================================================
-# Plotting
+# Plot
 # ============================================================
 
-def make_pca_plot(
-    df: pd.DataFrame,
-    coordinates: np.ndarray,
-    explained_1: float,
-    explained_2: float,
-):
-    plot_df = pd.DataFrame({
-        "song_id": df["song_id"].astype(str),
-        "x": coordinates[:, 0],
-        "y": coordinates[:, 1],
-    })
-
-    fig = px.scatter(
-        plot_df,
-        x="x",
-        y="y",
-        hover_name="song_id",
-        title=(
-            "Audio Features — PCA"
-        ),
-        labels={
-            "x": (
-                f"PC1 "
-                f"({explained_1 * 100:.1f}% variance)"
-            ),
-            "y": (
-                f"PC2 "
-                f"({explained_2 * 100:.1f}% variance)"
-            ),
-        },
-    )
-
-    fig.update_traces(
-        marker=dict(
-            size=7,
-            opacity=0.75,
-        )
-    )
-
-    return fig
-
-
 def make_umap_plot(
-    df: pd.DataFrame,
-    coordinates: np.ndarray,
+        df: pd.DataFrame,
+        coordinates: np.ndarray,
+        title: str,
+        color_feature: str,
+        color_label: str,
 ):
     plot_df = pd.DataFrame({
         "song_id": df["song_id"].astype(str),
-        "x": coordinates[:, 0],
-        "y": coordinates[:, 1],
+        "umap_1": coordinates[:, 0],
+        "umap_2": coordinates[:, 1],
     })
+
+    # Add the feature used for coloring.
+    plot_df[color_label] = df[
+        color_feature
+    ].to_numpy()
 
     fig = px.scatter(
         plot_df,
-        x="x",
-        y="y",
+        x="umap_1",
+        y="umap_2",
+        color=color_label,
         hover_name="song_id",
-        title="Audio Features — UMAP",
+        title=title,
         labels={
-            "x": "UMAP 1",
-            "y": "UMAP 2",
+            "umap_1": "UMAP 1",
+            "umap_2": "UMAP 2",
+            color_label: color_label,
         },
     )
 
     fig.update_traces(
         marker=dict(
-            size=7,
-            opacity=0.75,
+            size=8,
+            opacity=0.8,
         )
     )
 
+    fig.update_layout(
+        width=1000,
+        height=800,
+    )
+
     return fig
+
+
+# ============================================================
+# Generate one UMAP
+# ============================================================
+
+def generate_umap(
+        df: pd.DataFrame,
+        features: list[str],
+        title: str,
+        color_feature: str,
+        color_label: str,
+        filename: str,
+):
+
+    print(
+        f"Calculating {title}..."
+    )
+
+    data, X = prepare_features(
+        df,
+        features,
+    )
+
+    coordinates = calculate_umap(X)
+
+    fig = make_umap_plot(
+        data,
+        coordinates,
+        title,
+        color_feature,
+        color_label,
+    )
+
+    path = os.path.abspath(filename)
+
+    fig.write_html(
+        path,
+        include_plotlyjs=True,
+    )
+
+    print(
+        f"  → {path}"
+    )
+
+    webbrowser.open(
+        "file://" + path
+    )
 
 
 # ============================================================
@@ -273,7 +305,9 @@ def make_umap_plot(
 
 def main():
 
-    print("Loading audio features...")
+    print(
+        "Loading audio features..."
+    )
 
     df = load_features()
 
@@ -281,90 +315,62 @@ def main():
         f"Loaded {len(df)} songs."
     )
 
-    df, X = prepare_features(df)
+    print()
 
-    print(
-        f"Using {len(df)} valid songs."
+    # --------------------------------------------------------
+    # 1. ALL FEATURES
+    # --------------------------------------------------------
+
+    generate_umap(
+        df=df,
+        features=ALL_FEATURES,
+        title="Audio Features — All Features",
+        color_feature="bpm",
+        color_label="BPM",
+        filename="audio_features_umap_all.html",
     )
 
     # --------------------------------------------------------
-    # PCA
+    # 2. FREQUENCY PROFILE
     # --------------------------------------------------------
 
-    print("Calculating PCA...")
-
-    (
-        pca_coordinates,
-        explained_1,
-        explained_2,
-    ) = calculate_pca(X)
-
-    pca_fig = make_pca_plot(
-        df,
-        pca_coordinates,
-        explained_1,
-        explained_2,
-    )
-
-    pca_file = "audio_features_pca.html"
-
-    pca_fig.write_html(
-        pca_file,
-        include_plotlyjs=True,
+    generate_umap(
+        df=df,
+        features=FREQUENCY_FEATURES,
+        title="Audio Features — Frequency Profile",
+        color_feature="bass_ratio",
+        color_label="Bass Ratio",
+        filename="audio_features_umap_frequency.html",
     )
 
     # --------------------------------------------------------
-    # UMAP
+    # 3. RHYTHM
     # --------------------------------------------------------
 
-    print("Calculating UMAP...")
-
-    umap_coordinates = calculate_umap(X)
-
-    umap_fig = make_umap_plot(
-        df,
-        umap_coordinates,
-    )
-
-    umap_file = "audio_features_umap.html"
-
-    umap_fig.write_html(
-        umap_file,
-        include_plotlyjs=True,
+    generate_umap(
+        df=df,
+        features=RHYTHM_FEATURES,
+        title="Audio Features — Rhythm",
+        color_feature="bpm",
+        color_label="BPM",
+        filename="audio_features_umap_rhythm.html",
     )
 
     # --------------------------------------------------------
-    # Output
+    # 4. ENERGY / TIMBRE
     # --------------------------------------------------------
+
+    generate_umap(
+        df=df,
+        features=ENERGY_TIMBRE_FEATURES,
+        title="Audio Features — Energy / Timbre",
+        color_feature="spectral_centroid_hz",
+        color_label="Spectral Centroid (Hz)",
+        filename="audio_features_umap_energy_timbre.html",
+    )
 
     print()
     print("Done.")
-    print()
-    print(
-        f"PCA variance explained:"
-    )
-    print(
-        f"  PC1: {explained_1 * 100:.2f}%"
-    )
-    print(
-        f"  PC2: {explained_2 * 100:.2f}%"
-    )
-    print()
-    print(
-        f"PCA:  {os.path.abspath(pca_file)}"
-    )
-    print(
-        f"UMAP: {os.path.abspath(umap_file)}"
-    )
-
-    # Open both plots.
-    webbrowser.open(
-        "file://" + os.path.abspath(pca_file)
-    )
-
-    webbrowser.open(
-        "file://" + os.path.abspath(umap_file)
-    )
 
 
 if __name__ == "__main__":
