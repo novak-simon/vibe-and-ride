@@ -89,7 +89,8 @@ class MusicEngine(
                 playbackErrorCount = 0,
                 songStartPosition = 0f,
                 lastTransitionTimeMillis = 0L,
-                recommendationV2 = RecommendationV2State()
+                recommendationV2 = RecommendationV2State(),
+                failedSongIds = emptySet()
             )
         }
         
@@ -121,8 +122,8 @@ class MusicEngine(
             
             VibeLog.d(TAG, "MusicEngine: preloading song ${songToPreload.title}")
             if (!service.preloadSong(songToPreload)) {
-                VibeLog.w(TAG, "MusicEngine: Preload failed for ${songToPreload.title}, skipping index")
-                _state.update { it.copy(songIndex = it.songIndex + 1) }
+                VibeLog.w(TAG, "MusicEngine: Preload failed for ${songToPreload.title}, adding to failed list")
+                _state.update { it.copy(failedSongIds = it.failedSongIds + songToPreload.id) }
                 return
             }
             _state.update {
@@ -219,10 +220,18 @@ class MusicEngine(
     fun play() { service.play() }
     fun pause() { service.pause() }
 
-    fun selectSongFromBuffer(state: MusicState, intervalIndex: Int, songIndex: Int): Song? {
+    fun selectSongFromBuffer(state: MusicState, intervalIndex: Int, songIndex: Int, skipFailed: Boolean = true): Song? {
         val actualIndex = if (state.mode is WorkoutMode.FreeRide) 0 else intervalIndex
         if (actualIndex < 0) return null
-        return recommenderV2.selectSong(actualIndex, songIndex)
+        
+        var offset = 0
+        while (offset < 20) {
+            val song = recommenderV2.selectSong(actualIndex, songIndex + offset)
+            if (song == null) return null
+            if (!skipFailed || !state.failedSongIds.contains(song.id)) return song
+            offset++
+        }
+        return null
     }
 
     fun decidePreload(
@@ -295,9 +304,16 @@ class MusicEngine(
     }
 
     fun finalizeTrackTransition(state: MusicState, song: Song, isRetry: Boolean = false): MusicState {
+        var newIndex = state.songIndex
+        while (newIndex < state.songIndex + 20) {
+            val s = selectSongFromBuffer(state, state.currentIntervalIndex, newIndex, skipFailed = false)
+            if (s == null || s.id == song.id) break
+            newIndex++
+        }
+
         return state.copy(
             currentSong = song,
-            songIndex = state.songIndex + 1,
+            songIndex = newIndex + 1,
             isLiked = false,
             playbackState = PlaybackState.PLAYING,
             playbackErrorCount = if (isRetry) state.playbackErrorCount else 0,
@@ -307,13 +323,29 @@ class MusicEngine(
 
     private fun handlePlaybackError(message: String) {
         VibeLog.e(TAG, "MusicEngine: Playback error received: $message")
-        if (_state.value.playbackState == PlaybackState.TRANSITIONING) {
+        val state = _state.value
+
+        if (state.playbackState == PlaybackState.TRANSITIONING) {
             VibeLog.d(TAG, "MusicEngine: Ignoring error during transition")
             return
         }
 
-        val currentCount = _state.value.playbackErrorCount
+        if (state.playbackState == PlaybackState.PRELOADING) {
+            val failedId = state.preloadedSongId
+            VibeLog.w(TAG, "MusicEngine: Error during preload for song $failedId. Skipping.")
+            _state.update {
+                it.copy(
+                    playbackState = PlaybackState.PLAYING,
+                    preloadedSongId = null,
+                    failedSongIds = if (failedId != null) it.failedSongIds + failedId else it.failedSongIds
+                )
+            }
+            return
+        }
+
+        val currentCount = state.playbackErrorCount
         _state.update { it.copy(playbackState = PlaybackState.ERROR) }
+
         if (currentCount < 3) {
             VibeLog.i(TAG, "MusicEngine: Retrying current song (attempt ${currentCount + 1})")
             _state.update {
@@ -326,7 +358,13 @@ class MusicEngine(
                 nextTrack(newInterval = false, isRetry = true)
             }
         } else {
-            VibeLog.w(TAG, "MusicEngine: Too many retries, skipping to next song")
+            VibeLog.w(TAG, "MusicEngine: Too many retries, skipping current song")
+            val currentId = state.currentSong?.id
+            _state.update {
+                it.copy(
+                    failedSongIds = if (currentId != null) it.failedSongIds + currentId else it.failedSongIds
+                )
+            }
             engineScope.launch {
                 nextTrack(skipped = true)
             }

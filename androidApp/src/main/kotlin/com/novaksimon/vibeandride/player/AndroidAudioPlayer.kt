@@ -197,9 +197,7 @@ class AndroidAudioPlayer(
                     "Player Slot $slot error: $message | Song: $title | URI: $uri"
                 )
 
-                if (slot == activeSlot) {
-                    onError?.invoke(message)
-                }
+                onError?.invoke(message)
             }
         }
 

@@ -35,4 +35,5 @@ data class MusicState(
     val playbackErrorCount: Int = 0,
     val lastTransitionTimeMillis: Long = 0,
     val recommendationV2: RecommendationV2State = RecommendationV2State(),
+    val failedSongIds: Set<Int> = emptySet(),
 )
