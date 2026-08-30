@@ -1,9 +1,8 @@
 package com.novaksimon.vibeandride.recommendation
 
 import com.novaksimon.vibeandride.model.Interval
-import com.novaksimon.vibeandride.model.Song
 import com.novaksimon.vibeandride.model.Profile
-import com.novaksimon.vibeandride.model.ProfileSongStats
+import com.novaksimon.vibeandride.model.SongV2
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -21,12 +20,14 @@ class RecommendFlowTest {
         bpm: Int = 100,
         tags: List<String> = emptyList(),
         genre: List<String> = emptyList()
-    ) = Song(
+    ) = SongV2(
         id = id,
         title = "Song $id",
-        artist = "Artist",
+        artistId = 1,
         releaseDate = "2024",
-        genre = genre,
+        description = "",
+        genre = if (genre.isNotEmpty()) genre[0] else "pop",
+        mood = "",
         tags = tags,
         duration = 180,
         bpm = bpm,

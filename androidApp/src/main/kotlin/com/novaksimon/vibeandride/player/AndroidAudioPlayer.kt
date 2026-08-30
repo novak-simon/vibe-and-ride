@@ -16,7 +16,8 @@ import androidx.media3.datasource.cache.LeastRecentlyUsedCacheEvictor
 import androidx.media3.datasource.cache.SimpleCache
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
-import com.novaksimon.vibeandride.model.Song
+import com.novaksimon.vibeandride.database.getArtistNameById
+import com.novaksimon.vibeandride.model.SongV2
 import com.novaksimon.vibeandride.music.AudioPlayer
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
@@ -233,7 +234,7 @@ class AndroidAudioPlayer(
     }
 
     override fun setSource(
-        song: Song,
+        song: SongV2,
         audioUrl: String,
         startTimeSeconds: Float
     ) {
@@ -245,12 +246,14 @@ class AndroidAudioPlayer(
         needsSeekOnReady[slot] = true
 
         player.volume = 1f
-        player.setMediaItem(createMediaItem(song, audioUrl))
+        CoroutineScope(Dispatchers.Main).launch {
+            player.setMediaItem(createMediaItem(song, audioUrl))
+        }
         player.prepare()
     }
 
     override fun preloadSource(
-        song: Song,
+        song: SongV2,
         audioUrl: String,
     ) {
         if (isReleased) return
@@ -271,18 +274,19 @@ class AndroidAudioPlayer(
 
         player.playWhenReady = false
         player.volume = 0f
-
-        player.setMediaItem(createMediaItem(song, audioUrl))
+        CoroutineScope(Dispatchers.Main).launch {
+            player.setMediaItem(createMediaItem(song, audioUrl))
+        }
         player.prepare()
     }
 
-    private fun createMediaItem(song: Song, audioUrl: String): MediaItem {
+    private suspend fun createMediaItem(song: SongV2, audioUrl: String): MediaItem {
         return MediaItem.Builder()
             .setUri(audioUrl)
             .setMediaMetadata(
                 MediaMetadata.Builder()
                     .setTitle(song.title)
-                    .setArtist(song.artist)
+                    .setArtist(getArtistNameById(song.artistId))
                     .setArtworkUri(song.image.toUri())
                     .build()
             )
@@ -493,7 +497,7 @@ class AndroidAudioPlayer(
             null
         }
     }
-    suspend fun crossfadeToPreloaded(song: Song, durationMs: Long) {
+    suspend fun crossfadeToPreloaded(song: SongV2, durationMs: Long) {
         if (isReleased) return
         val oldPlayer = activePlayer() ?: return
         val newPlayer = preloadedPlayer() ?: return
@@ -505,7 +509,7 @@ class AndroidAudioPlayer(
 
         // Wait until the preloaded player is ready.
         try {
-            withTimeout(10000L) {
+            withTimeout(10000L.milliseconds) {
                 awaitPlayerReady(newPlayer)
             }
         } catch (e: Exception) {

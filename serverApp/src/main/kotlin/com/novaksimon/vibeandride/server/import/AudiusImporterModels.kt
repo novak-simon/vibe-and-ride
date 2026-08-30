@@ -31,10 +31,6 @@ data class AudiusSong(
     @SerialName("expired_stream_url") val expiredStreamUrl: String? = null
 )
 @Serializable
-data class AudiusId(
-    @SerialName("audius_id") val audiusId: String
-)
-@Serializable
 data class AudiusUserFromApi(
     val id: String,
     val handle: String,

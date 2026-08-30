@@ -5,7 +5,7 @@ import androidx.media3.session.MediaController
 import androidx.media3.session.SessionCommand
 import androidx.media3.common.Player
 import androidx.media3.common.PlaybackException
-import com.novaksimon.vibeandride.model.Song
+import com.novaksimon.vibeandride.model.SongV2
 import com.novaksimon.vibeandride.music.PlaybackController
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -51,7 +51,7 @@ class AndroidPlaybackController(
     }
 
     override suspend fun setSource(
-        song: Song,
+        song: SongV2,
         audioUrl: String,
         startTimeSeconds: Float
     ) {
@@ -66,7 +66,7 @@ class AndroidPlaybackController(
     }
 
     override suspend fun preloadSource(
-        song: Song,
+        song: SongV2,
         audioUrl: String,
     ) {
         println("AndroidPlaybackController: PRELOAD $song")
@@ -80,7 +80,7 @@ class AndroidPlaybackController(
         )
     }
     override suspend fun crossfadeToPreloaded(
-        song: Song,
+        song: SongV2,
         audioUrl: String,
         durationMs: Long
     ) {

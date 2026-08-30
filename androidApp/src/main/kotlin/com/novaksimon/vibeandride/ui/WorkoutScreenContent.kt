@@ -70,7 +70,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.novaksimon.vibeandride.model.Interval
-import com.novaksimon.vibeandride.model.Song
 import com.novaksimon.vibeandride.model.Workout
 import com.novaksimon.vibeandride.recommendation.SongRecommendation
 import com.novaksimon.vibeandride.util.VibeLog
@@ -82,7 +81,9 @@ import com.novaksimon.vibeandride.workout.WorkoutStatus
 import kotlin.time.Duration
 import coil3.compose.AsyncImage
 import com.novaksimon.vibeandride.R
+import com.novaksimon.vibeandride.model.DisplaySongV2
 import com.novaksimon.vibeandride.music.MusicUiState
+import com.novaksimon.vibeandride.workout.CadenceSourceStatus
 import com.novaksimon.vibeandride.workout.WorkoutUiState
 import kotlin.time.Duration.Companion.seconds
 
@@ -184,10 +185,10 @@ fun WorkoutScreenContent(
             )
             
             val bleColor = when (workoutUiState.bleStatus) {
-                com.novaksimon.vibeandride.workout.CadenceSourceStatus.CONNECTED -> Color.Green
-                com.novaksimon.vibeandride.workout.CadenceSourceStatus.SCANNING,
-                com.novaksimon.vibeandride.workout.CadenceSourceStatus.CONNECTING -> Color.Yellow
-                com.novaksimon.vibeandride.workout.CadenceSourceStatus.ERROR -> Color.Red
+                CadenceSourceStatus.CONNECTED -> Color.Green
+                CadenceSourceStatus.SCANNING,
+                CadenceSourceStatus.CONNECTING -> Color.Yellow
+                CadenceSourceStatus.ERROR -> Color.Red
                 else -> Color.Gray
             }
             IconButton(onClick = onToggleBle, modifier = Modifier.size(40.dp)) {
@@ -631,7 +632,7 @@ fun MusicMiniPlayer(
 }
 
 @Composable
-fun SongDetailContent(song: Song) {
+fun SongDetailContent(song: DisplaySongV2) {
     val uriHandler = LocalUriHandler.current
 
     Column(
@@ -693,7 +694,7 @@ fun SongDetailContent(song: Song) {
                     color = Color.Gray
                 )
                 Text(
-                    text = song.genre.firstOrNull() ?: "Unknown",
+                    text = song.genre,
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold
                 )
@@ -981,12 +982,11 @@ private fun previewWorkoutState(): WorkoutUiState {
 }
 private fun previewMusicState(): MusicUiState {
     return MusicUiState(
-        currentSong = Song(
+        currentSong = DisplaySongV2(
             id = 1,
             title = "Test song",
-            artist = "test artist",
             releaseDate = "2024-01-01",
-            genre = listOf("Electronic", "Synthwave"),
+            genre = "Electronic, Synthwave",
             duration = 210,
             bpm = 120,
             startTime = 0f,
@@ -994,6 +994,12 @@ private fun previewMusicState(): MusicUiState {
             image = "https://usercontent.jamendo.com?type=album&id=4117&width=300&trackid=33324",
             shareUrl = "https://example.com/share",
             tags = listOf("energetic"),
+            artistId = 0,
+            description = "",
+            mood = "",
+            provider = 0,
+            audiusProviderId = null,
+            jamendoProviderId = null,
         ),
         isMusicAvailable = true
     )

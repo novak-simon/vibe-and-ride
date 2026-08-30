@@ -21,7 +21,7 @@ import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import com.novaksimon.vibeandride.home.HomeViewModel
 import com.novaksimon.vibeandride.home.WorkoutPlaceholder
-import com.novaksimon.vibeandride.model.Song
+import com.novaksimon.vibeandride.model.DisplaySongV2
 import com.novaksimon.vibeandride.model.Workout
 import com.novaksimon.vibeandride.util.formatSeconds
 
@@ -139,7 +139,7 @@ fun RealWorkoutCard(workout: Workout) {
 }
 
 @Composable
-fun SongTile(song: Song) {
+fun SongTile(song: DisplaySongV2) {
     Column(modifier = Modifier.width(120.dp)) {
         AsyncImage(
             model = song.image,

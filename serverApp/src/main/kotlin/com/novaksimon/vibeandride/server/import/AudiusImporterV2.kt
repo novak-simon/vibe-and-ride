@@ -88,9 +88,6 @@ class AudiusImporterV2(private val supabase: SupabaseClient) {
     suspend fun uploadAudiusSongs(audiusSongs: List<AudiusSong>) {
         supabase.from("audius_songs").upsert(audiusSongs)
     }
-    suspend fun uploadAudiusSongIds(audiusSongIds: List<AudiusId>) {
-        supabase.from("audius_encountered").upsert(audiusSongIds)
-    }
     fun licensePass(rawLicense: String? = null): Boolean {
         val license = rawLicense?.lowercase() ?: return true
         if (license.contains("nc") || license.contains("nd")) return false

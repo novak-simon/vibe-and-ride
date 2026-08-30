@@ -1,6 +1,5 @@
 package com.novaksimon.vibeandride.music
 
-import com.novaksimon.vibeandride.model.Song
 import com.novaksimon.vibeandride.model.SongV2
 import com.novaksimon.vibeandride.model.Workout
 import com.novaksimon.vibeandride.recommendation.RecommendationV2State

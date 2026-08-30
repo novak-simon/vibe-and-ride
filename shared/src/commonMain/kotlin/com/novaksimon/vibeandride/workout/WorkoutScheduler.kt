@@ -16,9 +16,9 @@ private data class IntervalLookup(
     val interval: Interval?,
     val startOffset: Duration,
 )
-
+private const val TAG = "WorkoutScheduler"
 class WorkoutScheduler {
-    private val TAG = "WorkoutScheduler"
+
     private val timeSource: TimeSource.WithComparableMarks = TimeSource.Monotonic
     
     var mode: WorkoutMode? = null
@@ -78,7 +78,7 @@ class WorkoutScheduler {
         livePower = null
     }
 
-    fun adjustTime(delta: Duration) {
+    fun adjustTime(delta: Duration) { //TODO Take care of everything when interval changes
         val current = currentElapsed()
         resync(current + delta)
     }

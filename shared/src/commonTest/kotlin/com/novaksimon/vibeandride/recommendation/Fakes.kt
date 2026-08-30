@@ -1,9 +1,8 @@
 package com.novaksimon.vibeandride.recommendation
 
-import com.novaksimon.vibeandride.model.Song
-import com.novaksimon.vibeandride.model.SongSegment
 import com.novaksimon.vibeandride.model.Profile
 import com.novaksimon.vibeandride.model.ProfileSongStats
+import com.novaksimon.vibeandride.model.SongV2
 import com.novaksimon.vibeandride.music.PlaybackController
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -28,13 +27,13 @@ class FakePlaybackController : PlaybackController {
     
     val calls = mutableListOf<String>()
 
-    override suspend fun setSource(song: Song, audioUrl: String, startTimeSeconds: Float) {
+    override suspend fun setSource(song: SongV2, audioUrl: String, startTimeSeconds: Float) {
         calls.add("setSource(${song.id})")
     }
-    override suspend fun preloadSource(song: Song, audioUrl: String) {
+    override suspend fun preloadSource(song: SongV2, audioUrl: String) {
         calls.add("preloadSource(${song.id})")
     }
-    override suspend fun crossfadeToPreloaded(song: Song, audioUrl: String, durationMs: Long) {
+    override suspend fun crossfadeToPreloaded(song: SongV2, audioUrl: String, durationMs: Long) {
         calls.add("crossfadeToPreloaded(${song.id})")
     }
     override suspend fun clearPreloaded() {
@@ -88,8 +87,8 @@ class FakeProfileRepository(
 }
 
 class FakeSongRepository : SongRepository {
-    var songsAroundTargetCadenceResults: MutableList<List<Song>> = mutableListOf()
-    var fetchSongsResults: MutableList<List<Song>> = mutableListOf()
+    var songsAroundTargetCadenceResults: MutableList<List<SongV2>> = mutableListOf()
+    var fetchSongsResults: MutableList<List<SongV2>> = mutableListOf()
 
     private val mutex = Mutex()
     val calls = mutableListOf<String>()
@@ -99,7 +98,7 @@ class FakeSongRepository : SongRepository {
         targetAlgorithmCadence: Int,
         algorithmCadenceToleration: Int,
         limit: Int
-    ): Result<List<Song>> = mutex.withLock {
+    ): Result<List<SongV2>> = mutex.withLock {
         calls.add("getSongsAroundTargetCadence")
         arguments.add(listOf(targetAlgorithmCadence, algorithmCadenceToleration, limit))
         val result = if (songsAroundTargetCadenceResults.isNotEmpty()) {
@@ -110,7 +109,7 @@ class FakeSongRepository : SongRepository {
         Result.success(result)
     }
 
-    override suspend fun fetchSongs(limit: Int): Result<List<Song>> = mutex.withLock {
+    override suspend fun fetchSongs(limit: Int): Result<List<SongV2>> = mutex.withLock {
         calls.add("fetchSongs")
         arguments.add(limit)
         val result = if (fetchSongsResults.isNotEmpty()) {
@@ -123,34 +122,8 @@ class FakeSongRepository : SongRepository {
 
     var audioUrlResults: MutableMap<Int, Result<String>> = mutableMapOf()
 
-    override suspend fun getAudioUrl(song: Song): Result<String> = mutex.withLock {
+    override suspend fun getAudioUrlV2(song: SongV2): Result<String> = mutex.withLock {
         calls.add("getAudioUrl")
         audioUrlResults[song.id] ?: Result.success("https://fake.url/${song.id}")
     }
-
-    override suspend fun getArtistNamesByIds(ids: List<Int>): Result<Map<Int, String>> = mutex.withLock {
-        calls.add("getArtistNamesByIds")
-        Result.success(emptyMap())
-    }
-
-    override suspend fun fetchSongSegments(songId: Int): Result<List<SongSegment>> = mutex.withLock {
-        calls.add("fetchSongSegments")
-        Result.success(emptyList())
-    }
-
-    override suspend fun searchSongsByEmbedding(
-        targetEmbedding: List<Float>,
-        targetBpm: Int,
-        minLimit: Int,
-        maxLimit: Int
-    ): Result<List<Song>> = mutex.withLock {
-        calls.add("searchSongsByEmbedding")
-        Result.success(emptyList())
-    }
-
-    override suspend fun getSecondSegmentEmbedding(songId: Int): Result<List<Float>?> = mutex.withLock {
-        calls.add("getSecondSegmentEmbedding")
-        Result.success(null)
-    }
 }
-

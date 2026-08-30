@@ -1,11 +1,10 @@
 package com.novaksimon.vibeandride.recommendation
 
 import com.novaksimon.vibeandride.model.Interval
-import com.novaksimon.vibeandride.model.Song
+import com.novaksimon.vibeandride.model.SongV2
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertTrue
 
 class CandidatePoolTest {
 
@@ -13,19 +12,24 @@ class CandidatePoolTest {
     private val fakeProfileRepository = FakeProfileRepository()
     private val engine = RecommendationEngine(fakeSongRepository, fakeProfileRepository)
 
-    private fun createSong(id: Int) = Song(
+    private fun createSong(id: Int) = SongV2(
         id = id,
         title = "Song $id",
-        artist = "Artist",
         releaseDate = "2024",
-        genre = emptyList(),
+        genre = "pop",
         tags = emptyList(),
         duration = 180,
         bpm = 100,
         startTime = 0f,
         endTime = 0f,
         image = "",
-        shareUrl = ""
+        shareUrl = "",
+        provider = 1,
+        description = "Description",
+        audiusProviderId = "",
+        jamendoProviderId = 0,
+        mood = "mood",
+        artistId = 0
     )
 
     private fun createInterval(cadence: Double) = Interval(

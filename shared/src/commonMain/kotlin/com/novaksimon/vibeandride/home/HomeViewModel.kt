@@ -5,7 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.novaksimon.vibeandride.database.SupabaseClientProvider
 import com.novaksimon.vibeandride.database.getLikedSongsWithDetails
 import com.novaksimon.vibeandride.database.getSuggestedWorkouts
-import com.novaksimon.vibeandride.model.SongV2
+import com.novaksimon.vibeandride.model.DisplaySongV2
 import com.novaksimon.vibeandride.model.Workout
 import com.novaksimon.vibeandride.util.VibeLog
 import kotlinx.coroutines.delay
@@ -25,8 +25,8 @@ data class WorkoutPlaceholder(
 private const val TAG = "HomeViewModel"
 class HomeViewModel : ViewModel() {
 
-    private val _likedSongs = MutableStateFlow<List<SongV2>>(emptyList())
-    val likedSongs: StateFlow<List<SongV2>> = _likedSongs.asStateFlow()
+    private val _likedSongs = MutableStateFlow<List<DisplaySongV2>>(emptyList())
+    val likedSongs: StateFlow<List<DisplaySongV2>> = _likedSongs.asStateFlow()
 
     private val _isLoadingLikedSongs = MutableStateFlow(false)
     val isLoadingLikedSongs: StateFlow<Boolean> = _isLoadingLikedSongs.asStateFlow()

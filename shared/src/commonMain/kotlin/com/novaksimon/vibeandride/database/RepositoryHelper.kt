@@ -2,16 +2,12 @@ package com.novaksimon.vibeandride.database
 
 import com.novaksimon.vibeandride.model.Interval
 import com.novaksimon.vibeandride.model.RawInterval
-import com.novaksimon.vibeandride.model.RawSong
 import com.novaksimon.vibeandride.model.Profile
 import com.novaksimon.vibeandride.model.ProfileSongStats
 import com.novaksimon.vibeandride.model.RawProfile
 import com.novaksimon.vibeandride.model.RawProfileSongStats
-import com.novaksimon.vibeandride.model.RawSongSegment
 import com.novaksimon.vibeandride.model.RawSongV2
 import com.novaksimon.vibeandride.model.RawWorkout
-import com.novaksimon.vibeandride.model.Song
-import com.novaksimon.vibeandride.model.SongSegment
 import com.novaksimon.vibeandride.model.SongV2
 import com.novaksimon.vibeandride.model.Workout
 import com.novaksimon.vibeandride.model.estimateCadenceFromPower
@@ -71,25 +67,6 @@ fun rawToWorkout(rawWorkout: RawWorkout): Workout {
         intervals = rawWorkout.intervals?.map { rawToInterval(it) } ?: emptyList()
     )
 }
-
-fun rawToSong(rawSong: RawSong): Song {
-    return Song(
-        id = rawSong.id,
-        title = rawSong.title ?: "Unknown Title",
-        artist = "Unknown Artist", // Optimisation: Skips fetching artist name for every candidate
-        artistId = rawSong.artistId,
-        releaseDate = rawSong.releaseDate ?: "Unknown Date",
-        genre = rawSong.genre?.split(",", "&", "/")?.map { it.trim().lowercase() }?.filter { it.isNotEmpty() } ?: emptyList(),
-        tags = rawSong.tags ?: emptyList(),
-        duration = rawSong.duration ?: 0,
-        bpm = rawSong.bpm ?: 0,
-        startTime = rawSong.startTime ?: 0.0f,
-        endTime = rawSong.endTime ?: 0.0f,
-        image = rawSong.image ?: "Unknown Image",
-        shareUrl = rawSong.shareUrl ?: "Unknown Share URL",
-        segments = emptyList(),
-    )
-}
 fun rawToSongV2(rawSong: RawSongV2): SongV2 {
     return SongV2(
         id = rawSong.id.toInt(),
@@ -111,22 +88,6 @@ fun rawToSongV2(rawSong: RawSongV2): SongV2 {
         jamendoProviderId = rawSong.jamendoProviderId?.toInt(),
     )
 }
-
-fun rawToSongSegment(raw: RawSongSegment): SongSegment {
-    return SongSegment(
-        id = raw.id,
-        songId = raw.songId,
-        segmentIndex = raw.segmentIndex,
-        startTime = raw.startTime,
-        endTime = raw.endTime,
-        label = raw.label,
-        relativeEnergy = raw.relativeEnergy,
-        loudnessLufs = raw.loudnessLufs,
-    )
-}
-
-
-
 fun rawToStat(rawProfileSongStats: RawProfileSongStats): ProfileSongStats {
     return ProfileSongStats(
         songId = rawProfileSongStats.songId ?: 0,

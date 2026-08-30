@@ -1,9 +1,9 @@
 package com.novaksimon.vibeandride.music
 
-import com.novaksimon.vibeandride.model.Song
 import com.novaksimon.vibeandride.recommendation.FakePlaybackController
 import com.novaksimon.vibeandride.recommendation.FakeProfileRepository
 import com.novaksimon.vibeandride.recommendation.FakeSongRepository
+import com.novaksimon.vibeandride.model.SongV2
 import com.novaksimon.vibeandride.workout.StructuredState
 import com.novaksimon.vibeandride.workout.WorkoutMode
 import com.novaksimon.vibeandride.workout.WorkoutSessionState
@@ -55,12 +55,14 @@ class MusicEngineTest {
         Dispatchers.resetMain()
     }
 
-    private fun createSong(id: Int, bpm: Int = 120) = Song(
+    private fun createSong(id: Int, bpm: Int = 120) = SongV2(
         id = id,
         title = "Song $id",
-        artist = "Artist",
+        artistId = 1,
         releaseDate = "2024",
-        genre = emptyList(),
+        description = "",
+        genre = "pop",
+        mood = "",
         tags = emptyList(),
         duration = 180,
         bpm = bpm,

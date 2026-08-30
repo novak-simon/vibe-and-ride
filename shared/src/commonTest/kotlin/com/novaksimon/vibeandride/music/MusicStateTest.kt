@@ -1,7 +1,7 @@
 package com.novaksimon.vibeandride.music
 
-import com.novaksimon.vibeandride.model.Song
 import com.novaksimon.vibeandride.model.Workout
+import com.novaksimon.vibeandride.model.SongV2
 import com.novaksimon.vibeandride.recommendation.RecommendationV2State
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -51,12 +51,14 @@ class MusicStateTest {
         assertEquals(PlaybackState.IDLE, initialState.playbackState)
     }
 
-    private fun createSong(id: Int, title: String) = Song(
+    private fun createSong(id: Int, title: String) = SongV2(
         id = id,
         title = title,
-        artist = "Artist",
+        artistId = 1,
         releaseDate = "2024",
-        genre = emptyList(),
+        description = "",
+        genre = "pop",
+        mood = "",
         tags = emptyList(),
         duration = 180,
         bpm = 120,

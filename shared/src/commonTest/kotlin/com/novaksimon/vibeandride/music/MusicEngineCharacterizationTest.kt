@@ -1,9 +1,9 @@
 package com.novaksimon.vibeandride.music
 
 import com.novaksimon.vibeandride.model.Interval
-import com.novaksimon.vibeandride.model.Song
 import com.novaksimon.vibeandride.model.Workout
 import com.novaksimon.vibeandride.model.Profile
+import com.novaksimon.vibeandride.model.SongV2
 import com.novaksimon.vibeandride.recommendation.FakeProfileRepository
 import com.novaksimon.vibeandride.recommendation.FakeSongRepository
 import com.novaksimon.vibeandride.workout.StructuredState
@@ -55,13 +55,13 @@ class EngineCharacterizationFakePlaybackController : PlaybackController {
 
     val calls = mutableListOf<String>()
 
-    override suspend fun setSource(song: Song, audioUrl: String, startTimeSeconds: Float) {
+    override suspend fun setSource(song: SongV2, audioUrl: String, startTimeSeconds: Float) {
         calls.add("setSource(${song.id})")
     }
-    override suspend fun preloadSource(song: Song, audioUrl: String) {
+    override suspend fun preloadSource(song: SongV2, audioUrl: String) {
         calls.add("preloadSource(${song.id})")
     }
-    override suspend fun crossfadeToPreloaded(song: Song, audioUrl: String, durationMs: Long) {
+    override suspend fun crossfadeToPreloaded(song: SongV2, audioUrl: String, durationMs: Long) {
         calls.add("crossfadeToPreloaded(${song.id})")
     }
     override suspend fun clearPreloaded() {
@@ -96,12 +96,14 @@ class MusicEngineCharacterizationTest {
         defaultDispatcher = testDispatcher
     )
 
-    private fun createSong(id: Int, title: String = "Song $id", bpm: Int = 100) = Song(
+    private fun createSong(id: Int, title: String = "Song $id", bpm: Int = 100) = SongV2(
         id = id,
         title = title,
-        artist = "Artist",
+        artistId = 1,
         releaseDate = "2024-01-01",
-        genre = listOf("pop"),
+        description = "",
+        genre = "pop",
+        mood = "",
         tags = listOf("upbeat"),
         duration = 180,
         bpm = bpm,

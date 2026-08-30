@@ -14,7 +14,6 @@ import kotlin.time.Duration.Companion.milliseconds
 private const val TAG = "AudiusApi"
 private const val APP_NAME = "VIBE_AND_RIDE"
 private const val API_KEY = "0xfe22f3410fff4707efd27f66e6277ce84105868c"
-private val AUDIUS_BEARER_TOKEN = System.getProperty("AUDIUS_BEARER_TOKEN") ?: System.getenv("AUDIUS_BEARER_TOKEN") ?: ""
 
 
 

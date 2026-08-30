@@ -1,6 +1,5 @@
 package com.novaksimon.vibeandride.recommendation
 
-import com.novaksimon.vibeandride.model.SongSegment
 import com.novaksimon.vibeandride.model.SongV2
 
 interface SongRepository {
@@ -13,7 +12,4 @@ interface SongRepository {
     suspend fun fetchSongs(limit: Int): Result<List<SongV2>>
 
     suspend fun getAudioUrlV2(song: SongV2): Result<String>
-
-    suspend fun getArtistNamesByIds(ids: List<Int>): Result<Map<Int, String>>
-
 }

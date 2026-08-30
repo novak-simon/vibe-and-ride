@@ -75,21 +75,6 @@ class SupabaseSongRepository : SongRepository {
             )
         }
     }
-
-    override suspend fun getArtistNamesByIds(ids: List<Int>): Result<Map<Int, String>> {
-        return try {
-            val names = com.novaksimon.vibeandride.database.getArtistNamesByIds(ids)
-            Result.success(names)
-        } catch (e: Exception) {
-            VibeLog.e(TAG, "Failed to batch fetch artists", e)
-            Result.failure(
-                VibeAndRideError.DataError.DatabaseError(
-                    "getArtistNamesByIds failed",
-                    e
-                )
-            )
-        }
-    }
 }
 
 

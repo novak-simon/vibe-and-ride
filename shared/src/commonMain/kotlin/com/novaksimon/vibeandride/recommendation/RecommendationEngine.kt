@@ -318,8 +318,6 @@ class RecommendationEngine(
         )
 
         val topSongsCandidates = sorted.mapNotNull { it.song }.take(10)
-        val artistIds = topSongsCandidates.map { it.artistId }.distinct()
-        val artistNames = songRepository.getArtistNamesByIds(artistIds).getOrDefault(emptyMap())
 
         VibeLog.i("RecommendationEngine", "RecommendationEngine: recommended ${topSongsCandidates.size} songs with resolved artists")
         return RecommendationResult(topSongsCandidates, sorted)

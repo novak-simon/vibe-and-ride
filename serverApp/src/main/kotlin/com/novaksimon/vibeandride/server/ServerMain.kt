@@ -10,8 +10,6 @@ import io.ktor.server.plugins.contentnegotiation.*
 import io.github.jan.supabase.createSupabaseClient
 import io.github.jan.supabase.postgrest.Postgrest
 import com.novaksimon.vibeandride.server.import.JamendoImporter
-import com.novaksimon.vibeandride.server.import.AudiusImporter
-import com.novaksimon.vibeandride.server.analysis.AnalysisOrchestrator
 import com.novaksimon.vibeandride.server.analysis.AudioFeatureExtraction
 import com.novaksimon.vibeandride.server.import.AudiusImporterV2
 import kotlinx.coroutines.launch
@@ -34,16 +32,13 @@ fun main() {
     val supabaseUrl = "https://ehosthiruiasknnnbvcc.supabase.co"
     val supabaseKey = System.getProperty("SUPABASE_SERVICE_KEY") ?: System.getenv("SUPABASE_SERVICE_KEY") ?: ""
     val jamendoClientId = System.getProperty("JAMENDO_CLIENT_ID") ?: System.getenv("JAMENDO_CLIENT_ID") ?: ""
-    val pythonExecutable = System.getProperty("PYTHON_EXECUTABLE") ?: System.getenv("PYTHON_EXECUTABLE") ?: "python"
 
     val supabase = createSupabaseClient(supabaseUrl, supabaseKey) {
         install(Postgrest)
     }
 
     val jamendoImporter = JamendoImporter(supabase, jamendoClientId)
-    val audiusImporter = AudiusImporter(supabase)
     val audiusImporterV2 = AudiusImporterV2(supabase)
-    val analysisOrchestrator = AnalysisOrchestrator(supabase, pythonExecutable = pythonExecutable)
     val audioFeatureExtraction = AudioFeatureExtraction(supabase)
 
     embeddedServer(Netty, port = 8080, host = "0.0.0.0") {
@@ -64,12 +59,6 @@ fun main() {
                 call.respond(StatusResponse(status = "Import started", limit = limit, offset = offset))
             }
             post("/import/audius") {
-                val limit = call.parameters["limit"]?.toIntOrNull() ?: 10
-                val offset = call.parameters["offset"]?.toIntOrNull() ?: 0
-                launch { audiusImporter.importTrending(limit, offset) }
-                call.respond(StatusResponse(status = "Import started", limit = limit, offset = offset))
-            }
-            post("/import/audius/v2") {
                 val latest = call.parameters["latest"]?.toBoolean() ?: false
                 val limit = call.parameters["limit"]?.toIntOrNull() ?: 500
                 val offset = call.parameters["offset"]?.toIntOrNull() ?: 0
@@ -77,11 +66,6 @@ fun main() {
                 call.respond(StatusResponse(status = "Audius V2 import started"))
             }
             post("/analyze") {
-                val limit = call.parameters["limit"]?.toIntOrNull() ?: 5
-                launch { analysisOrchestrator.runAnalysis(limit) }
-                call.respond(StatusResponse(status = "Analysis started", limit = limit))
-            }
-            post("/analyze/features") {
                 launch { audioFeatureExtraction.analyzeUnanalyzedSongs() }
                 call.respond(StatusResponse(status = "Audio feature extraction started for unanalyzed songs"))
             }

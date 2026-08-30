@@ -1,13 +1,10 @@
 package com.novaksimon.vibeandride.music
 
-import com.novaksimon.vibeandride.model.Song
-import com.novaksimon.vibeandride.model.SongSegment
 import com.novaksimon.vibeandride.model.SongV2
 import com.novaksimon.vibeandride.recommendation.ProfileRepository
 import com.novaksimon.vibeandride.recommendation.SongRepository
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
