@@ -2,3 +2,5 @@ librosa
 soundfile
 pyloudnorm
 numpy
+setuptools
+resampy
