@@ -143,9 +143,9 @@ def calculate_loudness_lufs(
 # RMS
 # ---------------------------------------------------------------------------
 
-def calculate_rms_db(
+def calculate_rms_features(
     y: np.ndarray
-) -> float:
+) -> tuple[float, float]:
 
     rms = librosa.feature.rms(
         y=y,
@@ -153,13 +153,19 @@ def calculate_rms_db(
         hop_length=HOP_LENGTH
     )[0]
 
-    value = float(np.mean(rms))
-
-    value = max(value, 1e-12)
-
-    return float(
-        20.0 * np.log10(value)
+    rms_db = 20.0 * np.log10(
+        np.maximum(rms, 1e-12)
     )
+
+    mean_rms_db = float(
+        np.mean(rms_db)
+    )
+
+    rms_std_db = float(
+        np.std(rms_db)
+    )
+
+    return mean_rms_db, rms_std_db
 
 
 # ---------------------------------------------------------------------------
@@ -418,7 +424,7 @@ def extract_audio_features(
         sr
     )
 
-    rms_db = calculate_rms_db(
+    rms_db, rms_db_std = calculate_rms_features(
         y
     )
 
@@ -454,6 +460,7 @@ def extract_audio_features(
     return {
         "loudness_lufs": loudness_lufs,
         "rms_db": rms_db,
+        "rms_db_std": rms_db_std,
         "spectral_centroid_hz": spectral_centroid_hz,
         "spectral_flux": spectral_flux,
         "bpm": bpm,

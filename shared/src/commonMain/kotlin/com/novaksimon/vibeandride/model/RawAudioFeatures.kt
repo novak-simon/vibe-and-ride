@@ -14,6 +14,9 @@ data class RawAudioFeatures(
     @SerialName("rms_db")
     val rmsDb: Double?,
 
+    @SerialName("rms_db_std")
+    val rmsDbStd: Double?,
+
     @SerialName("spectral_centroid_hz")
     val spectralCentroidHz: Double?,
 
