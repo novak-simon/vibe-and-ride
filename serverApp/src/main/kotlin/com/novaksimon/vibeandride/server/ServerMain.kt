@@ -13,6 +13,7 @@ import com.novaksimon.vibeandride.server.import.JamendoImporter
 import com.novaksimon.vibeandride.server.import.AudiusImporter
 import com.novaksimon.vibeandride.server.analysis.AnalysisOrchestrator
 import com.novaksimon.vibeandride.server.analysis.AudioFeatureExtraction
+import com.novaksimon.vibeandride.server.import.AudiusImporterV2
 import kotlinx.coroutines.launch
 import java.io.File
 
@@ -41,6 +42,7 @@ fun main() {
 
     val jamendoImporter = JamendoImporter(supabase, jamendoClientId)
     val audiusImporter = AudiusImporter(supabase)
+    val audiusImporterV2 = AudiusImporterV2(supabase)
     val analysisOrchestrator = AnalysisOrchestrator(supabase, pythonExecutable = pythonExecutable)
     val audioFeatureExtraction = AudioFeatureExtraction(supabase)
 
@@ -66,6 +68,13 @@ fun main() {
                 val offset = call.parameters["offset"]?.toIntOrNull() ?: 0
                 launch { audiusImporter.importTrending(limit, offset) }
                 call.respond(StatusResponse(status = "Import started", limit = limit, offset = offset))
+            }
+            post("/import/audius/v2") {
+                val latest = call.parameters["latest"]?.toBoolean() ?: false
+                val limit = call.parameters["limit"]?.toIntOrNull() ?: 500
+                val offset = call.parameters["offset"]?.toIntOrNull() ?: 0
+                launch { audiusImporterV2.fetchAudiusSongs(latest = latest, limit = limit, offset = offset) }
+                call.respond(StatusResponse(status = "Audius V2 import started"))
             }
             post("/analyze") {
                 val limit = call.parameters["limit"]?.toIntOrNull() ?: 5

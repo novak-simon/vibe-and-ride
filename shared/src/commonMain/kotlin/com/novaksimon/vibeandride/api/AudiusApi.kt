@@ -14,6 +14,9 @@ import kotlin.time.Duration.Companion.milliseconds
 private const val TAG = "AudiusApi"
 private const val APP_NAME = "VIBE_AND_RIDE"
 private const val API_KEY = "0xfe22f3410fff4707efd27f66e6277ce84105868c"
+private val AUDIUS_BEARER_TOKEN = System.getProperty("AUDIUS_BEARER_TOKEN") ?: System.getenv("AUDIUS_BEARER_TOKEN") ?: ""
+
+
 
 private val httpClient = OkHttpClient.Builder()
     .followRedirects(true)
@@ -77,6 +80,34 @@ object AudiusNodeRegistry {
         } catch (e: Exception) {
             VibeLog.e(TAG, "AudiusNodeRegistry: Failed to refresh nodes", e)
         }
+    }
+}
+suspend fun getAudiusStreamUrlV2(audiusId: String): String? = withContext(Dispatchers.IO) {
+    val request = Request.Builder()
+        .url("https://api.audius.co/v1/tracks/$audiusId/stream")
+        .get()
+        .build()
+
+    httpClient.newCall(request).execute().use { response ->
+        if (!response.isSuccessful) {
+            println(response)
+            return@withContext null
+        }
+        response.request.url.toString() // final URL after redirect, if that's what you want
+    }
+}
+
+suspend fun debugGetTrackMetadata(trackId: String) = withContext(Dispatchers.IO) {
+    val request = Request.Builder()
+        .url("https://api.audius.co/v1/tracks/$trackId")
+        .get()
+        .build()
+
+    httpClient.newCall(request).execute().use { response ->
+        val body = response.body.string()
+        println("Code: ${response.code}")
+        println("Message: ${response.message}")
+        println("Body: $body")
     }
 }
 

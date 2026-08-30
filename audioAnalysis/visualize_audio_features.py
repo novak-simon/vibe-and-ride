@@ -39,6 +39,7 @@ TABLE_NAME = "audio_features"
 ALL_FEATURES = [
     "loudness_lufs",
     "rms_db",
+    "rms_db_std",
     "spectral_centroid_hz",
     "spectral_flux",
     "bpm",
@@ -71,6 +72,7 @@ RHYTHM_FEATURES = [
 ENERGY_TIMBRE_FEATURES = [
     "loudness_lufs",
     "rms_db",
+    "rms_db_std",
     "spectral_centroid_hz",
     "spectral_flux",
 ]
