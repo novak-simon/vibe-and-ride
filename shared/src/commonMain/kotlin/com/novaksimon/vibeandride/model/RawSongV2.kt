@@ -5,10 +5,8 @@ import kotlinx.serialization.Serializable
 
 @Serializable
 data class RawSongV2(
-    val id: Int,
     val title: String? = null,
     @SerialName("artist_id") val artistId: Int? = null,
-    @SerialName("album_id") val albumId: Int? = null,
     @SerialName("release_date") val releaseDate: String? = null,
     val description: String? = null,
     val genre: String? = null,

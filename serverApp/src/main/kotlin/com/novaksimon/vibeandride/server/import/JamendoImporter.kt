@@ -7,12 +7,14 @@ import io.ktor.client.plugins.contentnegotiation.*
 import io.ktor.serialization.kotlinx.json.*
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.SerialName
 import com.novaksimon.vibeandride.model.*
 import com.novaksimon.vibeandride.server.IdRow
 import com.novaksimon.vibeandride.util.VibeLog
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.postgrest.from
 import io.github.jan.supabase.postgrest.query.Columns
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
@@ -30,7 +32,8 @@ data class JamendoTrack(
     val id: String,
     val name: String,
     val duration: Int,
-    val artist_name: String,
+    @SerialName("artist_name") val artistName: String,
+    @SerialName("artist_id") val artistId: Int,
     val album_name: String? = null,
     val release_date: String? = null,
     val audio: String? = null,
@@ -52,12 +55,12 @@ data class JamendoTags(
     val genres: List<String>? = null,
     val vartags: List<String>? = null
 )
-
+private const val TAG = "JamendoImporter"
 class JamendoImporter(
     private val supabase: SupabaseClient,
     private val jamendoClientId: String
 ) {
-    private val TAG = "JamendoImporter"
+
     private val httpClient = HttpClient {
         install(ContentNegotiation) {
             json(Json { ignoreUnknownKeys = true })
@@ -116,10 +119,10 @@ class JamendoImporter(
 
     private suspend fun processTrack(track: JamendoTrack) {
         val jamendoId = track.id.toLong()
-        
+
         // Check if exists
         val existing = supabase.from("jamendo_song_data")
-            .select(Columns.list("song_id")) {
+            .select {
                 filter { eq("jamendo_id", jamendoId) }
             }
             .decodeSingleOrNull<RawJamendoSongData>()
@@ -129,33 +132,41 @@ class JamendoImporter(
             return
         }
 
-        val artistId = findOrCreate("artists", track.artist_name)
-        val albumId = findOrCreate("albums", track.album_name)
+        val artistData = RawArtistV2(
+            name = track.artistName,
+            provider = 2,
+            audiusArtistId = null,
+            jamendoArtistId = track.artistId
+        )
+        val databaseArtistData = supabase.from("artists_v2")
+            .upsert(listOf(artistData)) {
+                onConflict = "jamendo_artist_id"
+                ignoreDuplicates = true
+                select()
+            }
+            .decodeSingleOrNull<ArtistV2>()
 
         val tags = track.musicinfo?.tags?.vartags ?: emptyList()
         val genres = track.musicinfo?.tags?.genres ?: emptyList()
 
-        val songData = buildJsonObject {
-            put("title", track.name)
-            put("artist_id", artistId)
-            put("album_id", albumId)
-            put("duration", track.duration)
-            put("genre", genres.joinToString(", "))
-            put("mood", tags.firstOrNull())
-            put("release_date", track.release_date)
-            put("image", track.image)
-            put("share_url", track.shareurl ?: "")
-            putJsonArray("tags") {
-                tags.forEach { add(it) }
-            }
-        }
-
-        val createdSong = supabase.from("songs")
-            .insert(songData) { select() }
-            .decodeSingle<RawSong>()
-
-        val songId = createdSong.id
-
+        val songData = RawSongV2(
+            title = track.name,
+            artistId = databaseArtistData?.id,
+            duration = track.duration,
+            genre = genres.joinToString(", "),
+            mood = tags.firstOrNull(),
+            releaseDate = track.release_date,
+            image = track.image,
+            shareUrl = track.shareurl,
+            tags = tags,
+            description = null,
+            bpm = null,
+            startTime = 0f,
+            endTime = 0f,
+            provider = 2,
+            audiusProviderId = null,
+            jamendoProviderId = jamendoId.toInt()
+        )
         val peaks = try {
             track.waveform?.let {
                 val jsonWaveform = Json.parseToJsonElement(it).jsonObject
@@ -164,9 +175,7 @@ class JamendoImporter(
         } catch (e: Exception) {
             null
         }
-
         val jamendoData = buildJsonObject {
-            put("song_id", songId)
             put("jamendo_id", jamendoId)
             put("audio_url", track.audio)
             put("download_url", track.audiodownload)
@@ -176,8 +185,14 @@ class JamendoImporter(
                 }
             }
         }
-
         supabase.from("jamendo_song_data").insert(jamendoData)
+
+        supabase.from("songs_v2")
+            .upsert(listOf(songData)) {
+                onConflict = "jamendo_provider_id"
+                ignoreDuplicates = true
+                select()
+            }
         VibeLog.i(TAG, "JamendoImporter: Inserted ${track.name}")
     }
 

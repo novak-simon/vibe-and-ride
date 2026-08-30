@@ -8,7 +8,6 @@ data class SongV2(
     val id: Int,
     val title: String,
     @SerialName("artist_id") val artistId: Int,
-    @SerialName("album_id") val albumId: Int,
     @SerialName("release_date") val releaseDate: String,
     val description: String,
     val genre: String,
