@@ -8,9 +8,11 @@ import com.novaksimon.vibeandride.model.ProfileSongStats
 import com.novaksimon.vibeandride.model.RawProfile
 import com.novaksimon.vibeandride.model.RawProfileSongStats
 import com.novaksimon.vibeandride.model.RawSongSegment
+import com.novaksimon.vibeandride.model.RawSongV2
 import com.novaksimon.vibeandride.model.RawWorkout
 import com.novaksimon.vibeandride.model.Song
 import com.novaksimon.vibeandride.model.SongSegment
+import com.novaksimon.vibeandride.model.SongV2
 import com.novaksimon.vibeandride.model.Workout
 import com.novaksimon.vibeandride.model.estimateCadenceFromPower
 import kotlin.math.round
@@ -88,6 +90,27 @@ fun rawToSong(rawSong: RawSong): Song {
         segments = emptyList(),
     )
 }
+fun rawToSongV2(rawSong: RawSongV2): SongV2 {
+    return SongV2(
+        id = rawSong.id.toInt(),
+        title = rawSong.title ?: "Unknown Title",
+        artistId = rawSong.artistId?.toInt() ?: 0,
+        releaseDate = rawSong.releaseDate ?: "Unknown Date",
+        genre = rawSong.genre ?: "",
+        tags = rawSong.tags ?: emptyList(),
+        duration = rawSong.duration ?: 0,
+        bpm = rawSong.bpm ?: 0,
+        startTime = rawSong.startTime ?: 0.0f,
+        endTime = rawSong.endTime ?: 0.0f,
+        image = rawSong.image ?: "Unknown Image",
+        shareUrl = rawSong.shareUrl ?: "Unknown Share URL",
+        description = rawSong.description ?: "No description",
+        mood = rawSong.mood ?: "Unknown Mood",
+        provider = rawSong.provider,
+        audiusProviderId = rawSong.audiusProviderId,
+        jamendoProviderId = rawSong.jamendoProviderId?.toInt(),
+    )
+}
 
 fun rawToSongSegment(raw: RawSongSegment): SongSegment {
     return SongSegment(
@@ -111,7 +134,6 @@ fun rawToStat(rawProfileSongStats: RawProfileSongStats): ProfileSongStats {
         playCount = rawProfileSongStats.playCount ?: 0,
         skipCount = rawProfileSongStats.skipCount ?: 0,
         isLiked = rawProfileSongStats.isLiked ?: false,
-        likedSegment = rawProfileSongStats.likedSegment,
         firstPlayedAt = rawProfileSongStats.firstPlayedAt,
         lastPlayedAt = rawProfileSongStats.lastPlayedAt,
         lastSkippedAt = rawProfileSongStats.lastSkippedAt,

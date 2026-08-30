@@ -149,7 +149,7 @@ class JamendoImporter(
         val tags = track.musicinfo?.tags?.vartags ?: emptyList()
         val genres = track.musicinfo?.tags?.genres ?: emptyList()
 
-        val songData = RawSongV2(
+        val songData = RawSongV2ToUpload(
             title = track.name,
             artistId = databaseArtistData?.id,
             duration = track.duration,

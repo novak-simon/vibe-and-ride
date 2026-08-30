@@ -9,7 +9,6 @@ data class RawProfileSongStats(
     @SerialName("song_id") val songId: Int? = null,
     @SerialName("profile_id") val profileId: String? = null,
     @SerialName("is_liked") val isLiked: Boolean? = null,
-    @SerialName("liked_segment") val likedSegment: Int? = null,
     @SerialName("play_count") val playCount: Int? = null,
     @SerialName("skip_count") val skipCount: Int? = null,
     @SerialName("first_played_at") val firstPlayedAt: kotlin.time.Instant? = null,

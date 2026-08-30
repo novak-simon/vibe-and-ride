@@ -1,30 +1,19 @@
 package com.novaksimon.vibeandride.recommendation
 
-import com.novaksimon.vibeandride.model.Song
 import com.novaksimon.vibeandride.model.SongSegment
+import com.novaksimon.vibeandride.model.SongV2
 
 interface SongRepository {
     suspend fun getSongsAroundTargetCadence(
         targetAlgorithmCadence: Int,
         algorithmCadenceToleration: Int,
         limit: Int
-    ): Result<List<Song>>
+    ): Result<List<SongV2>>
 
-    suspend fun fetchSongs(limit: Int): Result<List<Song>>
+    suspend fun fetchSongs(limit: Int): Result<List<SongV2>>
 
-    suspend fun getAudioUrl(song: Song): Result<String>
+    suspend fun getAudioUrlV2(song: SongV2): Result<String>
 
     suspend fun getArtistNamesByIds(ids: List<Int>): Result<Map<Int, String>>
 
-    suspend fun fetchSongSegments(songId: Int): Result<List<SongSegment>>
-
-    suspend fun searchSongsByEmbedding(
-        targetEmbedding: List<Float>,
-        targetBpm: Int,
-        minLimit: Int,
-        maxLimit: Int
-    ): Result<List<Song>>
-
-    suspend fun getSecondSegmentEmbedding(songId: Int): Result<List<Float>?>
 }
-

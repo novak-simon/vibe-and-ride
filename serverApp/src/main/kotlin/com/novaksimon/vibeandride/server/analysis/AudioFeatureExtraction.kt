@@ -1,7 +1,7 @@
 package com.novaksimon.vibeandride.server.analysis
 
 import com.novaksimon.vibeandride.database.SupabaseSongRepository
-import com.novaksimon.vibeandride.database.getSongById
+import com.novaksimon.vibeandride.database.getSongV2ById
 import com.novaksimon.vibeandride.util.VibeLog
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.createSupabaseClient
@@ -32,8 +32,8 @@ class AudioFeatureExtraction(
     }
     suspend fun analyzeSong(songId: Int) {
         val song =
-            getSongById(songId) ?: throw IllegalArgumentException("Song with ID $songId not found")
-        val streamUrl = songRepository.getAudioUrl(song).getOrNull()
+            getSongV2ById(songId) ?: throw IllegalArgumentException("Song with ID $songId not found")
+        val streamUrl = songRepository.getAudioUrlV2(song).getOrNull()
         if (streamUrl != null) {
             val audioFeatures = audioFeatureExtractor.extract(streamUrl, song.duration)
             audioFeatures.songId = songId

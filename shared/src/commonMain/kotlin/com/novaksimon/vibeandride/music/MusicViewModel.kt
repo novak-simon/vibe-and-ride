@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.novaksimon.vibeandride.database.SupabaseProfileRepository
 import com.novaksimon.vibeandride.database.SupabaseSongRepository
 import com.novaksimon.vibeandride.model.Song
+import com.novaksimon.vibeandride.model.SongV2
 import com.novaksimon.vibeandride.recommendation.SongRecommendation
 import com.novaksimon.vibeandride.util.VibeLog
 import com.novaksimon.vibeandride.workout.WorkoutStatus
@@ -18,7 +19,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
 data class MusicUiState(
-    val currentSong: Song? = null,
+    val currentSong: SongV2? = null,
     val isMusicAvailable: Boolean = false,
     val isPlaying: Boolean = false,
     val debugInfo: List<SongRecommendation>? = null,
@@ -28,12 +29,12 @@ data class MusicUiState(
     val errorMessage: String? = null
 )
 
-
+private const val TAG = "MusicViewModel"
 class MusicViewModel(
     playbackController: PlaybackController,
 ) : ViewModel() {
 
-    private val TAG = "MusicViewModel"
+
     private lateinit var workoutViewModel: WorkoutViewModel
     private val musicEngine: MusicEngine = MusicEngine(
         playbackController,

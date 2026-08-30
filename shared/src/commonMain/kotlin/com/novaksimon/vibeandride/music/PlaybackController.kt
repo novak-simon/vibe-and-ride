@@ -1,6 +1,7 @@
 package com.novaksimon.vibeandride.music
 
 import com.novaksimon.vibeandride.model.Song
+import com.novaksimon.vibeandride.model.SongV2
 import kotlinx.coroutines.flow.Flow
 
 interface PlaybackController {
@@ -10,16 +11,16 @@ interface PlaybackController {
     fun pause()
     fun isPlaying(): Boolean
     suspend fun setSource(
-        song: Song,
+        song: SongV2,
         audioUrl: String,
         startTimeSeconds: Float = 0f
     )
     suspend fun preloadSource(
-        song: Song,
+        song: SongV2,
         audioUrl: String,
     )
     suspend fun crossfadeToPreloaded(
-        song: Song,
+        song: SongV2,
         audioUrl: String,
         durationMs: Long
     )

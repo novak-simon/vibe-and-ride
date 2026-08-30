@@ -1,6 +1,7 @@
 package com.novaksimon.vibeandride.music
 
 import com.novaksimon.vibeandride.model.Song
+import com.novaksimon.vibeandride.model.SongV2
 import com.novaksimon.vibeandride.model.Workout
 import com.novaksimon.vibeandride.recommendation.RecommendationV2State
 import com.novaksimon.vibeandride.workout.WorkoutMode
@@ -26,7 +27,7 @@ data class MusicState(
     val mode: WorkoutMode? = null,
     val workout: Workout? = null,
     val songIndex: Int = 0,
-    val currentSong: Song? = null,
+    val currentSong: SongV2? = null,
     val isLiked: Boolean = false,
     val currentIntervalIndex: Int = -1,
     val preloadedSongId: Int? = null,

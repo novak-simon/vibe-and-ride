@@ -1,10 +1,9 @@
 package com.novaksimon.vibeandride.recommendation
 
 import com.novaksimon.vibeandride.model.Interval
-import com.novaksimon.vibeandride.model.Song
 import com.novaksimon.vibeandride.model.Profile
 import com.novaksimon.vibeandride.model.ProfileSongStats
-import com.novaksimon.vibeandride.music.MusicState
+import com.novaksimon.vibeandride.model.SongV2
 import com.novaksimon.vibeandride.util.VibeLog
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
@@ -71,7 +70,7 @@ private val GENRE_WEIGHTS = mapOf(
 )
 
 data class RecommendationResult(
-    val topSongs: List<Song>,
+    val topSongs: List<SongV2>,
     val debugInfo: List<SongRecommendation>,
 )
 
@@ -84,7 +83,7 @@ class RecommendationEngine(
 
     suspend fun approximateFilterByInterval(
         interval: Interval,
-    ): List<Song> {
+    ): List<SongV2> {
         val cadence = interval.cadence.toInt()
         val targetCadence = getAlgorithmCadence(cadence)
         var pool = withContext(ioDispatcher) {
@@ -127,7 +126,7 @@ class RecommendationEngine(
     }
 
     suspend fun getProfilePreferenceScore(
-        song: Song?,
+        song: SongV2?,
         profile: Profile
     ): PreferenceRecommendation {
         if (song == null) {
@@ -213,7 +212,8 @@ class RecommendationEngine(
 
 
 
-    fun getIntervalMatchScore(song: Song, interval: Interval): IntervalRecommendation {
+
+    fun getIntervalMatchScore(song: SongV2, interval: Interval): IntervalRecommendation {
         val targetCadence = interval.cadence
 
         val sbpm = song.bpm
@@ -249,9 +249,7 @@ class RecommendationEngine(
         val tagScore =
             song.tags.sumOf { TAG_WEIGHTS.getOrDefault(it, 0f).toDouble() }
                 .toFloat()
-        val genreScore =
-            song.genre.sumOf { GENRE_WEIGHTS.getOrDefault(it, 0f).toDouble() }
-                .toFloat()
+        val genreScore = 0 //TODO
         val songScore = clamp02(tagScore + genreScore)
 
         var totalScore =
@@ -269,7 +267,7 @@ class RecommendationEngine(
     }
 
     suspend fun getSongRecommendationScore(
-        song: Song?,
+        song: SongV2?,
         interval: Interval?,
         profile: Profile
     ): SongRecommendation {
@@ -289,27 +287,12 @@ class RecommendationEngine(
     }
 
 
-    private var provider: CandidateProvider = CandidateProvider(songRepository)
-
-    suspend fun recommend(interval: Interval, candidateProvider: String = "v1", musicState: MusicState = MusicState()): RecommendationResult {
-        var firstCandidatePool: List<Song>? = null
+    suspend fun recommend(interval: Interval): RecommendationResult {
+        var firstCandidatePool: List<SongV2>? = null
         withContext(ioDispatcher) {
-            firstCandidatePool = if (candidateProvider == "v1") {
-                approximateFilterByInterval(interval)
-            } else {
-                val currentSongId = musicState.currentSong?.id
-                val embedding = if (currentSongId != null) {
-                    songRepository.getSecondSegmentEmbedding(currentSongId).getOrNull()
-                } else null
-
-                if (!embedding.isNullOrEmpty()) {
-                    provider.getCandidates(2, 3, interval.cadence.toInt(), embedding)
-                } else {
-                    VibeLog.d("RecommendationEngine", "No embedding found for song $currentSongId, falling back to v1 candidate provider")
-                    approximateFilterByInterval(interval)
-                }
-            }
+            firstCandidatePool = approximateFilterByInterval(interval)
         }
+
         if (firstCandidatePool.isNullOrEmpty()) {
             VibeLog.w("RecommendationEngine", "RecommendationEngine: firstCandidatePool is empty for interval $interval")
             return RecommendationResult(emptyList(), emptyList())
@@ -335,19 +318,11 @@ class RecommendationEngine(
         )
 
         val topSongsCandidates = sorted.mapNotNull { it.song }.take(10)
-        val artistIds = topSongsCandidates.mapNotNull { it.artistId }.distinct()
+        val artistIds = topSongsCandidates.map { it.artistId }.distinct()
         val artistNames = songRepository.getArtistNamesByIds(artistIds).getOrDefault(emptyMap())
 
-        val topSongs = topSongsCandidates.map { song ->
-            if (song.artistId != null && artistNames.containsKey(song.artistId)) {
-                song.copy(artist = artistNames[song.artistId]!!)
-            } else {
-                song
-            }
-        }
-
-        VibeLog.i("RecommendationEngine", "RecommendationEngine: recommended ${topSongs.size} songs with resolved artists")
-        return RecommendationResult(topSongs, sorted)
+        VibeLog.i("RecommendationEngine", "RecommendationEngine: recommended ${topSongsCandidates.size} songs with resolved artists")
+        return RecommendationResult(topSongsCandidates, sorted)
     }
 }
 

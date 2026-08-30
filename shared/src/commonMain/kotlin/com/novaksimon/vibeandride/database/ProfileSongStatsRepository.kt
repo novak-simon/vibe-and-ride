@@ -147,7 +147,7 @@ suspend fun changeLikeState(songId: Int, targetState: Boolean, segmentIndex: Int
     }
 }
 
-suspend fun getLikedSongsWithDetails(profileId: String? = null): List<com.novaksimon.vibeandride.model.Song> {
+suspend fun getLikedSongsWithDetails(profileId: String? = null): List<com.novaksimon.vibeandride.model.SongV2> {
     return try {
         val resolvedProfileId = profileId ?: getCurrentProfile()?.id ?: return emptyList()
         val likedStats = client.postgrest["profile_song_stats"]
@@ -158,18 +158,9 @@ suspend fun getLikedSongsWithDetails(profileId: String? = null): List<com.novaks
                 }
             }
             .decodeList<RawProfileSongStats>()
-            
+
         val songIds = likedStats.mapNotNull { it.songId }.distinct()
-        val songsWithoutArtists = getSongsByIds(songIds)
-        
-        val artistIds = songsWithoutArtists.mapNotNull { it.artistId }.distinct()
-        val artistNames = getArtistNamesByIds(artistIds)
-        
-        songsWithoutArtists.map { song ->
-            if (song.artistId != null && artistNames.containsKey(song.artistId)) {
-                song.copy(artist = artistNames[song.artistId]!!)
-            } else song
-        }
+        getSongsByIds(songIds)
     } catch (e: Exception) {
         VibeLog.e(TAG, "getLikedSongsWithDetails failed", e)
         emptyList()

@@ -1,29 +1,19 @@
 package com.novaksimon.vibeandride.database
 
-import com.novaksimon.vibeandride.model.Song
-import com.novaksimon.vibeandride.model.SongSegment
+import com.novaksimon.vibeandride.api.getAudiusStreamUrl
+import com.novaksimon.vibeandride.model.SongV2
 import com.novaksimon.vibeandride.model.VibeAndRideError
 import com.novaksimon.vibeandride.recommendation.SongRepository
 import com.novaksimon.vibeandride.util.VibeLog
+private const val TAG = "SupabaseSongRepository"
 
 class SupabaseSongRepository : SongRepository {
-    private val TAG = "SupabaseSongRepository"
-
-    override suspend fun fetchSongSegments(songId: Int): Result<List<SongSegment>> {
-        return try {
-            val segments = com.novaksimon.vibeandride.database.getSongSegments(songId)
-            Result.success(segments)
-        } catch (e: Exception) {
-            // Already caught and logged as debug in database layer, but wrapping for consistency
-            Result.success(emptyList())
-        }
-    }
 
     override suspend fun getSongsAroundTargetCadence(
         targetAlgorithmCadence: Int,
         algorithmCadenceToleration: Int,
         limit: Int
-    ): Result<List<Song>> {
+    ): Result<List<SongV2>> {
         return try {
             val songs = com.novaksimon.vibeandride.database.getSongsAroundTargetCadence(
                 targetAlgorithmCadence,
@@ -33,12 +23,18 @@ class SupabaseSongRepository : SongRepository {
             Result.success(songs)
         } catch (e: Exception) {
             VibeLog.e(TAG, "Failed to get songs around cadence: $targetAlgorithmCadence", e)
-            Result.failure(VibeAndRideError.DataError.DatabaseError("getSongsAroundTargetCadence failed", e))
+            Result.failure(
+                VibeAndRideError.DataError.DatabaseError(
+                    "getSongsAroundTargetCadence failed",
+                    e
+                )
+            )
         }
     }
 
-    override suspend fun fetchSongs(limit: Int): Result<List<Song>> {
+    override suspend fun fetchSongs(limit: Int): Result<List<SongV2>> {
         return try {
+            VibeLog.d(TAG, "Fetching songs with limit: $limit")
             val songs = com.novaksimon.vibeandride.database.fetchSongs(limit)
             Result.success(songs)
         } catch (e: Exception) {
@@ -47,31 +43,36 @@ class SupabaseSongRepository : SongRepository {
         }
     }
 
-    override suspend fun getAudioUrl(song: Song): Result<String> {
-        val isJamendo = song.shareUrl.contains("jamendo.com")
-        val isAudius = song.shareUrl.contains("audius.co")
-
+    override suspend fun getAudioUrlV2(song: SongV2): Result<String> {
         try {
-            if (isJamendo) {
-                val url = getJamendoAudioUrlBySongId(song.id)
-                if (url != null) return Result.success(url)
-            } else if (isAudius) {
-                val url = getAudiusAudioUrlBySongId(song.id)
-                if (url != null) return Result.success(url)
+            var url: String? = null
+            if (song.provider == 1) {
+                url = getAudiusStreamUrl(
+                    song.audiusProviderId
+                        ?: return Result.failure(VibeAndRideError.MusicError.AudioUrlNotFound(song.id.toString()))
+                )
+            } else if (song.provider == 2) {
+                song.jamendoProviderId.let { id ->
+                    url = if (id != null) {
+                        getJamendoAudioUrlById(id)
+                    } else {
+                        null
+                    }
+                }
             }
-
-            // Fallback
-            val jamendo = getJamendoAudioUrlBySongId(song.id)
-            if (jamendo != null) return Result.success(jamendo)
-
-            val audius = getAudiusAudioUrlBySongId(song.id)
-            if (audius != null) return Result.success(audius)
-
-            VibeLog.w(TAG, "Audio URL not found for song ${song.id} (${song.title})")
-            return Result.failure(VibeAndRideError.MusicError.AudioUrlNotFound(song.id.toString()))
+            return if (url != null) {
+                Result.success(url)
+            } else {
+                Result.failure(VibeAndRideError.MusicError.AudioUrlNotFound(song.id.toString()))
+            }
         } catch (e: Exception) {
             VibeLog.e(TAG, "Failed to get audio URL for song ${song.id}", e)
-            return Result.failure(VibeAndRideError.DataError.DatabaseError("getAudioUrl failed", e))
+            return Result.failure(
+                VibeAndRideError.DataError.DatabaseError(
+                    "getAudioUrlV2 failed",
+                    e
+                )
+            )
         }
     }
 
@@ -81,38 +82,14 @@ class SupabaseSongRepository : SongRepository {
             Result.success(names)
         } catch (e: Exception) {
             VibeLog.e(TAG, "Failed to batch fetch artists", e)
-            Result.failure(VibeAndRideError.DataError.DatabaseError("getArtistNamesByIds failed", e))
-        }
-    }
-
-    override suspend fun searchSongsByEmbedding(
-        targetEmbedding: List<Float>,
-        targetBpm: Int,
-        minLimit: Int,
-        maxLimit: Int
-    ): Result<List<Song>> {
-        return try {
-            val songs = com.novaksimon.vibeandride.database.searchSongsByEmbedding(
-                targetEmbedding,
-                targetBpm,
-                minLimit,
-                maxLimit
+            Result.failure(
+                VibeAndRideError.DataError.DatabaseError(
+                    "getArtistNamesByIds failed",
+                    e
+                )
             )
-            Result.success(songs)
-        } catch (e: Exception) {
-            VibeLog.e(TAG, "Failed to search songs by embedding", e)
-            Result.failure(VibeAndRideError.DataError.DatabaseError("searchSongsByEmbedding failed", e))
-        }
-    }
-
-    override suspend fun getSecondSegmentEmbedding(songId: Int): Result<List<Float>?> {
-        return try {
-            val embedding = com.novaksimon.vibeandride.database.getSecondSegmentEmbedding(songId)
-            Result.success(embedding)
-        } catch (e: Exception) {
-            VibeLog.e(TAG, "Failed to get second segment embedding for song $songId", e)
-            Result.failure(VibeAndRideError.DataError.DatabaseError("getSecondSegmentEmbedding failed", e))
         }
     }
 }
+
 

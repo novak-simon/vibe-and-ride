@@ -1,11 +1,11 @@
 package com.novaksimon.vibeandride.recommendation
 
 import com.novaksimon.vibeandride.model.Interval
-import com.novaksimon.vibeandride.model.Song
 import com.novaksimon.vibeandride.model.Profile
+import com.novaksimon.vibeandride.model.SongV2
 
 data class PreferenceRecommendation(
-    val song: Song? = null,
+    val song: SongV2? = null,
     val score: Float = 0f,
     val profile: Profile? = null,
     val numberOfMatchingGenres: Float? = 0f,
@@ -15,7 +15,7 @@ data class PreferenceRecommendation(
 )
 
 data class IntervalRecommendation(
-    val song: Song? = null,
+    val song: SongV2? = null,
     val score: Float = 0f,
     val cadenceScore: Float? = 0f,
     val songScore: Float? = 0f,
@@ -24,7 +24,7 @@ data class IntervalRecommendation(
 )
 
 data class SongRecommendation(
-    val song: Song? = null,
+    val song: SongV2? = null,
     val score: Float? = 0f,
     val preferenceRecommendation: PreferenceRecommendation? = null,
     val intervalRecommendation: IntervalRecommendation? = null,

@@ -26,6 +26,7 @@ from typing import Dict
 import librosa
 import numpy as np
 import pyloudnorm as pyln
+from service import AudioAnalysisService
 
 
 # ---------------------------------------------------------------------------
@@ -452,6 +453,9 @@ def extract_audio_features(
             sr
         )
     )
+    audio_analysis_service = AudioAnalysisService()
+    audio_analysis = audio_analysis_service.analyze_song(url, duration)
+    
 
     # ---------------------------------------------------------------
     # Return
@@ -463,7 +467,10 @@ def extract_audio_features(
         "rms_db_std": rms_db_std,
         "spectral_centroid_hz": spectral_centroid_hz,
         "spectral_flux": spectral_flux,
-        "bpm": bpm,
+        "bpm": audio_analysis.bpm,
+        "bpm_confidence": audio_analysis.bpm_confidence,
+        "start_time": audio_analysis.start_time,
+        "end_time": audio_analysis.end_time,
         "onset_density": onset_density,
         **frequency_ratios,
     }

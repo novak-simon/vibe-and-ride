@@ -8,7 +8,6 @@ data class ProfileSongStats(
     @SerialName("song_id") val songId: Int,
     @SerialName("profile_id") val profileId: String,
     @SerialName("is_liked") val isLiked: Boolean,
-    @SerialName("liked_segment") val likedSegment: Int? = null,
     @SerialName("play_count") val playCount: Int,
     @SerialName("skip_count") val skipCount: Int,
     @SerialName("first_played_at") val firstPlayedAt: kotlin.time.Instant?,

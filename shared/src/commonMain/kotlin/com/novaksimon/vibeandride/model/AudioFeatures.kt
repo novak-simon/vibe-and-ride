@@ -25,8 +25,17 @@ data class AudioFeatures(
 
     val bpm: Double,
 
+    @SerialName("bpm_confidence")
+    val bpmConfidence: Int,
+
     @SerialName("onset_density")
     val onsetDensity: Double,
+
+    @SerialName("start_time")
+    val startTime: Float,
+
+    @SerialName("end_time")
+    val endTime: Float,
 
     @SerialName("sub_bass_ratio")
     val subBassRatio: Double,

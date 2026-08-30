@@ -1,6 +1,7 @@
 package com.novaksimon.vibeandride.music
 
 import com.novaksimon.vibeandride.model.Song
+import com.novaksimon.vibeandride.model.SongV2
 import com.novaksimon.vibeandride.recommendation.ProfileRepository
 import com.novaksimon.vibeandride.recommendation.RecommendationEngineV2
 import com.novaksimon.vibeandride.recommendation.RecommendationV2State
@@ -257,7 +258,7 @@ class MusicEngine(
     fun play() { service.play() }
     fun pause() { service.pause() }
 
-    fun selectSongFromBuffer(state: MusicState, intervalIndex: Int, songIndex: Int, skipFailed: Boolean = true): Song? {
+    fun selectSongFromBuffer(state: MusicState, intervalIndex: Int, songIndex: Int, skipFailed: Boolean = true): SongV2? {
         val actualIndex = if (state.mode is WorkoutMode.FreeRide) 0 else intervalIndex
         if (actualIndex < 0) return null
         
@@ -339,7 +340,7 @@ class MusicEngine(
         } else state
     }
 
-    fun finalizeTrackTransition(state: MusicState, song: Song, isRetry: Boolean = false): MusicState {
+    fun finalizeTrackTransition(state: MusicState, song: SongV2, isRetry: Boolean = false): MusicState {
         var newIndex = state.songIndex
         while (newIndex < state.songIndex + 20) {
             val s = selectSongFromBuffer(state, state.currentIntervalIndex, newIndex, skipFailed = false)
@@ -412,7 +413,7 @@ class MusicEngine(
 
 sealed class PreloadDecision {
     object None : PreloadDecision()
-    data class Preload(val song: Song, val newSongIndex: Int? = null) : PreloadDecision()
+    data class Preload(val song: SongV2, val newSongIndex: Int? = null) : PreloadDecision()
 }
 
 sealed class TransitionDecision {

@@ -1,17 +1,17 @@
 package com.novaksimon.vibeandride.music
 
-import com.novaksimon.vibeandride.model.Song
+import com.novaksimon.vibeandride.model.SongV2
 import com.novaksimon.vibeandride.recommendation.SongRepository
 import com.novaksimon.vibeandride.util.VibeLog
-
+private const val TAG = "ProfileMusicService"
 class ProfileMusicService(
     private val playbackController: PlaybackController,
     private val songRepository: SongRepository
 ) {
-    private val TAG = "ProfileMusicService"
+
 
     private var informedAboutTrackEnd = false
-    private var currentSong: Song? = null
+    private var currentSong: SongV2? = null
     private var preloadedAudioUrl: String? = null
     private var preloadedSongId: Int? = null
 
@@ -46,7 +46,7 @@ class ProfileMusicService(
         preloadedSongId = null
     }
 
-    suspend fun preloadSong(song: Song): Boolean {
+    suspend fun preloadSong(song: SongV2): Boolean {
         val audioUrl: String? = getAudioUrl(song)
         if (!audioUrl.isNullOrEmpty()) {
             preloadedAudioUrl = audioUrl
@@ -59,7 +59,7 @@ class ProfileMusicService(
         }
     }
 
-    suspend fun prepareTrack(song: Song): Boolean {
+    suspend fun prepareTrack(song: SongV2): Boolean {
         informedAboutTrackEnd = false
         currentSong = song
         val audioUrl = getAudioUrl(song) ?: return false
@@ -92,7 +92,7 @@ class ProfileMusicService(
     }
 
     suspend fun crossfadeTo(
-        song: Song,
+        song: SongV2,
         durationMs: Long = 1000L
     ): Boolean {
         informedAboutTrackEnd = false
@@ -124,7 +124,7 @@ class ProfileMusicService(
         return true
     }
 
-    suspend fun getAudioUrl(song: Song): String? {
-        return songRepository.getAudioUrl(song).getOrNull()
+    suspend fun getAudioUrl(song: SongV2): String? {
+        return songRepository.getAudioUrlV2(song).getOrNull()
     }
 }

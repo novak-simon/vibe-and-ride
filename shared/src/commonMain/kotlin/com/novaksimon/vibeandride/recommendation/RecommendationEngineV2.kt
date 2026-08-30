@@ -1,7 +1,7 @@
 package com.novaksimon.vibeandride.recommendation
 
 import com.novaksimon.vibeandride.model.Interval
-import com.novaksimon.vibeandride.model.Song
+import com.novaksimon.vibeandride.model.SongV2
 import com.novaksimon.vibeandride.util.VibeLog
 import com.novaksimon.vibeandride.workout.WorkoutMode
 import com.novaksimon.vibeandride.workout.WorkoutSessionState
@@ -139,7 +139,7 @@ class RecommendationEngineV2(
         _state.update { it.copy(isLoadingFuture = true) }
         scope.launch {
             try {
-                val result = semaphore.withPermit { recommender.recommend(interval, candidateProvider="v1", musicState=musicState) }
+                val result = semaphore.withPermit { recommender.recommend(interval) }
                 _state.update { it.copy(future = result, isLoadingFuture = false) }
             } catch (e: Exception) {
                 VibeLog.e(TAG, "Error fetching future recommendation", e)
@@ -151,7 +151,7 @@ class RecommendationEngineV2(
     /**
      * Selects a song from the current or future buffer.
      */
-    fun selectSong(intervalIndex: Int, songIndex: Int): Song? {
+    fun selectSong(intervalIndex: Int, songIndex: Int): SongV2? {
         if (intervalIndex < 0) return null
         val s = _state.value
         return when (intervalIndex) {

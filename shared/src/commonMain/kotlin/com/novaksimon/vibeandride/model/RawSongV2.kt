@@ -5,8 +5,9 @@ import kotlinx.serialization.Serializable
 
 @Serializable
 data class RawSongV2(
+    val id: Long,
     val title: String? = null,
-    @SerialName("artist_id") val artistId: Int? = null,
+    @SerialName("artist_id") val artistId: Long? = null,
     @SerialName("release_date") val releaseDate: String? = null,
     val description: String? = null,
     val genre: String? = null,
@@ -20,5 +21,5 @@ data class RawSongV2(
     @SerialName("share_url") val shareUrl: String? = null,
     val provider: Int = 0,
     @SerialName("audius_provider_id") val audiusProviderId: String? = null,
-    @SerialName("jamendo_provider_id") val jamendoProviderId: Int? = null
+    @SerialName("jamendo_provider_id") val jamendoProviderId: Long? = null
     )
