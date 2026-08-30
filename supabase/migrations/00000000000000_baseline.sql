@@ -50,93 +50,18 @@ $$;
 ALTER FUNCTION "public"."delete_long_songs"() OWNER TO "postgres";
 
 
-CREATE OR REPLACE FUNCTION "public"."get_second_segment_embedding"("p_song_id" bigint) RETURNS "jsonb"
-    LANGUAGE "sql"
-    AS $$
-    SELECT embedding::text::jsonb
-    FROM song_segments
-    WHERE song_id = p_song_id
-    ORDER BY id
-    OFFSET 1
-    LIMIT 1;
-$$;
-
-
-ALTER FUNCTION "public"."get_second_segment_embedding"("p_song_id" bigint) OWNER TO "postgres";
-
-
-CREATE OR REPLACE FUNCTION "public"."get_song_second_segment_embedding"("p_song_id" bigint) RETURNS TABLE("embedding_text" "text")
-    LANGUAGE "sql" STABLE
-    AS $$
-    SELECT embedding::text
-    FROM public.song_segments
-    WHERE song_id = p_song_id
-      AND segment_index = 1
-    LIMIT 1;
-$$;
-
-
-ALTER FUNCTION "public"."get_song_second_segment_embedding"("p_song_id" bigint) OWNER TO "postgres";
-
-
 CREATE OR REPLACE FUNCTION "public"."get_unanalyzed_song_ids"() RETURNS TABLE("id" bigint)
     LANGUAGE "sql"
-    AS $$
-    select s.id
-    from public.songs s
+    AS $$select s.id
+    from public.songs_v2 s
     where not exists (
         select 1
         from public.audio_features af
         where af.song_id = s.id
-    );
-$$;
+    );$$;
 
 
 ALTER FUNCTION "public"."get_unanalyzed_song_ids"() OWNER TO "postgres";
-
-SET default_tablespace = '';
-
-SET default_table_access_method = "heap";
-
-
-CREATE TABLE IF NOT EXISTS "public"."songs" (
-    "id" bigint NOT NULL,
-    "created_at" timestamp with time zone DEFAULT "now"(),
-    "title" "text" NOT NULL,
-    "artist_id" bigint,
-    "bpm" smallint,
-    "duration" smallint,
-    "genre" "text",
-    "mood" "text",
-    "description" "text",
-    "release_date" timestamp with time zone,
-    "image" "text",
-    "share_url" "text",
-    "tags" "jsonb",
-    "album_id" bigint,
-    "start_time" real DEFAULT '0'::real,
-    "end_time" real DEFAULT '0'::real
-);
-
-
-ALTER TABLE "public"."songs" OWNER TO "postgres";
-
-
-CREATE OR REPLACE FUNCTION "public"."get_unsegmented_songs"("p_limit" integer DEFAULT 50) RETURNS SETOF "public"."songs"
-    LANGUAGE "sql" STABLE
-    AS $$
-    select s.*
-    from public.songs s
-    where not exists (
-        select 1
-        from public.song_segments ss
-        where ss.song_id = s.id
-    )
-    limit p_limit;
-$$;
-
-
-ALTER FUNCTION "public"."get_unsegmented_songs"("p_limit" integer) OWNER TO "postgres";
 
 
 CREATE OR REPLACE FUNCTION "public"."rls_auto_enable"() RETURNS "event_trigger"
@@ -171,55 +96,22 @@ $$;
 ALTER FUNCTION "public"."rls_auto_enable"() OWNER TO "postgres";
 
 
-CREATE OR REPLACE FUNCTION "public"."search_songs_by_embedding"("target_embedding" "public"."vector", "target_bpm" integer, "min_limit" integer, "max_limit" integer) RETURNS SETOF "public"."songs"
+CREATE OR REPLACE FUNCTION "public"."sync_audio_features_to_songs_v2"() RETURNS "trigger"
     LANGUAGE "plpgsql"
     AS $$
-DECLARE
-  bpm_diff int;
-  found_count int;
-BEGIN
-  -- Try increasing BPM ranges: 2, 5, 10, 20
-  FOREACH bpm_diff IN ARRAY ARRAY[2, 5, 10, 20] LOOP
-    SELECT COUNT(DISTINCT s.id) INTO found_count
-    FROM songs s
-    JOIN song_segments ss ON s.id = ss.song_id
-    WHERE s.bpm BETWEEN (target_bpm - bpm_diff) AND (target_bpm + bpm_diff);
-
-    IF found_count >= min_limit THEN
-      RETURN QUERY
-      SELECT s.*
-      FROM songs s
-      JOIN (
-        SELECT song_id, MIN(embedding <=> target_embedding) as min_dist
-        FROM song_segments
-        WHERE song_id IN (
-            SELECT id FROM songs
-            WHERE bpm BETWEEN (target_bpm - bpm_diff) AND (target_bpm + bpm_diff)
-        )
-        GROUP BY song_id
-      ) ss ON s.id = ss.song_id
-      ORDER BY ss.min_dist ASC
-      LIMIT max_limit;
-      RETURN;
-    END IF;
-  END LOOP;
-
-  -- Fallback: best matches overall
-  RETURN QUERY
-  SELECT s.*
-  FROM songs s
-  JOIN (
-    SELECT song_id, MIN(embedding <=> target_embedding) as min_dist
-    FROM song_segments
-    GROUP BY song_id
-  ) ss ON s.id = ss.song_id
-  ORDER BY ss.min_dist ASC
-  LIMIT max_limit;
-END;
+begin
+  update songs_v2
+  set
+    bpm = case when songs_v2.bpm is null then new.bpm else songs_v2.bpm end,
+    start_time = new.start_time,
+    end_time = new.end_time
+  where id = new.song_id;
+  return new;
+end;
 $$;
 
 
-ALTER FUNCTION "public"."search_songs_by_embedding"("target_embedding" "public"."vector", "target_bpm" integer, "min_limit" integer, "max_limit" integer) OWNER TO "postgres";
+ALTER FUNCTION "public"."sync_audio_features_to_songs_v2"() OWNER TO "postgres";
 
 
 CREATE OR REPLACE FUNCTION "public"."sync_audius_song_to_songs_v2"() RETURNS "trigger"
@@ -280,47 +172,9 @@ end;$$;
 
 ALTER FUNCTION "public"."sync_audius_song_to_songs_v2"() OWNER TO "postgres";
 
+SET default_tablespace = '';
 
-CREATE TABLE IF NOT EXISTS "public"."albums" (
-    "id" bigint NOT NULL,
-    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    "name" "text"
-);
-
-
-ALTER TABLE "public"."albums" OWNER TO "postgres";
-
-
-ALTER TABLE "public"."albums" ALTER COLUMN "id" ADD GENERATED BY DEFAULT AS IDENTITY (
-    SEQUENCE NAME "public"."albums_id_seq"
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1
-);
-
-
-
-CREATE TABLE IF NOT EXISTS "public"."artists" (
-    "id" bigint NOT NULL,
-    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    "name" "text"
-);
-
-
-ALTER TABLE "public"."artists" OWNER TO "postgres";
-
-
-ALTER TABLE "public"."artists" ALTER COLUMN "id" ADD GENERATED BY DEFAULT AS IDENTITY (
-    SEQUENCE NAME "public"."artists_id_seq"
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1
-);
-
+SET default_table_access_method = "heap";
 
 
 CREATE TABLE IF NOT EXISTS "public"."artists_v2" (
@@ -362,32 +216,14 @@ CREATE TABLE IF NOT EXISTS "public"."audio_features" (
     "high_ratio" double precision,
     "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
     "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    "rms_db_std" double precision
+    "rms_db_std" double precision,
+    "bpm_confidence" real,
+    "start_time" real,
+    "end_time" real
 );
 
 
 ALTER TABLE "public"."audio_features" OWNER TO "postgres";
-
-
-CREATE TABLE IF NOT EXISTS "public"."audius_song_data" (
-    "song_id" bigint NOT NULL,
-    "audius_id" "text" NOT NULL,
-    "track_cid" "text",
-    "audius_user_id" "text",
-    "audius_permalink" "text",
-    "audius_license" "text",
-    "audius_license_url" "text",
-    "audius_mood" "text",
-    "audius_tags" "jsonb",
-    "audius_play_count" bigint,
-    "audius_repost_count" bigint,
-    "audius_favorite_count" bigint,
-    "audius_comment_count" bigint,
-    "audius_is_downloadable" boolean
-);
-
-
-ALTER TABLE "public"."audius_song_data" OWNER TO "postgres";
 
 
 CREATE TABLE IF NOT EXISTS "public"."audius_songs" (
@@ -422,7 +258,6 @@ ALTER TABLE "public"."audius_songs" OWNER TO "postgres";
 
 
 CREATE TABLE IF NOT EXISTS "public"."jamendo_song_data" (
-    "song_id" bigint NOT NULL,
     "jamendo_id" bigint NOT NULL,
     "audio_url" "text",
     "download_url" "text",
@@ -444,8 +279,7 @@ CREATE TABLE IF NOT EXISTS "public"."profile_song_stats" (
     "last_played_at" timestamp with time zone DEFAULT ("now"() AT TIME ZONE 'utc'::"text"),
     "last_skipped_at" timestamp with time zone,
     "total_play_time" integer DEFAULT 0,
-    "profile_id" "uuid",
-    "liked_segment" integer
+    "profile_id" "uuid"
 );
 
 
@@ -487,27 +321,12 @@ CREATE TABLE IF NOT EXISTS "public"."songs_v2" (
 ALTER TABLE "public"."songs_v2" OWNER TO "postgres";
 
 
-COMMENT ON TABLE "public"."songs_v2" IS 'This is a duplicate of songs';
-
-
-
 COMMENT ON COLUMN "public"."songs_v2"."provider" IS '1 = Audius, 2 = Jamendo';
 
 
 
 ALTER TABLE "public"."songs_v2" ALTER COLUMN "id" ADD GENERATED BY DEFAULT AS IDENTITY (
     SEQUENCE NAME "public"."songs_duplicate_id_seq"
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1
-);
-
-
-
-ALTER TABLE "public"."songs" ALTER COLUMN "id" ADD GENERATED BY DEFAULT AS IDENTITY (
-    SEQUENCE NAME "public"."songs_id_seq1"
     START WITH 1
     INCREMENT BY 1
     NO MINVALUE
@@ -555,16 +374,6 @@ ALTER TABLE "public"."workouts" ALTER COLUMN "id" ADD GENERATED BY DEFAULT AS ID
 
 
 
-ALTER TABLE ONLY "public"."albums"
-    ADD CONSTRAINT "albums_pkey" PRIMARY KEY ("id");
-
-
-
-ALTER TABLE ONLY "public"."artists"
-    ADD CONSTRAINT "artists_pkey" PRIMARY KEY ("id");
-
-
-
 ALTER TABLE ONLY "public"."artists_v2"
     ADD CONSTRAINT "artists_v2_audius_artist_id_key" UNIQUE ("audius_artist_id");
 
@@ -585,33 +394,13 @@ ALTER TABLE ONLY "public"."audio_features"
 
 
 
-ALTER TABLE ONLY "public"."audius_song_data"
-    ADD CONSTRAINT "audius_song_data_audius_id_key" UNIQUE ("audius_id");
-
-
-
-ALTER TABLE ONLY "public"."audius_song_data"
-    ADD CONSTRAINT "audius_song_data_pkey" PRIMARY KEY ("song_id");
-
-
-
-ALTER TABLE ONLY "public"."audius_song_data"
-    ADD CONSTRAINT "audius_song_data_track_cid_key" UNIQUE ("track_cid");
-
-
-
 ALTER TABLE ONLY "public"."audius_songs"
     ADD CONSTRAINT "audius_songs_pkey" PRIMARY KEY ("audius_id");
 
 
 
 ALTER TABLE ONLY "public"."jamendo_song_data"
-    ADD CONSTRAINT "jamendo_song_data_jamendo_id_key" UNIQUE ("jamendo_id");
-
-
-
-ALTER TABLE ONLY "public"."jamendo_song_data"
-    ADD CONSTRAINT "jamendo_song_data_pkey" PRIMARY KEY ("song_id");
+    ADD CONSTRAINT "jamendo_song_data_pkey" PRIMARY KEY ("jamendo_id");
 
 
 
@@ -630,13 +419,13 @@ ALTER TABLE ONLY "public"."songs_v2"
 
 
 
-ALTER TABLE ONLY "public"."songs"
-    ADD CONSTRAINT "songs_pkey1" PRIMARY KEY ("id");
+ALTER TABLE ONLY "public"."songs_v2"
+    ADD CONSTRAINT "songs_v2_audius_provider_id_key" UNIQUE ("audius_provider_id");
 
 
 
 ALTER TABLE ONLY "public"."songs_v2"
-    ADD CONSTRAINT "songs_v2_audius_provider_id_key" UNIQUE ("audius_provider_id");
+    ADD CONSTRAINT "songs_v2_jamendo_provider_id_key" UNIQUE ("jamendo_provider_id");
 
 
 
@@ -650,15 +439,7 @@ ALTER TABLE ONLY "public"."workouts"
 
 
 
-CREATE UNIQUE INDEX "albums_name_lower_key" ON "public"."albums" USING "btree" ("lower"("name")) WHERE ("name" IS NOT NULL);
-
-
-
-CREATE UNIQUE INDEX "artists_name_lower_key" ON "public"."artists" USING "btree" ("lower"("name")) WHERE ("name" IS NOT NULL);
-
-
-
-CREATE OR REPLACE TRIGGER "delete_long_song_trigger" BEFORE INSERT ON "public"."songs" FOR EACH ROW EXECUTE FUNCTION "public"."delete_long_song"();
+CREATE OR REPLACE TRIGGER "trg_sync_audio_features" AFTER UPDATE OF "bpm", "start_time", "end_time" ON "public"."audio_features" FOR EACH ROW EXECUTE FUNCTION "public"."sync_audio_features_to_songs_v2"();
 
 
 
@@ -667,17 +448,7 @@ CREATE OR REPLACE TRIGGER "trg_sync_audius_song" AFTER INSERT OR UPDATE ON "publ
 
 
 ALTER TABLE ONLY "public"."audio_features"
-    ADD CONSTRAINT "audio_features_song_id_fkey" FOREIGN KEY ("song_id") REFERENCES "public"."songs"("id") ON DELETE CASCADE;
-
-
-
-ALTER TABLE ONLY "public"."audius_song_data"
-    ADD CONSTRAINT "audius_song_data_song_id_fkey" FOREIGN KEY ("song_id") REFERENCES "public"."songs"("id") ON UPDATE CASCADE ON DELETE CASCADE;
-
-
-
-ALTER TABLE ONLY "public"."jamendo_song_data"
-    ADD CONSTRAINT "jamendo_song_data_song_id_fkey" FOREIGN KEY ("song_id") REFERENCES "public"."songs"("id") ON UPDATE CASCADE ON DELETE CASCADE;
+    ADD CONSTRAINT "audio_features_song_id_fkey" FOREIGN KEY ("song_id") REFERENCES "public"."songs_v2"("id") ON UPDATE CASCADE ON DELETE CASCADE;
 
 
 
@@ -687,22 +458,12 @@ ALTER TABLE ONLY "public"."profile_song_stats"
 
 
 ALTER TABLE ONLY "public"."profile_song_stats"
-    ADD CONSTRAINT "profile_song_stats_song_id_fkey" FOREIGN KEY ("song_id") REFERENCES "public"."songs"("id") ON UPDATE CASCADE ON DELETE CASCADE;
+    ADD CONSTRAINT "profile_song_stats_song_id_fkey" FOREIGN KEY ("song_id") REFERENCES "public"."songs_v2"("id") ON UPDATE CASCADE ON DELETE CASCADE;
 
 
 
 ALTER TABLE ONLY "public"."profiles"
     ADD CONSTRAINT "profiles_id_fkey" FOREIGN KEY ("id") REFERENCES "auth"."users"("id") ON DELETE CASCADE;
-
-
-
-ALTER TABLE ONLY "public"."songs"
-    ADD CONSTRAINT "songs_album_id_fkey" FOREIGN KEY ("album_id") REFERENCES "public"."albums"("id") ON UPDATE CASCADE ON DELETE CASCADE;
-
-
-
-ALTER TABLE ONLY "public"."songs"
-    ADD CONSTRAINT "songs_artist_id_fkey1" FOREIGN KEY ("artist_id") REFERENCES "public"."artists"("id") ON UPDATE CASCADE ON DELETE CASCADE;
 
 
 
@@ -712,12 +473,12 @@ ALTER TABLE ONLY "public"."songs_v2"
 
 
 ALTER TABLE ONLY "public"."songs_v2"
-    ADD CONSTRAINT "songs_duplicate_jamendo_provider_id_fkey" FOREIGN KEY ("jamendo_provider_id") REFERENCES "public"."jamendo_song_data"("jamendo_id") ON UPDATE CASCADE ON DELETE CASCADE;
+    ADD CONSTRAINT "songs_v2_artist_id_fkey" FOREIGN KEY ("artist_id") REFERENCES "public"."artists_v2"("id") ON UPDATE CASCADE ON DELETE CASCADE;
 
 
 
 ALTER TABLE ONLY "public"."songs_v2"
-    ADD CONSTRAINT "songs_v2_artist_id_fkey" FOREIGN KEY ("artist_id") REFERENCES "public"."artists_v2"("id") ON UPDATE CASCADE ON DELETE CASCADE;
+    ADD CONSTRAINT "songs_v2_jamendo_provider_id_fkey" FOREIGN KEY ("jamendo_provider_id") REFERENCES "public"."jamendo_song_data"("jamendo_id") ON UPDATE CASCADE ON DELETE CASCADE;
 
 
 
@@ -733,15 +494,11 @@ CREATE POLICY "Authenticated users can update chosen_count" ON "public"."workout
 
 
 
-CREATE POLICY "Enable read access for all users" ON "public"."albums" FOR SELECT USING (true);
+CREATE POLICY "Enable read access for all users" ON "public"."artists_v2" FOR SELECT USING (true);
 
 
 
-CREATE POLICY "Enable read access for all users" ON "public"."artists" FOR SELECT USING (true);
-
-
-
-CREATE POLICY "Enable read access for all users" ON "public"."audius_song_data" FOR SELECT USING (true);
+CREATE POLICY "Enable read access for all users" ON "public"."audius_songs" FOR SELECT USING (true);
 
 
 
@@ -749,7 +506,7 @@ CREATE POLICY "Enable read access for all users" ON "public"."jamendo_song_data"
 
 
 
-CREATE POLICY "Enable read access for all users" ON "public"."songs" FOR SELECT USING (true);
+CREATE POLICY "Enable read access for all users" ON "public"."songs_v2" FOR SELECT USING (true);
 
 
 
@@ -789,19 +546,10 @@ CREATE POLICY "Workouts are publicly viewable" ON "public"."workouts" FOR SELECT
 
 
 
-ALTER TABLE "public"."albums" ENABLE ROW LEVEL SECURITY;
-
-
-ALTER TABLE "public"."artists" ENABLE ROW LEVEL SECURITY;
-
-
 ALTER TABLE "public"."artists_v2" ENABLE ROW LEVEL SECURITY;
 
 
 ALTER TABLE "public"."audio_features" ENABLE ROW LEVEL SECURITY;
-
-
-ALTER TABLE "public"."audius_song_data" ENABLE ROW LEVEL SECURITY;
 
 
 ALTER TABLE "public"."audius_songs" ENABLE ROW LEVEL SECURITY;
@@ -814,9 +562,6 @@ ALTER TABLE "public"."profile_song_stats" ENABLE ROW LEVEL SECURITY;
 
 
 ALTER TABLE "public"."profiles" ENABLE ROW LEVEL SECURITY;
-
-
-ALTER TABLE "public"."songs" ENABLE ROW LEVEL SECURITY;
 
 
 ALTER TABLE "public"."songs_v2" ENABLE ROW LEVEL SECURITY;
@@ -844,33 +589,9 @@ GRANT ALL ON FUNCTION "public"."delete_long_songs"() TO "service_role";
 
 
 
-GRANT ALL ON FUNCTION "public"."get_second_segment_embedding"("p_song_id" bigint) TO "anon";
-GRANT ALL ON FUNCTION "public"."get_second_segment_embedding"("p_song_id" bigint) TO "authenticated";
-GRANT ALL ON FUNCTION "public"."get_second_segment_embedding"("p_song_id" bigint) TO "service_role";
-
-
-
-GRANT ALL ON FUNCTION "public"."get_song_second_segment_embedding"("p_song_id" bigint) TO "anon";
-GRANT ALL ON FUNCTION "public"."get_song_second_segment_embedding"("p_song_id" bigint) TO "authenticated";
-GRANT ALL ON FUNCTION "public"."get_song_second_segment_embedding"("p_song_id" bigint) TO "service_role";
-
-
-
 GRANT ALL ON FUNCTION "public"."get_unanalyzed_song_ids"() TO "anon";
 GRANT ALL ON FUNCTION "public"."get_unanalyzed_song_ids"() TO "authenticated";
 GRANT ALL ON FUNCTION "public"."get_unanalyzed_song_ids"() TO "service_role";
-
-
-
-GRANT ALL ON TABLE "public"."songs" TO "anon";
-GRANT ALL ON TABLE "public"."songs" TO "authenticated";
-GRANT ALL ON TABLE "public"."songs" TO "service_role";
-
-
-
-GRANT ALL ON FUNCTION "public"."get_unsegmented_songs"("p_limit" integer) TO "anon";
-GRANT ALL ON FUNCTION "public"."get_unsegmented_songs"("p_limit" integer) TO "authenticated";
-GRANT ALL ON FUNCTION "public"."get_unsegmented_songs"("p_limit" integer) TO "service_role";
 
 
 
@@ -880,39 +601,15 @@ GRANT ALL ON FUNCTION "public"."rls_auto_enable"() TO "service_role";
 
 
 
-GRANT ALL ON FUNCTION "public"."search_songs_by_embedding"("target_embedding" "public"."vector", "target_bpm" integer, "min_limit" integer, "max_limit" integer) TO "anon";
-GRANT ALL ON FUNCTION "public"."search_songs_by_embedding"("target_embedding" "public"."vector", "target_bpm" integer, "min_limit" integer, "max_limit" integer) TO "authenticated";
-GRANT ALL ON FUNCTION "public"."search_songs_by_embedding"("target_embedding" "public"."vector", "target_bpm" integer, "min_limit" integer, "max_limit" integer) TO "service_role";
+GRANT ALL ON FUNCTION "public"."sync_audio_features_to_songs_v2"() TO "anon";
+GRANT ALL ON FUNCTION "public"."sync_audio_features_to_songs_v2"() TO "authenticated";
+GRANT ALL ON FUNCTION "public"."sync_audio_features_to_songs_v2"() TO "service_role";
 
 
 
 GRANT ALL ON FUNCTION "public"."sync_audius_song_to_songs_v2"() TO "anon";
 GRANT ALL ON FUNCTION "public"."sync_audius_song_to_songs_v2"() TO "authenticated";
 GRANT ALL ON FUNCTION "public"."sync_audius_song_to_songs_v2"() TO "service_role";
-
-
-
-GRANT ALL ON TABLE "public"."albums" TO "anon";
-GRANT ALL ON TABLE "public"."albums" TO "authenticated";
-GRANT ALL ON TABLE "public"."albums" TO "service_role";
-
-
-
-GRANT ALL ON SEQUENCE "public"."albums_id_seq" TO "anon";
-GRANT ALL ON SEQUENCE "public"."albums_id_seq" TO "authenticated";
-GRANT ALL ON SEQUENCE "public"."albums_id_seq" TO "service_role";
-
-
-
-GRANT ALL ON TABLE "public"."artists" TO "anon";
-GRANT ALL ON TABLE "public"."artists" TO "authenticated";
-GRANT ALL ON TABLE "public"."artists" TO "service_role";
-
-
-
-GRANT ALL ON SEQUENCE "public"."artists_id_seq" TO "anon";
-GRANT ALL ON SEQUENCE "public"."artists_id_seq" TO "authenticated";
-GRANT ALL ON SEQUENCE "public"."artists_id_seq" TO "service_role";
 
 
 
@@ -931,12 +628,6 @@ GRANT ALL ON SEQUENCE "public"."artists_v2_id_seq" TO "service_role";
 GRANT ALL ON TABLE "public"."audio_features" TO "anon";
 GRANT ALL ON TABLE "public"."audio_features" TO "authenticated";
 GRANT ALL ON TABLE "public"."audio_features" TO "service_role";
-
-
-
-GRANT ALL ON TABLE "public"."audius_song_data" TO "anon";
-GRANT ALL ON TABLE "public"."audius_song_data" TO "authenticated";
-GRANT ALL ON TABLE "public"."audius_song_data" TO "service_role";
 
 
 
@@ -973,12 +664,6 @@ GRANT ALL ON TABLE "public"."songs_v2" TO "service_role";
 GRANT ALL ON SEQUENCE "public"."songs_duplicate_id_seq" TO "anon";
 GRANT ALL ON SEQUENCE "public"."songs_duplicate_id_seq" TO "authenticated";
 GRANT ALL ON SEQUENCE "public"."songs_duplicate_id_seq" TO "service_role";
-
-
-
-GRANT ALL ON SEQUENCE "public"."songs_id_seq1" TO "anon";
-GRANT ALL ON SEQUENCE "public"."songs_id_seq1" TO "authenticated";
-GRANT ALL ON SEQUENCE "public"."songs_id_seq1" TO "service_role";
 
 
 
