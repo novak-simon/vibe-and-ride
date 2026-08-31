@@ -35,26 +35,21 @@ suspend fun getStatByProfileAndSongId(songId: Int, profileId: String? = null): P
  * Increments the given stat column (e.g. "play_count", "skip_count") for the
  * profile/song pair. Creates the row if it doesn't exist yet.
  */
-suspend fun incrementStat(
+suspend fun incrementStatFloat(
     stat: String,
     songId: Int,
     profileId: String? = null,
-    incrementBy: Double = 1.0,
+    incrementBy: Float = 1f,
 ): ProfileSongStats? {
     return try {
         val resolvedProfileId = profileId ?: getCurrentProfile()?.id ?: return null
         val existing = getStatByProfileAndSongId(songId, resolvedProfileId)
-        val finalIncrementBy = if (stat == "play_count" || stat == "total_play_time") {
-            incrementBy.toInt()
-        } else {
-            incrementBy
-        }
 
         if (existing == null) {
             val insertBody = buildJsonObject {
                 put("profile_id", resolvedProfileId)
                 put("song_id", songId)
-                put(stat, finalIncrementBy)
+                put(stat, incrementBy)
             }
             client.postgrest["profile_song_stats"]
                 .insert(insertBody) { select() }
@@ -67,7 +62,7 @@ suspend fun incrementStat(
                 "total_play_time" -> existing.totalPlayTime
                 else -> 0
             }
-            val newValue = currentValue + incrementBy
+            val newValue = currentValue.toFloat() + incrementBy
 
             val updateBody = buildJsonObject { put(stat, newValue) }
             client.postgrest["profile_song_stats"]
@@ -86,7 +81,52 @@ suspend fun incrementStat(
         null
     }
 }
+suspend fun incrementStatInt(
+    stat: String,
+    songId: Int,
+    profileId: String? = null,
+    incrementBy: Int = 1,
+): ProfileSongStats? {
+    return try {
+        val resolvedProfileId = profileId ?: getCurrentProfile()?.id ?: return null
+        val existing = getStatByProfileAndSongId(songId, resolvedProfileId)
 
+        if (existing == null) {
+            val insertBody = buildJsonObject {
+                put("profile_id", resolvedProfileId)
+                put("song_id", songId)
+                put(stat, incrementBy)
+            }
+            client.postgrest["profile_song_stats"]
+                .insert(insertBody) { select() }
+                .decodeSingleOrNull<RawProfileSongStats>()
+                ?.let(::rawToStat)
+        } else {
+            val currentValue = when (stat) {
+                "play_count" -> existing.playCount
+                "skip_count" -> existing.skipCount
+                "total_play_time" -> existing.totalPlayTime
+                else -> 0
+            }
+            val newValue = currentValue.toInt() + incrementBy
+
+            val updateBody = buildJsonObject { put(stat, newValue) }
+            client.postgrest["profile_song_stats"]
+                .update(updateBody) {
+                    filter {
+                        eq("profile_id", resolvedProfileId)
+                        eq("song_id", songId)
+                    }
+                    select()
+                }
+                .decodeSingleOrNull<RawProfileSongStats>()
+                ?.let(::rawToStat)
+        }
+    } catch (e: Exception) {
+        VibeLog.e(TAG, "incrementStat failed for song $songId, stat $stat", e)
+        null
+    }
+}
 /**
  * Sets a datetime-valued stat column (e.g. "last_played_at", "last_skipped_at")
  * to the given instant, or now if not provided.

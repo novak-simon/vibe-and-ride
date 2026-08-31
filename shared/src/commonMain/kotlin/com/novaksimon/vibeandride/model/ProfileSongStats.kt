@@ -9,7 +9,7 @@ data class ProfileSongStats(
     @SerialName("profile_id") val profileId: String,
     @SerialName("is_liked") val isLiked: Boolean,
     @SerialName("play_count") val playCount: Int,
-    @SerialName("skip_count") val skipCount: Int,
+    @SerialName("skip_count") val skipCount: Float,
     @SerialName("first_played_at") val firstPlayedAt: kotlin.time.Instant?,
     @SerialName("last_played_at") val lastPlayedAt: kotlin.time.Instant?,
     @SerialName("last_skipped_at") val lastSkippedAt: kotlin.time.Instant?,

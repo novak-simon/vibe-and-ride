@@ -1,5 +1,6 @@
 package com.novaksimon.vibeandride.database
 
+import androidx.collection.emptyDoubleList
 import com.novaksimon.vibeandride.database.SupabaseClientProvider.client
 import com.novaksimon.vibeandride.model.RawProfile
 import com.novaksimon.vibeandride.model.Profile
@@ -29,5 +30,7 @@ internal suspend fun getCurrentProfile(): Profile? {
 }
 
 suspend fun getProfileForRecommendation(profileId: String? = null): Profile {
-    return profileId?.let { getProfileById(it) } ?: getCurrentProfile() ?: Profile("9c9369c2-0598-4948-802d-525490e86bb5", listOf("pop"), emptyList())
+    return profileId?.let { getProfileById(it) } ?: getCurrentProfile() ?: Profile("9c9369c2-0598-4948-802d-525490e86bb5", listOf("pop"),
+        DoubleArray
+    (7))
 }

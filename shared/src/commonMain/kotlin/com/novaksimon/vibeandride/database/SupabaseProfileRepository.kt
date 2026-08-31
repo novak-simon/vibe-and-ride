@@ -6,7 +6,8 @@ import com.novaksimon.vibeandride.recommendation.ProfileRepository
 import com.novaksimon.vibeandride.database.getProfileForRecommendation as getProfileForRecommendationInternal
 import com.novaksimon.vibeandride.database.getStatByProfileAndSongId as getStatByProfileAndSongIdInternal
 import com.novaksimon.vibeandride.database.changeLikeState as changeLikeStateInternal
-import com.novaksimon.vibeandride.database.incrementStat as incrementStatInternal
+import com.novaksimon.vibeandride.database.incrementStatFloat as incrementStatInternalFloat
+import com.novaksimon.vibeandride.database.incrementStatInt as incrementStatInternalInt
 import com.novaksimon.vibeandride.database.setStatDatetime as setStatDatetimeInternal
 
 class SupabaseProfileRepository : ProfileRepository {
@@ -22,8 +23,12 @@ class SupabaseProfileRepository : ProfileRepository {
         changeLikeStateInternal(songId, targetState, profileId)
     }
 
-    override suspend fun incrementStat(statColumn: String, songId: Int, incrementBy: Int, profileId: String?) {
-        incrementStatInternal(statColumn, songId, profileId, incrementBy)
+    override suspend fun incrementStatFloat(statColumn: String, songId: Int, incrementBy: Float, profileId: String?) {
+        incrementStatInternalFloat(statColumn, songId, profileId, incrementBy)
+    }
+
+    override suspend fun incrementStatInt(statColumn: String, songId: Int, incrementBy: Int, profileId: String?) {
+        incrementStatInternalInt(statColumn, songId, profileId, incrementBy)
     }
 
     override suspend fun setStatDatetime(statColumn: String, songId: Int, profileId: String?) {

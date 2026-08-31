@@ -111,7 +111,7 @@ class CandidateScorer(
                     0.15f * rmsDbStdScore +
                     0.35f * spectralFluxScore
         if ("ambient" in song.tags) energyScore /= 10
-        else if ("podcast" in song.genre) energyScore = 0f
+        else if ("podcast" in song.genre.lowercase()) energyScore = 0f
 
         val totalScore = clamp01((
                     0.10f * cadenceScore +

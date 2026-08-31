@@ -93,7 +93,7 @@ fun rawToStat(rawProfileSongStats: RawProfileSongStats): ProfileSongStats {
         songId = rawProfileSongStats.songId ?: 0,
         profileId = rawProfileSongStats.profileId ?: "",
         playCount = rawProfileSongStats.playCount ?: 0,
-        skipCount = rawProfileSongStats.skipCount ?: 0,
+        skipCount = rawProfileSongStats.skipCount ?: 0f,
         isLiked = rawProfileSongStats.isLiked ?: false,
         firstPlayedAt = rawProfileSongStats.firstPlayedAt,
         lastPlayedAt = rawProfileSongStats.lastPlayedAt,
@@ -104,6 +104,7 @@ fun rawToStat(rawProfileSongStats: RawProfileSongStats): ProfileSongStats {
 fun rawToProfile(rawProfile: RawProfile): Profile {
     return Profile(
         id = rawProfile.id ?: "",
-        genrePreferences = rawProfile.genrePreferences ?: emptyList()
+        genrePreferences = rawProfile.genrePreferences ?: emptyList(),
+        musicTasteVector = rawProfile.musicTasteVector ?: DoubleArray(7)
     )
 }
