@@ -1,5 +1,6 @@
 package com.novaksimon.vibeandride.recommendation
 
+import com.novaksimon.vibeandride.model.AudioFeatures
 import com.novaksimon.vibeandride.model.Interval
 import com.novaksimon.vibeandride.model.Profile
 import com.novaksimon.vibeandride.model.ProfileSongStats
@@ -18,10 +19,11 @@ class CandidateScorer(
     suspend fun getSongRecommendationScore(
         song: SongV2,
         interval: Interval,
+        audioFeatures: AudioFeatures,
     ): SongRecommendation {
         val profile = profileRepository.getProfileForRecommendation()
         val profilePreference = getProfilePreferenceScore(song, profile)
-        val intervalMatch = getIntervalMatchScore(song, interval)
+        val intervalMatch = getIntervalMatchScore(song, interval, audioFeatures)
         val score = profilePreference.score + 1.5f * intervalMatch.score
 
         return SongRecommendation(
@@ -118,8 +120,7 @@ class CandidateScorer(
 
 
 
-
-    fun getIntervalMatchScore(song: SongV2, interval: Interval): IntervalRecommendation {
+    fun getIntervalMatchScore(song: SongV2, interval: Interval, audioFeatures: AudioFeatures): IntervalRecommendation {
         val targetCadence = interval.cadence
 
         val sbpm = song.bpm
@@ -152,9 +153,9 @@ class CandidateScorer(
         }
 
 
-        val tagScore = 0f
-        val genreScore = 0f //TODO
-        val songScore = clamp02(tagScore + genreScore)
+        val energyScore = 0f
+        val frequencyScore = 0f
+        val songScore = clamp02(energyScore + frequencyScore)
 
         var totalScore =
             0.90f * cadenceScore + 0.10f * songScore + cadenceCompatibleBonus //TODO

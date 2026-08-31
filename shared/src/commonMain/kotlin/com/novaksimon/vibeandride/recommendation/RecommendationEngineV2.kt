@@ -1,5 +1,7 @@
 package com.novaksimon.vibeandride.recommendation
 
+import com.novaksimon.vibeandride.database.getAudioFeaturesById
+import com.novaksimon.vibeandride.model.AudioFeatures
 import com.novaksimon.vibeandride.model.Interval
 import com.novaksimon.vibeandride.model.SongV2
 import com.novaksimon.vibeandride.util.VibeLog
@@ -19,6 +21,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
+import kotlinx.coroutines.withContext
 
 /**
  * RecommendationEngineV2 is a reactive orchestrator for music recommendations.
@@ -181,10 +184,14 @@ class RecommendationEngineV2(
             firstCandidatePool.map { candidate ->
                 async(defaultDispatcher) {
                     algorithmSemaphore.withPermit {
-                        scorer.getSongRecommendationScore(candidate, interval)
+                        val audioFeatures = withContext(ioDispatcher) {
+                            getAudioFeaturesById(candidate.id)
+                        } ?: return@async null
+
+                        scorer.getSongRecommendationScore(candidate, interval, audioFeatures)
                     }
                 }
-            }.awaitAll()
+            }.awaitAll().filterNotNull()
         }
 
         val sorted = candidates.sortedWith(
