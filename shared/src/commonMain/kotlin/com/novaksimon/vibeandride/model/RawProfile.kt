@@ -7,4 +7,5 @@ import kotlinx.serialization.Serializable
 data class RawProfile(
     val id: String? = null,
     @SerialName("genre_preferences") val genrePreferences: List<String>? = null,
+    @SerialName("music_taste_vector") val musicTasteVector: List<Double>? = null,
 )

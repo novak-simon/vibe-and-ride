@@ -12,7 +12,7 @@ class AudioFeatureExtractor(
         ignoreUnknownKeys = true
     }
 
-    fun extract(streamUrl: String, songDuration: Int): AudioFeatures {
+    fun extract(streamUrl: String, songDuration: Int): AudioFeatures? {
         val process = ProcessBuilder(
             pythonExecutable,
             scriptPath,
@@ -25,6 +25,7 @@ class AudioFeatureExtractor(
         val output = process.inputStream
             .bufferedReader()
             .use { it.readText() }
+            .trim()
 
         val exitCode = process.waitFor()
 
@@ -33,8 +34,9 @@ class AudioFeatureExtractor(
                 "Audio feature extraction failed with exit code $exitCode"
             )
         }
+        println("Output: $output")
 
-        return json.decodeFromString<AudioFeatures>(output)
+        return if (output != "null") json.decodeFromString<AudioFeatures>(output)  else null
 
 
     }

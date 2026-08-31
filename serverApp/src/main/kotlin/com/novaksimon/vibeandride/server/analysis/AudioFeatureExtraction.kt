@@ -20,6 +20,15 @@ class AudioFeatureExtraction(
         AudioFeatureExtractor(scriptPath = "C:/Users/novak/Documents/vibe-and-ride/audioAnalysis/audio_features.py")
     private val songRepository = SupabaseSongRepository()
 
+    suspend fun analyzeSongs() {
+        val songs = supabase
+            .postgrest.rpc("get_all_song_ids")
+            .decodeList<SongId>()
+        val songIds = songs.map { it.id }
+        for (songId in songIds) {
+            analyzeSong(songId.toInt())
+        }
+    }
     suspend fun analyzeUnanalyzedSongs() {
         val songs = supabase
             .postgrest.rpc("get_unanalyzed_song_ids")
@@ -36,6 +45,10 @@ class AudioFeatureExtraction(
         val streamUrl = songRepository.getAudioUrlV2(song).getOrNull()
         if (streamUrl != null) {
             val audioFeatures = audioFeatureExtractor.extract(streamUrl, song.duration)
+            if (audioFeatures == null) {
+                VibeLog.e("AudioFeatureExtraction", "Audio feature extraction returned null for song ID $songId")
+                return
+            }
             audioFeatures.songId = songId
             println("Audio features: $audioFeatures")
             VibeLog.i("AudioFeatureExtraction", "Uploading audio features: $audioFeatures")

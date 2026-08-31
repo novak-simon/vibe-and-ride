@@ -69,6 +69,10 @@ fun main() {
                 launch { audioFeatureExtraction.analyzeUnanalyzedSongs() }
                 call.respond(StatusResponse(status = "Audio feature extraction started for unanalyzed songs"))
             }
+            post("/analyze/all") {
+                launch { audioFeatureExtraction.analyzeSongs() }
+                call.respond(StatusResponse(status = "Audio feature extraction started for all songs"))
+            }
         }
     }.start(wait = true)
 }

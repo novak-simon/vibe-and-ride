@@ -198,7 +198,7 @@ class RecommendationEngineV2(
             compareByDescending<SongRecommendation> { it.score }
                 .thenByDescending { it.preferenceRecommendation?.score ?: 0f }
                 .thenByDescending { it.intervalRecommendation?.cadenceScore ?: 0f }
-                .thenByDescending { it.intervalRecommendation?.songScore ?: 0f }
+                .thenByDescending { it.intervalRecommendation?.energyScore ?: 0f }
                 .thenBy { it.song?.id ?: Int.MAX_VALUE }
         )
 

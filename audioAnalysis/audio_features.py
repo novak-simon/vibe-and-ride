@@ -117,9 +117,8 @@ def load_stream(
         chunks.append(chunk)
 
     if not chunks:
-        raise RuntimeError(
-            "The audio stream contained no data."
-        )
+        print("null")
+        sys.exit(0)
 
     return np.concatenate(chunks)
 
@@ -385,7 +384,7 @@ def extract_audio_features(
 ) -> Dict[str, float]:
 
     print(
-        "Reading audio stream...",
+        f"Reading audio stream: {url}",
         file=sys.stderr
     )
 

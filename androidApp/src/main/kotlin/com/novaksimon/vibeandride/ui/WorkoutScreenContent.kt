@@ -891,7 +891,7 @@ fun DebugDialog(info: List<SongRecommendation>?, onDismiss: () -> Unit) {
                             Text("Interval score: ${rec.intervalRecommendation?.score ?: "-"}")
                             Row(modifier = Modifier.padding(start = 4.dp)) {
                                 Text("Cd: ${rec.intervalRecommendation?.cadenceScore}," +
-                                        "S: ${rec.intervalRecommendation?.songScore}," +
+                                        "S: ${rec.intervalRecommendation?.energyScore}," +
                                         "Cm: ${rec.intervalRecommendation?.cadenceCompatibleBonus}")
                             }
                             Text("FINAL SCORE: ${rec.score}")

@@ -7,4 +7,5 @@ import kotlinx.serialization.Serializable
 data class Profile(
     val id: String,
     @SerialName("genre_preferences") val genrePreferences: List<String>,
+    @SerialName("music_taste_vector") val musicTasteVector: List<Double>,
 )

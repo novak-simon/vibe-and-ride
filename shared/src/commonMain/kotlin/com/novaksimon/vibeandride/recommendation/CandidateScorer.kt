@@ -37,78 +37,17 @@ class CandidateScorer(
         song: SongV2?,
         profile: Profile
     ): PreferenceRecommendation {
-        if (song == null) {
-            return PreferenceRecommendation()
-        }
-
-        val numberOfMatchingGenres: Float = profile.genrePreferences.intersect(song.genre.toSet()).size.toFloat()
-        val stat: ProfileSongStats? = profileRepository.getStatByProfileAndSongId(songId = song.id, profileId = profile.id)
-
-        if (stat != null) {
-            val likeCoefficient = if (stat.isLiked) 2f else 1f
-            val lastPlayedAt = stat.lastPlayedAt
-            if (lastPlayedAt == null) {
-                // No recorded play time despite stat existing — treat as "long ago"
-                val skipCoefficient = if (stat.skipCount + stat.playCount > 0) {
-                    2f * (stat.playCount.toFloat() / (stat.playCount + stat.skipCount).toFloat())
-                } else {
-                    2f
-                }
-                val score = numberOfMatchingGenres * 2f * likeCoefficient * skipCoefficient
-                return PreferenceRecommendation(
-                    song = song,
-                    score = score,
-                    profile = profile,
-                    numberOfMatchingGenres = round3(numberOfMatchingGenres),
-                    repetitionCoefficient = round3(2f),
-                    likeCoefficient = likeCoefficient,
-                    skipCoefficient = round3(skipCoefficient),
-                )
-            }
-
-            val sinceLastPlayed = Clock.System.now() - lastPlayedAt
-            if (sinceLastPlayed < 1.hours) {
-                return PreferenceRecommendation(
-                    song = song,
-                    score = -1f,
-                    profile = profile,
-                    numberOfMatchingGenres = round3(numberOfMatchingGenres),
-                    repetitionCoefficient = round3(-1f),
-                    likeCoefficient = null,
-                    skipCoefficient = null,
-                )
-            }
-
-            val repetitionCoefficient = minOf(2.0, sinceLastPlayed / 2.days).toFloat()
-            val skipCoefficient = if (stat.skipCount + stat.playCount > 0) {
-                2f * (stat.playCount.toFloat() / (stat.playCount + stat.skipCount).toFloat())
-            } else {
-                2f
-            }
-            val score =
-                clamp01((numberOfMatchingGenres + 0.5f) * repetitionCoefficient * likeCoefficient * skipCoefficient / 16)
-            return PreferenceRecommendation(
-                song = song,
-                score = score,
-                profile = profile,
-                numberOfMatchingGenres = round3(numberOfMatchingGenres),
-                repetitionCoefficient = round3(repetitionCoefficient),
-                likeCoefficient = likeCoefficient,
-                skipCoefficient = round3(skipCoefficient),
-            )
-        } else {
-            val score = clamp01((numberOfMatchingGenres + 0.5f) / 2)
-            return PreferenceRecommendation(
-                song = song,
-                score = score,
-                profile = profile,
-                numberOfMatchingGenres = round3(numberOfMatchingGenres),
-                repetitionCoefficient = round3(-1f),
-                likeCoefficient = -1f,
-                skipCoefficient = round3(-1f),
-            )
-        }
+        return PreferenceRecommendation(
+            song = song,
+            score = 1.0f,
+            profile = profile,
+            numberOfMatchingGenres = 1.0f,
+            repetitionCoefficient = 1.0f,
+            likeCoefficient = 1.0f,
+            skipCoefficient = 1.0f,
+        )
     }
+
 
     private fun computeCs(x: Float): Float {
         return if (x > 4.6f) {
@@ -116,6 +55,15 @@ class CandidateScorer(
         } else {
             (0.3f / (x - 5.2f)) + 1f
         }
+    }
+    private fun computeLoudness(x: Float): Float {
+        return -6/x
+    }
+    private fun computeRmsStd(x: Float): Float {
+        return 1/(x+5)+4/5
+    }
+    private fun computeSpectralFlux(x: Float): Float {
+        return -1/(10*x-1.1f)-1.1f
     }
 
 
@@ -151,21 +99,32 @@ class CandidateScorer(
         } else {
             cadenceScore = 0f
         }
+        //  === Audio Features Scoring ===
+        //  --- Energy ---
+        val loudnessLufsScore = clamp01(computeLoudness(audioFeatures.loudnessLufs.toFloat()))
+        val rmsDbScore = clamp01(computeLoudness(audioFeatures.rmsDb.toFloat()))
+        val rmsDbStdScore = clamp01(computeRmsStd(audioFeatures.rmsDbStd.toFloat()))
+        val spectralFluxScore = clamp01(computeSpectralFlux(audioFeatures.spectralFlux.toFloat()))
+        var energyScore =
+                    0.25f * loudnessLufsScore +
+                    0.25f * rmsDbScore +
+                    0.15f * rmsDbStdScore +
+                    0.35f * spectralFluxScore
+        if ("ambient" in song.tags) energyScore /= 10
+        else if ("podcast" in song.genre) energyScore = 0f
 
-
-        val energyScore = 0f
-        val frequencyScore = 0f
-        val songScore = clamp02(energyScore + frequencyScore)
-
-        var totalScore =
-            0.90f * cadenceScore + 0.10f * songScore + cadenceCompatibleBonus //TODO
-        totalScore = clamp02(totalScore, 1.0f)
+        val totalScore = clamp01((
+                    0.10f * cadenceScore +
+                    0.90f * energyScore +
+                    cadenceCompatibleBonus
+                    )
+                )
 
         return IntervalRecommendation(
             song = song,
             score = totalScore,
             cadenceScore = round3(cadenceScore),
-            songScore = round3(songScore),
+            energyScore = round3(energyScore),
             cadenceCompatibleBonus = round3(cadenceCompatibleBonus),
             interval = interval,
         )

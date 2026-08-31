@@ -2,5 +2,5 @@ librosa
 soundfile
 pyloudnorm
 numpy
-setuptools
+setuptools<=81
 resampy
