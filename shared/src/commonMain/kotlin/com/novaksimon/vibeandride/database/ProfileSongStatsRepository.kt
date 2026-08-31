@@ -39,17 +39,22 @@ suspend fun incrementStat(
     stat: String,
     songId: Int,
     profileId: String? = null,
-    incrementBy: Int = 1,
+    incrementBy: Double = 1.0,
 ): ProfileSongStats? {
     return try {
         val resolvedProfileId = profileId ?: getCurrentProfile()?.id ?: return null
         val existing = getStatByProfileAndSongId(songId, resolvedProfileId)
+        val finalIncrementBy = if (stat == "play_count" || stat == "total_play_time") {
+            incrementBy.toInt()
+        } else {
+            incrementBy
+        }
 
         if (existing == null) {
             val insertBody = buildJsonObject {
                 put("profile_id", resolvedProfileId)
                 put("song_id", songId)
-                put(stat, incrementBy)
+                put(stat, finalIncrementBy)
             }
             client.postgrest["profile_song_stats"]
                 .insert(insertBody) { select() }

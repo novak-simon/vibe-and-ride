@@ -3,6 +3,7 @@ package com.novaksimon.vibeandride.music
 import com.novaksimon.vibeandride.model.SongV2
 import com.novaksimon.vibeandride.recommendation.ProfileRepository
 import com.novaksimon.vibeandride.recommendation.SongRepository
+import com.novaksimon.vibeandride.recommendation.clamp01
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -10,6 +11,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlin.math.abs
 
 /**
  * ProfileStatsState holds the state related to profile statistics for the current track.
@@ -24,7 +26,6 @@ data class ProfileStatsState(
  */
 class ProfileStatsEngine(
     private val profileRepository: ProfileRepository,
-    private val songRepository: SongRepository,
     private val scope: CoroutineScope,
     private val ioDispatcher: CoroutineDispatcher
 ) {
@@ -57,7 +58,7 @@ class ProfileStatsEngine(
             val playTimeSeconds = (currentPosition - startPosition).toInt().coerceAtLeast(0)
             if (playTimeSeconds > 0) {
                 scope.launch(ioDispatcher) {
-                    profileRepository.incrementStat("total_play_time", song.id, incrementBy = playTimeSeconds)
+                    profileRepository.incrementStat("total_play_time", song.id, incrementBy = playTimeSeconds.toDouble())
                 }
             }
         }
@@ -93,12 +94,14 @@ class ProfileStatsEngine(
 
         scope.launch(ioDispatcher) {
             if (skipped) {
-                profileRepository.incrementStat("skip_count", song.id)
+                val effectiveSongDuration = song.duration - song.startTime - song.endTime
+                val skipPercentage = clamp01(playTimeSeconds/effectiveSongDuration)
+                profileRepository.incrementStat("skip_count", song.id, incrementBy = skipWeight(skipPercentage.toDouble()))
                 profileRepository.setStatDatetime("last_skipped_at", song.id)
             }
             
             if (!alreadyRecorded && playTimeSeconds > 0) {
-                profileRepository.incrementStat("total_play_time", song.id, incrementBy = playTimeSeconds)
+                profileRepository.incrementStat("total_play_time", song.id, incrementBy = playTimeSeconds.toDouble())
             }
         }
     }
@@ -126,5 +129,12 @@ class ProfileStatsEngine(
         startPosition = 0f
         playCountIncremented = false
         playTimeRecorded = false
+    }
+
+    fun skipWeight(x: Double): Double { // Simplified so it doesn't use power, math equation: f(x) = (-2|x-1/2|)^(7)+1
+        val base = -2 * abs(x - 0.5)
+        val base3 = base * base * base
+        val base7 = base3 * base3 * base
+        return base7 + 1
     }
 }
