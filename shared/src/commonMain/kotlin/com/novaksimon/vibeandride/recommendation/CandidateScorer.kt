@@ -1,5 +1,6 @@
 package com.novaksimon.vibeandride.recommendation
 
+import com.novaksimon.vibeandride.database.getStatByProfileAndSongId
 import com.novaksimon.vibeandride.model.AudioFeatures
 import com.novaksimon.vibeandride.model.Interval
 import com.novaksimon.vibeandride.model.Profile
@@ -9,6 +10,7 @@ import kotlin.math.abs
 import kotlin.time.Clock
 import kotlin.time.Duration.Companion.days
 import kotlin.time.Duration.Companion.hours
+import kotlin.time.toJavaInstant
 
 class CandidateScorer(
     private val profileRepository: ProfileRepository,
@@ -37,9 +39,18 @@ class CandidateScorer(
         song: SongV2?,
         profile: Profile
     ): PreferenceRecommendation {
+        val stats = getStatByProfileAndSongId(songId = song?.id ?: return PreferenceRecommendation(), profileId = profile.id)
+        val now = Clock.System.now()
+        var score = 1f
+        if (stats?.lastPlayedAt != null) {
+            if (now - stats.lastPlayedAt < 1.hours) {
+                score = 0f
+            }
+        }
+
         return PreferenceRecommendation(
             song = song,
-            score = 1.0f,
+            score = score,
             profile = profile,
             numberOfMatchingGenres = 1.0f,
             repetitionCoefficient = 1.0f,
