@@ -9,6 +9,9 @@ import com.novaksimon.vibeandride.music.MusicState
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -21,20 +24,20 @@ import kotlinx.coroutines.sync.withPermit
  * RecommendationEngineV2 is a reactive orchestrator for music recommendations.
  * It manages current and future interval recommendations based on the workout session state.
  */
+data class RecommendationResult(
+    val topSongs: List<SongV2>,
+    val debugInfo: List<SongRecommendation>,
+)
 private const val TAG = "RecommendationEngineV2"
 class RecommendationEngineV2(
     songRepository: SongRepository,
     profileRepository: ProfileRepository,
     private val scope: CoroutineScope,
-    ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
-    defaultDispatcher: CoroutineDispatcher = Dispatchers.Default
+    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
+    private val defaultDispatcher: CoroutineDispatcher = Dispatchers.Default
 ) {
-    private val recommender = RecommendationEngine(
-        songRepository,
-        profileRepository,
-        ioDispatcher = ioDispatcher,
-        defaultDispatcher = defaultDispatcher
-    )
+    private val scorer = CandidateScorer(profileRepository)
+    private val provider = CandidateProvider(songRepository)
     private val _state = MutableStateFlow(RecommendationV2State())
     val state: StateFlow<RecommendationV2State> = _state.asStateFlow()
     
@@ -126,7 +129,7 @@ class RecommendationEngineV2(
         _state.update { it.copy(isLoadingCurrent = true) }
         scope.launch {
             try {
-                val result = semaphore.withPermit { recommender.recommend(interval) }
+                val result = semaphore.withPermit { recommend(interval) }
                 _state.update { it.copy(current = result, isLoadingCurrent = false) }
             } catch (e: Exception) {
                 VibeLog.e(TAG, "Error fetching current recommendation", e)
@@ -139,7 +142,7 @@ class RecommendationEngineV2(
         _state.update { it.copy(isLoadingFuture = true) }
         scope.launch {
             try {
-                val result = semaphore.withPermit { recommender.recommend(interval) }
+                val result = semaphore.withPermit { recommend(interval) }
                 _state.update { it.copy(future = result, isLoadingFuture = false) }
             } catch (e: Exception) {
                 VibeLog.e(TAG, "Error fetching future recommendation", e)
@@ -165,5 +168,36 @@ class RecommendationEngineV2(
                 null
             }
         }
+    }
+    suspend fun recommend(interval: Interval): RecommendationResult {
+        val firstCandidatePool: List<SongV2> = provider.getCandidates(interval)
+
+        if (firstCandidatePool.isEmpty()) {
+            VibeLog.w("RecommendationEngine", "RecommendationEngine: firstCandidatePool is empty for interval $interval")
+            return RecommendationResult(emptyList(), emptyList())
+        }
+        val algorithmSemaphore = Semaphore(4)
+        val candidates = coroutineScope {
+            firstCandidatePool.map { candidate ->
+                async(defaultDispatcher) {
+                    algorithmSemaphore.withPermit {
+                        scorer.getSongRecommendationScore(candidate, interval)
+                    }
+                }
+            }.awaitAll()
+        }
+
+        val sorted = candidates.sortedWith(
+            compareByDescending<SongRecommendation> { it.score }
+                .thenByDescending { it.preferenceRecommendation?.score ?: 0f }
+                .thenByDescending { it.intervalRecommendation?.cadenceScore ?: 0f }
+                .thenByDescending { it.intervalRecommendation?.songScore ?: 0f }
+                .thenBy { it.song?.id ?: Int.MAX_VALUE }
+        )
+
+        val topSongsCandidates = sorted.mapNotNull { it.song }.take(10)
+
+        VibeLog.i("RecommendationEngine", "RecommendationEngine: recommended ${topSongsCandidates.size} songs with resolved artists")
+        return RecommendationResult(topSongsCandidates, sorted)
     }
 }

@@ -3,6 +3,8 @@ package com.novaksimon.vibeandride.recommendation
 import com.novaksimon.vibeandride.model.Interval
 import com.novaksimon.vibeandride.model.Profile
 import com.novaksimon.vibeandride.model.SongV2
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -13,8 +15,11 @@ class RecommendFlowTest {
 
     private val fakeSongRepository = FakeSongRepository()
     private val fakeProfileRepository = FakeProfileRepository()
-    private val engine = RecommendationEngine(fakeSongRepository, fakeProfileRepository)
-
+    private val engine = RecommendationEngineV2(
+        fakeSongRepository, fakeProfileRepository,
+        scope = CoroutineScope(Dispatchers.Default),
+    )
+    private val scorer = CandidateScorer(fakeProfileRepository)
     private fun createSong(
         id: Int, 
         bpm: Int = 100,

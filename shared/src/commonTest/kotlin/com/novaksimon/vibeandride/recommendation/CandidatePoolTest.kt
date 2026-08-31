@@ -2,6 +2,7 @@ package com.novaksimon.vibeandride.recommendation
 
 import com.novaksimon.vibeandride.model.Interval
 import com.novaksimon.vibeandride.model.SongV2
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -9,8 +10,8 @@ import kotlin.test.assertEquals
 class CandidatePoolTest {
 
     private val fakeSongRepository = FakeSongRepository()
-    private val fakeProfileRepository = FakeProfileRepository()
-    private val engine = RecommendationEngine(fakeSongRepository, fakeProfileRepository)
+    private val provider = CandidateProvider(fakeSongRepository)
+
 
     private fun createSong(id: Int) = SongV2(
         id = id,
@@ -45,7 +46,7 @@ class CandidatePoolTest {
         fakeSongRepository.songsAroundTargetCadenceResults.add(songs)
 
         val interval = createInterval(100.0)
-        val result = engine.approximateFilterByInterval(interval)
+        val result = provider.getCandidates(interval)
 
         assertEquals(100, result.size)
         assertEquals(1, fakeSongRepository.calls.size)
@@ -63,7 +64,7 @@ class CandidatePoolTest {
         fakeSongRepository.songsAroundTargetCadenceResults.add(songs2)
 
         val interval = createInterval(100.0)
-        val result = engine.approximateFilterByInterval(interval)
+        val result = provider.getCandidates(interval)
 
         assertEquals(100, result.size)
         assertEquals(2, fakeSongRepository.calls.size)
@@ -87,7 +88,7 @@ class CandidatePoolTest {
         fakeSongRepository.songsAroundTargetCadenceResults.add(songs3)
 
         val interval = createInterval(100.0)
-        val result = engine.approximateFilterByInterval(interval)
+        val result = provider.getCandidates(interval)
 
         assertEquals(100, result.size)
         assertEquals(3, fakeSongRepository.calls.size)
@@ -107,7 +108,7 @@ class CandidatePoolTest {
         fakeSongRepository.fetchSongsResults.add(genericSongs)
 
         val interval = createInterval(100.0)
-        val result = engine.approximateFilterByInterval(interval)
+        val result = provider.getCandidates(interval)
 
         assertEquals(50, result.size)
         assertEquals(4, fakeSongRepository.calls.size)
@@ -122,7 +123,7 @@ class CandidatePoolTest {
         fakeSongRepository.songsAroundTargetCadenceResults.add(List(10) { createSong(it + 20) })
 
         val interval = createInterval(100.0)
-        engine.approximateFilterByInterval(interval)
+        val result = provider.getCandidates(interval)
 
         assertEquals(3, fakeSongRepository.calls.size)
         

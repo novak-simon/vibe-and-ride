@@ -16,9 +16,8 @@ import kotlin.time.Duration.Companion.days
 
 class RecommendationEngineTest {
 
-    private val fakeSongRepository = FakeSongRepository()
     private val fakeRepository = FakeProfileRepository()
-    private val engine = RecommendationEngine(fakeSongRepository, fakeRepository)
+    private val scorer = CandidateScorer(fakeRepository)
 
     private fun createSong(
         id: Int = 1,
@@ -53,7 +52,7 @@ class RecommendationEngineTest {
     fun testExactMatch() {
         val song = createSong(bpm = 100)
         val interval = createInterval(cadence = 100.0)
-        val result = engine.getIntervalMatchScore(song, interval)
+        val result = scorer.getIntervalMatchScore(song, interval)
 
         // cadenceDiff = 0
         // cadenceScore = round3(computeCs(0)) = round3(0.9423077) = 0.942
@@ -70,7 +69,7 @@ class RecommendationEngineTest {
     fun testBpmMatch05x() {
         val song = createSong(bpm = 200) // 200 * 0.5 = 100
         val interval = createInterval(cadence = 100.0)
-        val result = engine.getIntervalMatchScore(song, interval)
+        val result = scorer.getIntervalMatchScore(song, interval)
 
         assertEquals(0.942f, result.cadenceScore)
         assertEquals(0.15f, result.cadenceCompatibleBonus)
@@ -81,7 +80,7 @@ class RecommendationEngineTest {
     fun testBpmMatch2x() {
         val song = createSong(bpm = 50) // 50 * 2 = 100
         val interval = createInterval(cadence = 100.0)
-        val result = engine.getIntervalMatchScore(song, interval)
+        val result = scorer.getIntervalMatchScore(song, interval)
 
         assertEquals(0.942f, result.cadenceScore)
         assertEquals(0.15f, result.cadenceCompatibleBonus)
@@ -92,7 +91,7 @@ class RecommendationEngineTest {
     fun testNoCompatibleMatch() {
         val song = createSong(bpm = 110) // 110 vs 100, diff 10. tolerance 2.
         val interval = createInterval(cadence = 100.0)
-        val result = engine.getIntervalMatchScore(song, interval)
+        val result = scorer.getIntervalMatchScore(song, interval)
 
         // cadenceDiff = 10
         // computeCs(10) = 0.3 / (10 - 4) = 0.3 / 6 = 0.05
@@ -106,7 +105,7 @@ class RecommendationEngineTest {
     fun testBpmZero() {
         val song = createSong(bpm = 0)
         val interval = createInterval(cadence = 100.0)
-        val result = engine.getIntervalMatchScore(song, interval)
+        val result = scorer.getIntervalMatchScore(song, interval)
 
         assertEquals(0.0f, result.cadenceScore)
         assertEquals(0.0f, result.cadenceCompatibleBonus)
@@ -118,7 +117,7 @@ class RecommendationEngineTest {
         // energetic (0.5), motivational (0.5) -> sum 1.0
         val song = createSong(bpm = 100, tags = listOf("energetic", "motivational"))
         val interval = createInterval(cadence = 100.0)
-        val result = engine.getIntervalMatchScore(song, interval)
+        val result = scorer.getIntervalMatchScore(song, interval)
 
         assertEquals(1.0f, result.songScore)
         // totalScore = 0.9 * 0.942 + 0.1 * 1.0 + 0.15 = 0.8478 + 0.1 + 0.15 = 1.0978 -> clamped to 1.0
@@ -130,7 +129,7 @@ class RecommendationEngineTest {
         // ambient (-1.0)
         val song = createSong(bpm = 100, tags = listOf("ambient"))
         val interval = createInterval(cadence = 100.0)
-        val result = engine.getIntervalMatchScore(song, interval)
+        val result = scorer.getIntervalMatchScore(song, interval)
 
         assertEquals(-1.0f, result.songScore)
         // totalScore = 0.9 * 0.9423077 + 0.1 * (-1.0) + 0.15 = 0.8480769 - 0.1 + 0.15 = 0.8980769
@@ -142,7 +141,7 @@ class RecommendationEngineTest {
         // energetic (0.5), lounge (-0.1) -> 0.4
         val song = createSong(bpm = 100, tags = listOf("energetic", "lounge"))
         val interval = createInterval(cadence = 100.0)
-        val result = engine.getIntervalMatchScore(song, interval)
+        val result = scorer.getIntervalMatchScore(song, interval)
 
         assertEquals(0.4f, result.songScore)
     }
@@ -152,7 +151,7 @@ class RecommendationEngineTest {
         // genre ambient (-1.0)
         val song = createSong(bpm = 100, genre = listOf("ambient"))
         val interval = createInterval(cadence = 100.0)
-        val result = engine.getIntervalMatchScore(song, interval)
+        val result = scorer.getIntervalMatchScore(song, interval)
 
         assertEquals(-1.0f, result.songScore)
     }
@@ -161,7 +160,7 @@ class RecommendationEngineTest {
     fun testNoRecognizedTagsOrGenres() {
         val song = createSong(bpm = 100, tags = listOf("unknown"), genre = listOf("random"))
         val interval = createInterval(cadence = 100.0)
-        val result = engine.getIntervalMatchScore(song, interval)
+        val result = scorer.getIntervalMatchScore(song, interval)
 
         assertEquals(0.0f, result.songScore)
     }
@@ -169,7 +168,7 @@ class RecommendationEngineTest {
     @Test
     fun testProfilePreference_NullSong() = runTest {
         val profile = Profile("p1", listOf("pop"))
-        val result = engine.getProfilePreferenceScore(null, profile)
+        val result = scorer.getProfilePreferenceScore(null, profile)
         assertEquals(0f, result.score)
     }
 
@@ -177,7 +176,7 @@ class RecommendationEngineTest {
     fun testProfilePreference_NoMatch_NoStats() = runTest {
         val song = createSong(genre = listOf("rock"))
         val profile = Profile("p1", listOf("pop"))
-        val result = engine.getProfilePreferenceScore(song, profile)
+        val result = scorer.getProfilePreferenceScore(song, profile)
         // numberOfMatchingGenres = 0
         // score = clamp01((0 + 0.5f) / 2) = 0.25
         assertEquals(0.25f, result.score)
@@ -189,7 +188,7 @@ class RecommendationEngineTest {
     fun testProfilePreference_GenreMatch_NoStats() = runTest {
         val song = createSong(genre = listOf("pop", "rock"))
         val profile = Profile("p1", listOf("pop"))
-        val result = engine.getProfilePreferenceScore(song, profile)
+        val result = scorer.getProfilePreferenceScore(song, profile)
         // numberOfMatchingGenres = 1
         // score = clamp01((1 + 0.5f) / 2) = 0.75
         assertEquals(0.75f, result.score)
@@ -211,7 +210,7 @@ class RecommendationEngineTest {
             lastSkippedAt = null,
             totalPlayTime = 0
         )
-        val result = engine.getProfilePreferenceScore(song, profile)
+        val result = scorer.getProfilePreferenceScore(song, profile)
         // lastPlayedAt == null -> score = 1 * 2 * 2 * 2 = 8.0
         assertEquals(2.0f, result.likeCoefficient)
         assertEquals(8.0f, result.score)
@@ -232,7 +231,7 @@ class RecommendationEngineTest {
             lastSkippedAt = null,
             totalPlayTime = 0
         )
-        val result = engine.getProfilePreferenceScore(song, profile)
+        val result = scorer.getProfilePreferenceScore(song, profile)
         // lastPlayedAt == null -> score = 1 * 2 * 1 * 2 = 4.0
         assertEquals(1.0f, result.likeCoefficient)
         assertEquals(4.0f, result.score)
@@ -253,7 +252,7 @@ class RecommendationEngineTest {
             lastSkippedAt = null,
             totalPlayTime = 0
         )
-        val result = engine.getProfilePreferenceScore(song, profile)
+        val result = scorer.getProfilePreferenceScore(song, profile)
         assertEquals(2.0f, result.skipCoefficient)
     }
 
@@ -272,7 +271,7 @@ class RecommendationEngineTest {
             lastSkippedAt = null,
             totalPlayTime = 0
         )
-        val result = engine.getProfilePreferenceScore(song, profile)
+        val result = scorer.getProfilePreferenceScore(song, profile)
         // skipCoefficient = 2.0 * (3 / (3 + 1)) = 1.5
         assertEquals(1.5f, result.skipCoefficient)
         // score = 1 * 2 * 1 * 1.5 = 3.0
@@ -289,34 +288,34 @@ class RecommendationEngineTest {
             songId = 100, profileId = "p1", playCount = 10, skipCount = 0, isLiked = false,
             firstPlayedAt = null, lastPlayedAt = null, lastSkippedAt = null, totalPlayTime = 0
         )
-        assertEquals(2.0f, engine.getProfilePreferenceScore(song, profile).skipCoefficient)
+        assertEquals(2.0f, scorer.getProfilePreferenceScore(song, profile).skipCoefficient)
 
         // 10 plays, 10 skips -> skipCoefficient should be 1.0 (2.0 * 10/20)
         fakeRepository.stats[100 to "p1"] = ProfileSongStats(
             songId = 100, profileId = "p1", playCount = 10, skipCount = 10, isLiked = false,
             firstPlayedAt = null, lastPlayedAt = null, lastSkippedAt = null, totalPlayTime = 0
         )
-        assertEquals(1.0f, engine.getProfilePreferenceScore(song, profile).skipCoefficient)
+        assertEquals(1.0f, scorer.getProfilePreferenceScore(song, profile).skipCoefficient)
 
         // 0 plays, 10 skips -> skipCoefficient should be 0.0
         fakeRepository.stats[100 to "p1"] = ProfileSongStats(
             songId = 100, profileId = "p1", playCount = 0, skipCount = 10, isLiked = false,
             firstPlayedAt = null, lastPlayedAt = null, lastSkippedAt = null, totalPlayTime = 0
         )
-        assertEquals(0.0f, engine.getProfilePreferenceScore(song, profile).skipCoefficient)
+        assertEquals(0.0f, scorer.getProfilePreferenceScore(song, profile).skipCoefficient)
         
         // Higher skips than plays should result in lower coefficient than plays > skips
         fakeRepository.stats[100 to "p1"] = ProfileSongStats(
             songId = 100, profileId = "p1", playCount = 1, skipCount = 9, isLiked = false,
             firstPlayedAt = null, lastPlayedAt = null, lastSkippedAt = null, totalPlayTime = 0
         )
-        val lowSkipPref = engine.getProfilePreferenceScore(song, profile).skipCoefficient ?: 0f
+        val lowSkipPref = scorer.getProfilePreferenceScore(song, profile).skipCoefficient ?: 0f
         
         fakeRepository.stats[100 to "p1"] = ProfileSongStats(
             songId = 100, profileId = "p1", playCount = 9, skipCount = 1, isLiked = false,
             firstPlayedAt = null, lastPlayedAt = null, lastSkippedAt = null, totalPlayTime = 0
         )
-        val highSkipPref = engine.getProfilePreferenceScore(song, profile).skipCoefficient ?: 0f
+        val highSkipPref = scorer.getProfilePreferenceScore(song, profile).skipCoefficient ?: 0f
         
         assertTrue(highSkipPref > lowSkipPref, "Higher play-to-skip ratio should have higher preference")
     }
@@ -336,7 +335,7 @@ class RecommendationEngineTest {
             lastSkippedAt = null,
             totalPlayTime = 0
         )
-        val result = engine.getProfilePreferenceScore(song, profile)
+        val result = scorer.getProfilePreferenceScore(song, profile)
         assertEquals(2.0f, result.repetitionCoefficient)
         assertEquals(4.0f, result.score)
     }
@@ -357,7 +356,7 @@ class RecommendationEngineTest {
             lastSkippedAt = null,
             totalPlayTime = 0
         )
-        val result = engine.getProfilePreferenceScore(song, profile)
+        val result = scorer.getProfilePreferenceScore(song, profile)
         assertEquals(-1f, result.score)
         assertEquals(-1f, result.repetitionCoefficient)
     }
@@ -378,7 +377,7 @@ class RecommendationEngineTest {
             lastSkippedAt = null,
             totalPlayTime = 0
         )
-        val result = engine.getProfilePreferenceScore(song, profile)
+        val result = scorer.getProfilePreferenceScore(song, profile)
         // sinceLastPlayed = 12h. 12h / 48h = 0.25
         assertEquals(0.25f, result.repetitionCoefficient)
         // score = clamp01((1 + 0.5f) * 0.25 * 1 * 2 / 16) = clamp01(1.5 * 0.5 / 16) = 0.75 / 16 = 0.046875
@@ -401,7 +400,7 @@ class RecommendationEngineTest {
             lastSkippedAt = null,
             totalPlayTime = 0
         )
-        val result = engine.getProfilePreferenceScore(song, profile)
+        val result = scorer.getProfilePreferenceScore(song, profile)
         // 5 days / 2 days = 2.5 -> minOf(2.0, 2.5) = 2.0
         assertEquals(2.0f, result.repetitionCoefficient)
         // score = (1 + 0.5) * 2.0 * 1 * 2 / 16 = 6.0 / 16 = 0.375
