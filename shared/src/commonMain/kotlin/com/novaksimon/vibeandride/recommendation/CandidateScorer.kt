@@ -10,6 +10,7 @@ import kotlin.math.abs
 import kotlin.time.Clock
 import kotlin.time.Duration.Companion.days
 import kotlin.time.Duration.Companion.hours
+import kotlin.time.DurationUnit
 import kotlin.time.toJavaInstant
 
 class CandidateScorer(
@@ -35,17 +36,30 @@ class CandidateScorer(
             intervalRecommendation = intervalMatch,
         )
     }
+    private fun computeRepetition(x: Float):Float {
+        return -2/(x+47/24)+1
+    }
     suspend fun getProfilePreferenceScore(
         song: SongV2?,
         profile: Profile
     ): PreferenceRecommendation {
-        val stats = getStatByProfileAndSongId(songId = song?.id ?: return PreferenceRecommendation(), profileId = profile.id)
-        val now = Clock.System.now()
+        val stats = if (song?.id != null) {
+            getStatByProfileAndSongId(songId = song.id)
+        } else {
+            null
+        }
         var score = 1f
-        if (stats?.lastPlayedAt != null) {
-            if (now - stats.lastPlayedAt < 1.hours) {
-                score = 0f
+        if (stats != null) {
+            val lastPlayedAt = stats.lastPlayedAt ?: (Clock.System.now() - 365.days)
+            val sinceLastPlayed = Clock.System.now() - lastPlayedAt
+            val repetitionCoefficient = if (sinceLastPlayed < 1.hours) {
+                -1f
+            } else {
+                computeRepetition(sinceLastPlayed.toDouble(DurationUnit.DAYS).toFloat())
             }
+            score = clamp01(
+                1.0f * repetitionCoefficient
+            )
         }
 
         return PreferenceRecommendation(
@@ -75,6 +89,9 @@ class CandidateScorer(
     }
     private fun computeSpectralFlux(x: Float): Float {
         return -1/(10*x-1.1f)-1.1f
+    }
+    private fun computeOnsetDensity(x: Float): Float {
+        return -1/(2*x+1)+1
     }
 
 
@@ -110,17 +127,20 @@ class CandidateScorer(
         } else {
             cadenceScore = 0f
         }
-        //  === Audio Features Scoring ===
-        //  --- Energy ---
+        //  === Audio Features Scoring === Energy ===
         val loudnessLufsScore = clamp01(computeLoudness(audioFeatures.loudnessLufs.toFloat()))
         val rmsDbScore = clamp01(computeLoudness(audioFeatures.rmsDb.toFloat()))
         val rmsDbStdScore = clamp01(computeRmsStd(audioFeatures.rmsDbStd.toFloat()))
         val spectralFluxScore = clamp01(computeSpectralFlux(audioFeatures.spectralFlux.toFloat()))
+        val onsetDensity = clamp01(computeOnsetDensity(audioFeatures.onsetDensity.toFloat()))
         var energyScore =
-                    0.25f * loudnessLufsScore +
-                    0.25f * rmsDbScore +
+                    0.20f * loudnessLufsScore +
+                    0.20f * rmsDbScore +
                     0.15f * rmsDbStdScore +
-                    0.35f * spectralFluxScore
+                    0.35f * spectralFluxScore +
+                    0.10f * onsetDensity
+
+        // === Tag Penalties === Energy ===
         if ("ambient" in song.tags) energyScore /= 10
         else if ("podcast" in song.genre.lowercase()) energyScore = 0f
 
