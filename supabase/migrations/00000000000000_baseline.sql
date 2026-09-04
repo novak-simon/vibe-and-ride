@@ -23,31 +23,14 @@ COMMENT ON SCHEMA "public" IS 'standard public schema';
 
 
 
-CREATE OR REPLACE FUNCTION "public"."delete_long_song"() RETURNS "trigger"
-    LANGUAGE "plpgsql"
-    AS $$
-BEGIN
-    IF NEW.duration > 1200 THEN
-        RETURN NULL;
-    END IF;
-
-    RETURN NEW;
-END;
-$$;
-
-
-ALTER FUNCTION "public"."delete_long_song"() OWNER TO "postgres";
-
-
-CREATE OR REPLACE FUNCTION "public"."delete_long_songs"() RETURNS "void"
+CREATE OR REPLACE FUNCTION "public"."get_all_song_ids"() RETURNS TABLE("id" bigint)
     LANGUAGE "sql"
-    AS $$
-    DELETE FROM songs
-    WHERE duration > 1200;
-$$;
+    AS $$select s.id
+    from public.songs_v2 s
+;$$;
 
 
-ALTER FUNCTION "public"."delete_long_songs"() OWNER TO "postgres";
+ALTER FUNCTION "public"."get_all_song_ids"() OWNER TO "postgres";
 
 
 CREATE OR REPLACE FUNCTION "public"."get_unanalyzed_song_ids"() RETURNS TABLE("id" bigint)
@@ -119,7 +102,7 @@ CREATE OR REPLACE FUNCTION "public"."sync_audius_song_to_songs_v2"() RETURNS "tr
     AS $$declare
   v_artist_id bigint;
 begin
-  if new.track_cid is not null then
+  if new.track_cid is not null and new.expired_stream_url is not null then
   if new.duration is not null and new.duration > 900 then
     return new;
   end if;
@@ -274,7 +257,7 @@ CREATE TABLE IF NOT EXISTS "public"."profile_song_stats" (
     "song_id" bigint NOT NULL,
     "is_liked" boolean DEFAULT false,
     "play_count" integer DEFAULT 0,
-    "skip_count" integer DEFAULT 0,
+    "skip_count" real DEFAULT 0,
     "first_played_at" timestamp with time zone DEFAULT ("now"() AT TIME ZONE 'utc'::"text"),
     "last_played_at" timestamp with time zone DEFAULT ("now"() AT TIME ZONE 'utc'::"text"),
     "last_skipped_at" timestamp with time zone,
@@ -289,7 +272,8 @@ ALTER TABLE "public"."profile_song_stats" OWNER TO "postgres";
 CREATE TABLE IF NOT EXISTS "public"."profiles" (
     "id" "uuid" NOT NULL,
     "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    "genre_preferences" "jsonb"
+    "genre_preferences" "jsonb",
+    "music_taste_vector" "public"."vector"(7)
 );
 
 
@@ -577,15 +561,9 @@ GRANT USAGE ON SCHEMA "public" TO "service_role";
 
 
 
-GRANT ALL ON FUNCTION "public"."delete_long_song"() TO "anon";
-GRANT ALL ON FUNCTION "public"."delete_long_song"() TO "authenticated";
-GRANT ALL ON FUNCTION "public"."delete_long_song"() TO "service_role";
-
-
-
-GRANT ALL ON FUNCTION "public"."delete_long_songs"() TO "anon";
-GRANT ALL ON FUNCTION "public"."delete_long_songs"() TO "authenticated";
-GRANT ALL ON FUNCTION "public"."delete_long_songs"() TO "service_role";
+GRANT ALL ON FUNCTION "public"."get_all_song_ids"() TO "anon";
+GRANT ALL ON FUNCTION "public"."get_all_song_ids"() TO "authenticated";
+GRANT ALL ON FUNCTION "public"."get_all_song_ids"() TO "service_role";
 
 
 
