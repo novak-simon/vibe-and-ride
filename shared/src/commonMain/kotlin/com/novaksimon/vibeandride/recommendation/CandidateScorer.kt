@@ -4,14 +4,12 @@ import com.novaksimon.vibeandride.database.getStatByProfileAndSongId
 import com.novaksimon.vibeandride.model.AudioFeatures
 import com.novaksimon.vibeandride.model.Interval
 import com.novaksimon.vibeandride.model.Profile
-import com.novaksimon.vibeandride.model.ProfileSongStats
 import com.novaksimon.vibeandride.model.SongV2
 import kotlin.math.abs
 import kotlin.time.Clock
 import kotlin.time.Duration.Companion.days
 import kotlin.time.Duration.Companion.hours
 import kotlin.time.DurationUnit
-import kotlin.time.toJavaInstant
 
 class CandidateScorer(
     private val profileRepository: ProfileRepository,
@@ -27,7 +25,9 @@ class CandidateScorer(
         val profile = profileRepository.getProfileForRecommendation()
         val profilePreference = getProfilePreferenceScore(song, profile)
         val intervalMatch = getIntervalMatchScore(song, interval, audioFeatures)
-        val score = profilePreference.score + 1.5f * intervalMatch.score
+        val score =
+            0.4f * profilePreference.score +
+            0.6f * intervalMatch.score
 
         return SongRecommendation(
             song = song,
@@ -39,6 +39,9 @@ class CandidateScorer(
     private fun computeRepetition(x: Float):Float {
         return -2/(x+47/24)+1
     }
+    private fun computeSkip(x: Float): Float {
+        return clamp01(-1 * x * x + 1)
+    }
     suspend fun getProfilePreferenceScore(
         song: SongV2?,
         profile: Profile
@@ -49,16 +52,29 @@ class CandidateScorer(
             null
         }
         var score = 1f
+        var repetitionCoefficient = 1f
+        var likeBonus = 0f
+        var skipCoefficient = 1f
         if (stats != null) {
             val lastPlayedAt = stats.lastPlayedAt ?: (Clock.System.now() - 365.days)
             val sinceLastPlayed = Clock.System.now() - lastPlayedAt
-            val repetitionCoefficient = if (sinceLastPlayed < 1.hours) {
+            repetitionCoefficient = if (sinceLastPlayed < 1.hours) {
                 -1f
             } else {
                 computeRepetition(sinceLastPlayed.toDouble(DurationUnit.DAYS).toFloat())
             }
-            score = clamp01(
-                1.0f * repetitionCoefficient
+            likeBonus = if (stats.isLiked) {
+                1f
+            } else {
+                0f
+            }
+            skipCoefficient = computeSkip(stats.skipCount/stats.playCount)
+            score = clamp01((
+                    0.5f * repetitionCoefficient +
+                    0.5f * skipCoefficient +
+                    1.0f * likeBonus
+
+                )
             )
         }
 
@@ -66,10 +82,10 @@ class CandidateScorer(
             song = song,
             score = score,
             profile = profile,
-            numberOfMatchingGenres = 1.0f,
-            repetitionCoefficient = 1.0f,
-            likeCoefficient = 1.0f,
-            skipCoefficient = 1.0f,
+            numberOfMatchingGenres = -1f,
+            repetitionCoefficient = repetitionCoefficient,
+            likeCoefficient = likeBonus,
+            skipCoefficient = skipCoefficient,
         )
     }
 
