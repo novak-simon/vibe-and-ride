@@ -68,7 +68,7 @@ class CandidateScorer(
             } else {
                 0f
             }
-            skipCoefficient = computeSkip(stats.skipCount/stats.playCount)
+            skipCoefficient = computeSkip(stats.skipCount/(stats.playCount + 0.01f))
             score = clamp01((
                     0.5f * repetitionCoefficient +
                     0.5f * skipCoefficient +

@@ -883,15 +883,14 @@ fun DebugDialog(info: List<SongRecommendation>?, onDismiss: () -> Unit) {
                             Text("BPM: ${rec.song?.bpm ?: "-"}")
                             Text("Preference score: ${rec.preferenceRecommendation?.score ?: "-"}")
                             Row(modifier = Modifier.padding(start = 4.dp)) {
-                                Text("G: ${rec.preferenceRecommendation?.numberOfMatchingGenres}," +
-                                        "R: ${rec.preferenceRecommendation?.repetitionCoefficient}," +
+                                Text("R: ${rec.preferenceRecommendation?.repetitionCoefficient}," +
                                         "L: ${rec.preferenceRecommendation?.likeCoefficient}," +
                                         "S: ${rec.preferenceRecommendation?.skipCoefficient}")
                             }
                             Text("Interval score: ${rec.intervalRecommendation?.score ?: "-"}")
                             Row(modifier = Modifier.padding(start = 4.dp)) {
                                 Text("Cd: ${rec.intervalRecommendation?.cadenceScore}," +
-                                        "S: ${rec.intervalRecommendation?.energyScore}," +
+                                        "E: ${rec.intervalRecommendation?.energyScore}," +
                                         "Cm: ${rec.intervalRecommendation?.cadenceCompatibleBonus}")
                             }
                             Text("FINAL SCORE: ${rec.score}")
